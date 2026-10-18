@@ -124,7 +124,8 @@ class NetworkTopology extends Component
                     'is_published' => $node->is_published,
                     'created_by' => auth()->id(),
                 ]);
-                $keyMap['custom:' . $node->id] = 'custom:' . $created->id;
+                $keyMap['custom:' . $node->id] = 'topology:' . $created->id;
+                $keyMap['topology:' . $node->id] = 'topology:' . $created->id;
             }
 
             $links = NetworkTopologyLink::where('map_id', $source->id)->get();
@@ -190,7 +191,7 @@ class NetworkTopology extends Component
             foreach ($nodes as $n) {
                 if (!is_array($n) || empty($n['name']) || empty($n['type'])) continue;
                 $created = NetworkTopologyNode::create(['map_id'=>$map->id,'type'=>$n['type'],'subtype'=>$n['subtype']??null,'name'=>$n['name'],'location'=>$n['location']??null,'port_reference'=>$n['port_reference']??null,'splitter_ratio'=>$n['splitter_ratio']??null,'input_ports'=>$n['input_ports']??null,'output_ports'=>$n['output_ports']??null,'port_capacity'=>$n['port_capacity']??null,'latitude'=>$n['latitude']??null,'longitude'=>$n['longitude']??null,'notes'=>$n['notes']??null,'is_published'=>(bool)($n['is_published']??false),'created_by'=>auth()->id()]);
-                if (!empty($n['backup_key'])) $keyMap[$n['backup_key']] = 'custom:'.$created->id;
+                if (!empty($n['backup_key'])) $keyMap[$n['backup_key']] = 'topology:'.$created->id;
             }
             foreach ($links as $l) {
                 if (!is_array($l) || empty($l['source_key']) || empty($l['target_key']) || empty($l['connection_type'])) continue;
@@ -225,8 +226,8 @@ class NetworkTopology extends Component
         ]);
 
         foreach ([['key'=>$data['source_key'],'port'=>$data['source_port'],'field'=>'source_port','node_field'=>'output_ports'],['key'=>$data['target_key'],'port'=>$data['target_port'],'field'=>'target_port','node_field'=>'input_ports']] as $ep) {
-            if (!$ep['port'] || !str_starts_with($ep['key'], 'custom:')) continue;
-            $node = NetworkTopologyNode::find((int) str_replace('custom:', '', $ep['key']));
+            if (!$ep['port'] || !str_starts_with($ep['key'], 'topology:')) continue;
+            $node = NetworkTopologyNode::find((int) str_replace('topology:', '', $ep['key']));
             if (!$node || $node->type !== 'splitter') continue;
             $capacity = (int) ($node->{$ep['node_field']} ?: ($ep['node_field'] === 'output_ports' ? $node->splitter_ratio : 1));
             $port = ($ep['field'] === 'source_port' ? 'OUT-' : 'IN-').preg_replace('/^(OUT-|IN-|P)/i', '', strtoupper(trim((string) $ep['port'])));
@@ -380,6 +381,25 @@ class NetworkTopology extends Component
         $this->dispatch('xlink-topology-locate', found: false, query: $query);
     }
 
+    private function hasPhysicalTopologyPath($links, string $source, string $target): bool
+    {
+        $frontier = [$source];
+        $seen = [$source => true];
+        for ($round = 0; $round < 30 && $frontier; $round++) {
+            $next = [];
+            foreach ($links as $link) {
+                if (!in_array($link->connection_type, ['fiber_core', 'splitter'], true)
+                    || !in_array($link->source_key, $frontier, true)
+                    || isset($seen[$link->target_key])) continue;
+                if ($link->target_key === $target) return true;
+                $seen[$link->target_key] = true;
+                $next[] = $link->target_key;
+            }
+            $frontier = $next;
+        }
+        return false;
+    }
+
     private function traceMappingPath(OltOnuCustomerMapping $mapping): void
     {
         $ponRef = trim((string) ($mapping->pon_port ?: 'PON'));
@@ -401,7 +421,7 @@ class NetworkTopology extends Component
         $links = NetworkTopologyLink::query()->where('map_id', $this->mapId)->when($this->mode === 'live', fn($q) => $q->where('is_published', true))->get();
         $nodes = collect($this->baseNodes())->keyBy('id');
         $custom = NetworkTopologyNode::query()->where('map_id', $this->mapId)->when($this->mode === 'live', fn($q) => $q->where('is_published', true))->get();
-        foreach ($custom as $node) $nodes->put('custom:'.$node->id, ['id'=>'custom:'.$node->id,'label'=>$node->name,'group'=>$node->type,'status'=>$node->status ?: 'unknown']);
+        foreach ($custom as $node) $nodes->put('topology:'.$node->id, ['id'=>'topology:'.$node->id,'label'=>$node->name,'group'=>$node->type,'status'=>$node->status ?: 'unknown']);
         $queue = [$startKey]; $seen = []; $path = [];
         while ($queue) {
             $key = array_shift($queue); if (isset($seen[$key])) continue; $seen[$key] = true;
@@ -430,6 +450,20 @@ class NetworkTopology extends Component
         $customNodes = NetworkTopologyNode::query()->where('map_id', $this->mapId)->when($this->mode === 'live', fn ($q) => $q->where('is_published', true))->orderBy('name')->get();
         foreach ($customNodes as $node) {
             $options['topology:'.$node->id] = strtoupper(str_replace('_', ' ', $node->type)).' · '.$node->name;
+        }
+        // Include real OLT/PON/ONU/customer identities as selectable endpoints. This lets
+        // operators draw splitter paths against the live mapping ledger without guessing IDs.
+        foreach (OltOnuCustomerMapping::with(['customer', 'olt'])->latest('last_seen_at')->limit(500)->get() as $mapping) {
+            if (!$mapping->olt || !$mapping->onu_id) continue;
+            $oltKey = 'device:'.$mapping->olt_device_id;
+            $ponRef = trim((string) ($mapping->pon_port ?: 'PON'));
+            $ponKey = 'pon:'.$mapping->olt_device_id.':'.preg_replace('/[^A-Za-z0-9_.:-]/', '_', $ponRef);
+            $options[$ponKey] = 'PON · '.($mapping->olt->name ?: 'OLT '.$mapping->olt_device_id).' / '.$ponRef;
+            $onuKey = 'onu:'.$mapping->id;
+            $options[$onuKey] = 'ONU · '.$mapping->onu_id.' · '.($mapping->customer?->customer_name ?: $mapping->customer?->customer_unique_id ?: 'Unmapped');
+            if ($mapping->customer_id && $mapping->customer) {
+                $options['customer:'.$mapping->customer_id] = 'Customer · '.($mapping->customer->customer_name ?: $mapping->customer->customer_unique_id);
+            }
         }
         return $options;
     }
@@ -462,6 +496,19 @@ class NetworkTopology extends Component
                 'url' => null,
             ];
         }
+        if ($this->mode === 'designer') {
+            foreach (OltOnuCustomerMapping::with(['customer', 'olt'])->latest('last_seen_at')->limit(500)->get() as $mapping) {
+                if (!$mapping->olt || !$mapping->onu_id) continue;
+                $ponRef = trim((string) ($mapping->pon_port ?: 'PON'));
+                $ponKey = 'pon:'.$mapping->olt_device_id.':'.preg_replace('/[^A-Za-z0-9_.:-]/', '_', $ponRef);
+                if (!collect($nodes)->contains('id', $ponKey)) $nodes[] = ['id'=>$ponKey,'label'=>'PON '.$ponRef,'group'=>'olt_pon','status'=>'unknown','title'=>($mapping->olt->name ?: 'OLT '.$mapping->olt_device_id).' · '.$ponRef,'url'=>null];
+                $onuKey = 'onu:'.$mapping->id;
+                $status = strtolower((string) $mapping->status);
+                $status = in_array($status, ['online','up','active','connected','ready'], true) ? 'online' : (in_array($status, ['offline','down','failed','unreachable'], true) ? 'offline' : 'unknown');
+                if (!collect($nodes)->contains('id', $onuKey)) $nodes[] = ['id'=>$onuKey,'label'=>'ONU '.$mapping->onu_id,'group'=>'onu','status'=>$status,'title'=>($mapping->customer?->customer_name ?: 'Unmapped ONU').' · '.($mapping->onu_serial ?: $mapping->onu_mac ?: 'No serial/MAC'),'url'=>null];
+                if ($mapping->customer_id && $mapping->customer && !collect($nodes)->contains('id', 'customer:'.$mapping->customer_id)) $nodes[] = ['id'=>'customer:'.$mapping->customer_id,'label'=>$mapping->customer->customer_name ?: $mapping->customer->customer_unique_id,'group'=>'customer','status'=>$mapping->customer->status ?: 'unknown','title'=>'Customer '.$mapping->customer->customer_unique_id,'url'=>null];
+            }
+        }
         return $nodes;
     }
 
@@ -470,7 +517,14 @@ class NetworkTopology extends Component
         $nodes = $this->baseNodes();
         $query = NetworkTopologyLink::query()->where('map_id', $this->mapId)->latest();
         if ($this->mode === 'live') $query->where('is_published', true);
-        $links = $query->get();
+        $links = $query->get()->map(function ($link) {
+            foreach (['source_key', 'target_key'] as $field) {
+                if (str_starts_with((string) $link->{$field}, 'custom:')) {
+                    $link->{$field} = 'topology:'.substr((string) $link->{$field}, 7);
+                }
+            }
+            return $link;
+        });
 
         $graphEdges = [];
         $nodeKeys = collect($nodes)->pluck('id')->all();
@@ -520,7 +574,10 @@ class NetworkTopology extends Component
                     'url' => route('network-inventory.olt.customers', $mapping->olt_device_id),
                 ];
                 $oltKey = 'device:'.$mapping->olt_device_id;
-                if ($existing->has($oltKey)) {
+                if ($existing->has($oltKey) && !$this->hasPhysicalTopologyPath($links, $ponKey, $onuKey)) {
+                    // Keep a synthetic PON→ONU edge only until an operator has drawn the
+                    // actual published fiber/splitter route. Otherwise the graph would
+                    // visually bypass the very splitter chain being identified.
                     $graphEdges[] = ['id'=>'auto:pon-onu:'.$mapping->id,'from'=>$ponKey,'to'=>$onuKey,'label'=>$mapping->pon_port ?: 'ONU','connection_type'=>'splitter','arrows'=>'to','capacity_mbps'=>null,'traffic_mbps'=>null,'utilization'=>null];
                 }
                 if ($mapping->customer_id && $mapping->customer) {
@@ -596,7 +653,7 @@ class NetworkTopology extends Component
         $customNodes = NetworkTopologyNode::query()->where('map_id', $this->mapId)->when($this->mode === 'live', fn ($q) => $q->where('is_published', true))->latest()->get();
         $sourcePortOptions = []; $targetPortOptions = [];
         foreach ($customNodes->where('type', 'splitter') as $splitter) {
-            $key = 'custom:'.$splitter->id;
+            $key = 'topology:'.$splitter->id;
             $outCount = (int) ($splitter->output_ports ?: $splitter->splitter_ratio ?: 0);
             $inCount = (int) ($splitter->input_ports ?: 1);
             $usedOut = $links->where('source_key', $key)->pluck('source_port')->filter()->map(fn($v)=>'OUT-'.preg_replace('/^(OUT-|IN-|P)/i','',strtoupper(trim((string)$v))))->all();
@@ -610,8 +667,8 @@ class NetworkTopology extends Component
             if ($splitter->type !== 'splitter') continue;
             $outCapacity = (int) ($splitter->output_ports ?: $splitter->splitter_ratio ?: 0);
             $inCapacity = (int) ($splitter->input_ports ?: 1);
-            $usedOut = $links->filter(fn ($l) => $l->source_key === 'custom:'.$splitter->id && filled($l->source_port))->pluck('source_port')->map(fn($p) => 'OUT-'.preg_replace('/^OUT-|^P/i', '', (string)$p))->unique()->values()->all();
-            $usedIn = $links->filter(fn ($l) => $l->target_key === 'custom:'.$splitter->id && filled($l->target_port))->pluck('target_port')->map(fn($p) => 'IN-'.preg_replace('/^IN-|^P/i', '', (string)$p))->unique()->values()->all();
+            $usedOut = $links->filter(fn ($l) => $l->source_key === 'topology:'.$splitter->id && filled($l->source_port))->pluck('source_port')->map(fn($p) => 'OUT-'.preg_replace('/^OUT-|^P/i', '', (string)$p))->unique()->values()->all();
+            $usedIn = $links->filter(fn ($l) => $l->target_key === 'topology:'.$splitter->id && filled($l->target_port))->pluck('target_port')->map(fn($p) => 'IN-'.preg_replace('/^IN-|^P/i', '', (string)$p))->unique()->values()->all();
             $portStats[$splitter->id] = ['in_capacity'=>$inCapacity,'out_capacity'=>$outCapacity,'in_used'=>count($usedIn),'out_used'=>count($usedOut),'in_free'=>max(0,$inCapacity-count($usedIn)),'out_free'=>max(0,$outCapacity-count($usedOut)),'in_ports'=>$usedIn,'out_ports'=>$usedOut];
         }
         $statusSummary = collect($nodes)->countBy('status')->all();
