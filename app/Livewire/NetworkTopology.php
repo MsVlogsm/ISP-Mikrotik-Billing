@@ -473,8 +473,20 @@ class NetworkTopology extends Component
             }
             $path[] = $entry;
         }
-        $this->dispatch('xlink-topology-trace', path: $path);
-        $this->message = count($path) > 1 ? 'Trace completed: '.count($path).' connected nodes.' : 'No connected path yet; add and publish the real fiber links.';
+        $traceEdges = $links
+            ->filter(fn ($link) => isset($visited[$link->source_key], $visited[$link->target_key]))
+            ->map(fn ($link) => [
+                'id' => 'link:'.$link->id,
+                'source' => $link->source_key,
+                'target' => $link->target_key,
+                'source_port' => $link->source_port,
+                'target_port' => $link->target_port,
+                'connection_type' => $link->connection_type,
+            ])->values()->all();
+        $this->dispatch('xlink-topology-trace', path: $path, edges: $traceEdges);
+        $this->message = count($path) > 1
+            ? 'Trace completed: '.count($path).' connected nodes and '.count($traceEdges).' connections.'
+            : 'No connected path yet; add and publish the real fiber links.';
     }
 
     private function nodeOptions(): array
