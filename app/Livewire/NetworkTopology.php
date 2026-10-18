@@ -235,7 +235,9 @@ class NetworkTopology extends Component
             $used = $query->get()->filter(fn($l) => !($l->source_key === $data['source_key'] && $l->target_key === $data['target_key'] && $l->connection_type === $data['connection_type']))->pluck($ep['field'])->map(fn($v) => ($ep['field'] === 'source_port' ? 'OUT-' : 'IN-').preg_replace('/^(OUT-|IN-|P)/i', '', strtoupper(trim((string)$v))))->all();
             if (in_array($port, $used, true)) { $this->addError($ep['field'], 'This port is occupied. Choose a free port.'); return; }
             if ($capacity > 0 && count(array_unique($used)) >= $capacity) { $this->addError($ep['field'], 'No free ports remain on this splitter.'); return; }
-            if (!preg_match('/^(OUT|IN|P)?-?\d+$/i', $port)) { $this->addError($ep['field'], 'Use a port such as P1, IN-1 or OUT-1.'); return; }
+            if (!preg_match('/^(OUT|IN|P)?-?([0-9]+)$/i', $port, $portMatch)) { $this->addError($ep['field'], 'Use a port such as P1, IN-1 or OUT-1.'); return; }
+            $portNumber = (int) $portMatch[2];
+            if ($portNumber < 1 || ($capacity > 0 && $portNumber > $capacity)) { $this->addError($ep['field'], 'Port number exceeds this splitter configured port count.'); return; }
         }
 
         NetworkTopologyLink::updateOrCreate(
