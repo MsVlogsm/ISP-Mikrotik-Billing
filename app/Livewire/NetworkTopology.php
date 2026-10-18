@@ -417,25 +417,64 @@ class NetworkTopology extends Component
 
     public function tracePath(string $startKey): void
     {
+        if ($this->mode !== 'designer' && $this->mode !== 'live') abort(403);
         $startKey = preg_replace('/^custom:/', 'topology:', $startKey);
-        $links = NetworkTopologyLink::query()->where('map_id', $this->mapId)->when($this->mode === 'live', fn($q) => $q->where('is_published', true))->get();
+        $links = NetworkTopologyLink::query()->where('map_id', $this->mapId)
+            ->when($this->mode === 'live', fn ($q) => $q->where('is_published', true))->get();
         $nodes = collect($this->baseNodes())->keyBy('id');
-        $custom = NetworkTopologyNode::query()->where('map_id', $this->mapId)->when($this->mode === 'live', fn($q) => $q->where('is_published', true))->get();
-        foreach ($custom as $node) $nodes->put('topology:'.$node->id, ['id'=>'topology:'.$node->id,'label'=>$node->name,'group'=>$node->type,'status'=>$node->status ?: 'unknown']);
-        $queue = [$startKey]; $seen = []; $path = [];
+        $custom = NetworkTopologyNode::query()->where('map_id', $this->mapId)
+            ->when($this->mode === 'live', fn ($q) => $q->where('is_published', true))->get();
+        foreach ($custom as $node) {
+            $nodes->put('topology:'.$node->id, ['id'=>'topology:'.$node->id,'label'=>$node->name,'group'=>$node->type,'status'=>'unknown']);
+        }
+        if (!$nodes->has($startKey)) {
+            $this->message = 'Trace start node was not found in the selected map.';
+            return;
+        }
+        // Treat fiber links as bidirectional for tracing, while preserving their real direction/ports in the trace.
+        $adjacency = [];
+        foreach ($links as $link) {
+            $adjacency[$link->source_key][] = ['next'=>$link->target_key,'link'=>$link,'forward'=>true];
+            $adjacency[$link->target_key][] = ['next'=>$link->source_key,'link'=>$link,'forward'=>false];
+        }
+        $queue = [$startKey];
+        $visited = [$startKey => true];
+        $previous = [];
         while ($queue) {
-            $key = array_shift($queue); if (isset($seen[$key])) continue; $seen[$key] = true;
-            $path[] = ['key'=>$key,'label'=>$nodes->get($key)['label'] ?? $key,'port'=>null,'connection'=>null,'edge'=>null];
-            foreach ($links->where('source_key', $key) as $link) {
-                if (isset($seen[$link->target_key])) continue;
-                $next = $link->target_key;
-                $path[count($path)-1]['port'] = $link->source_port ?: $link->target_port;
-                $path[count($path)-1]['connection'] = $link->connection_type;
-                $path[count($path)-1]['edge'] = 'link:'.$link->id;
+            $current = array_shift($queue);
+            foreach ($adjacency[$current] ?? [] as $edge) {
+                $next = $edge['next'];
+                if (isset($visited[$next]) || !$nodes->has($next)) continue;
+                $visited[$next] = true;
+                $previous[$next] = ['from'=>$current, 'link'=>$edge['link'], 'forward'=>$edge['forward']];
                 $queue[] = $next;
             }
         }
+        // Trace the selected node's connected physical/logical component, with each connection shown once.
+        $path = [];
+        $includedEdges = [];
+        $queue = [$startKey]; $seen = [];
+        while ($queue) {
+            $current = array_shift($queue);
+            if (isset($seen[$current])) continue;
+            $seen[$current] = true;
+            $node = $nodes->get($current, []);
+            $entry = ['key'=>$current,'label'=>$node['label'] ?? $current,'port'=>null,'connection'=>null,'edge'=>null];
+            foreach ($adjacency[$current] ?? [] as $edge) {
+                $link = $edge['link'];
+                $edgeKey = 'link:'.$link->id;
+                if (!isset($includedEdges[$edgeKey])) {
+                    $includedEdges[$edgeKey] = true;
+                    $entry['port'] = $edge['forward'] ? ($link->source_port ?: null) : ($link->target_port ?: null);
+                    $entry['connection'] = $link->connection_type;
+                    $entry['edge'] = $edgeKey;
+                }
+                if (!isset($seen[$edge['next']])) $queue[] = $edge['next'];
+            }
+            $path[] = $entry;
+        }
         $this->dispatch('xlink-topology-trace', path: $path);
+        $this->message = count($path) > 1 ? 'Trace completed: '.count($path).' connected nodes.' : 'No connected path yet; add and publish the real fiber links.';
     }
 
     private function nodeOptions(): array
