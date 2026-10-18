@@ -260,7 +260,6 @@
                                 label="{{ __('Profile') }}"
                                 type="dropdown"
                                 name="profile"
-                                wChange="packageName('profile')"
                                 placeholder="{{ __('Select Any One') }}"
                                 required="true"
                                 :options="$profileNames"
