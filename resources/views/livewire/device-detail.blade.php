@@ -21,7 +21,7 @@
   <div class="dd-card mb-3"><div class="dd-section">Device Identity</div>
    <div class="dd-row"><span class="dd-muted">Type</span><div>{{ $device?->type ? strtoupper(str_replace('-', ' ', $device->type)) : 'MIKROTIK' }}</div></div>
    <div class="dd-row"><span class="dd-muted">Vendor / Model</span><div>{{ $device?->vendor ?: 'MikroTik' }} · {{ $device?->model ?: '—' }}</div></div>
-   <div class="dd-row"><span class="dd-muted">Management IP</span><div>{{ $device?->ip_address ?: $device?->host ?: $router?->ip_address ?: '—' }}:{{ $device?->health_port ?: $device?->port ?: $router?->api_port ?: '—' }}</div></div>
+   <div class="dd-row"><span class="dd-muted">Management IP / Probe Port</span><div>{{ $device?->ip_address ?: $device?->host ?: $router?->ip_address ?: '—' }}:{{ $device?->type === 'olt' ? ($device?->snmp_port ?: 161) : ($device?->health_port ?: $device?->port ?: $router?->api_port ?: '—') }} <small class="dd-muted">{{ $device?->type === 'olt' ? 'SNMP/UDP' : ($router ? 'MikroTik API' : 'TCP') }}</small></div></div>
    <div class="dd-row"><span class="dd-muted">Location</span><div>{{ $device?->location ?: $router?->location ?: '—' }}</div></div>
    <div class="dd-row"><span class="dd-muted">Firmware / Serial</span><div>{{ $device?->firmware ?: '—' }} · {{ $device?->serial_no ?: '—' }}</div></div>
    @if($device?->type === 'olt')
@@ -30,7 +30,7 @@
    @endif
   </div>
   <div class="dd-card"><div class="dd-section">Health History</div><div class="table-responsive"><table class="dd-table"><thead><tr><th>Time</th><th>Status</th><th>Latency</th></tr></thead><tbody>
-   @forelse($health as $h)<tr><td>{{ optional($h->checked_at)->format('d M H:i:s') }}</td><td><span class="badge {{ $h->status==='online'?'bg-success':'bg-danger' }}">{{ ucfirst($h->status) }}</span></td><td>{{ $h->latency_ms }} ms</td></tr>@empty<tr><td colspan="3" class="text-center text-muted py-4">No health history.</td></tr>@endforelse
+   @forelse($health as $h)<tr><td>{{ optional($h->checked_at)->format('d M H:i:s') }}</td><td><span class="badge {{ $h->status==='online'?'bg-success':($h->status==='down'?'bg-danger':'bg-secondary') }}">{{ ucfirst($h->status) }}</span></td><td>{{ $h->latency_ms }} ms</td></tr>@empty<tr><td colspan="3" class="text-center text-muted py-4">No health history.</td></tr>@endforelse
   </tbody></table></div></div>
  </div>
  <div class="col-xl-8">

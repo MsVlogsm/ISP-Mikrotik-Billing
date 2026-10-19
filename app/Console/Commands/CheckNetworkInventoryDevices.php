@@ -31,7 +31,7 @@ class CheckNetworkInventoryDevices extends Command
 
                     $device->update([
                         'health_status' => $status,
-                        'status' => $status === 'online' ? 'online' : 'offline',
+                        'status' => $status === 'online' ? 'online' : ($status === 'unknown' ? 'unknown' : 'offline'),
                         'last_latency_ms' => $latency,
                         'last_checked_at' => $checkedAt,
                     ]);
@@ -78,6 +78,8 @@ class CheckNetworkInventoryDevices extends Command
             ]);
             return;
         }
+
+        if ($status === 'unknown') return;
 
         if ($open) {
             $open->update([

@@ -15,7 +15,7 @@ class NetworkInventoryDevice extends Model
         'type', 'name', 'ip_address', 'latitude', 'longitude', 'health_port', 'monitor_enabled',
         'vendor', 'model', 'onu_total', 'onu_online', 'rx_power', 'customer_count', 'status', 'health_status', 'last_latency_ms',
         'last_checked_at', 'location', 'notes', 'olt_type_id', 'host', 'firmware', 'serial_no', 'web_protocol',
-        'web_port', 'port', 'pon_ports', 'ge_ports', 'sfp_ports', 'sfp_plus_ports', 'connect_timeout', 'cli_timeout',
+        'web_port', 'port', 'snmp_port', 'pon_ports', 'ge_ports', 'sfp_ports', 'sfp_plus_ports', 'connect_timeout', 'cli_timeout',
         'read_delay_ms', 'diagnostic_command', 'adapter_config', 'is_active', 'latitude', 'longitude',
         'username', 'password', 'snmp_community', 'api_token', 'api_endpoint', 'snmp_version',
         'ssh_port', 'telnet_port', 'api_port', 'ssh_enabled', 'telnet_enabled', 'api_enabled',

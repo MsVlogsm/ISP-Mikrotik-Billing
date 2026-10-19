@@ -41,7 +41,7 @@
             <span class="pill ms-auto"><i class="bi bi-clock-history me-1"></i>Snapshots updated by scheduled monitoring</span>
         </div>
     </div>
-    <div class="p-3 border-bottom d-flex justify-content-between align-items-center"><div><div class="fw-bold fs-5">Device Health Board</div><small class="text-muted">Open a device or run a single read-only connectivity probe. A probe only opens a TCP connection and does not change device configuration.</small></div><span class="badge bg-secondary">{{ $rows->count() }} shown</span></div>
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center"><div><div class="fw-bold fs-5">Device Health Board</div><small class="text-muted">Open a device or run a read-only connectivity probe. OLTs are checked using SNMP/UDP; switches and access points use their configured TCP port. Probing does not change device configuration.</small></div><span class="badge bg-secondary">{{ $rows->count() }} shown</span></div>
 
     @forelse($rows as $row)
         <div class="device-row d-flex flex-wrap align-items-center gap-3">

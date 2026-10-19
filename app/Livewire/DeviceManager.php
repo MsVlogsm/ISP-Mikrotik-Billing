@@ -96,8 +96,38 @@ class DeviceManager extends Component
     public function probeDevice(int $id): void
     {
         $device = NetworkInventoryDevice::findOrFail($id);
+
+        if ($device->type === 'olt') {
+            $probe = app(\App\Services\NetworkInventoryHealthProbe::class)->check($device);
+            $probeStatus = (string) ($probe['status'] ?? 'down');
+            $ok = $probeStatus === 'online';
+            $latency = (int) ($probe['latency_ms'] ?? 0);
+            $checkedAt = now();
+            $healthStatus = $probeStatus === 'online' ? 'ready' : ($probeStatus === 'not_ready' ? 'unknown' : 'failed');
+            $deviceStatus = $probeStatus === 'online' ? 'online' : ($probeStatus === 'not_ready' ? 'unknown' : 'offline');
+            $device->update([
+                'status' => $deviceStatus,
+                'health_status' => $healthStatus,
+                'last_latency_ms' => $latency,
+                'last_checked_at' => $checkedAt,
+            ]);
+            NetworkInventoryHealthCheck::create([
+                'network_inventory_device_id' => $device->id,
+                'status' => $probeStatus === 'online' ? 'online' : ($probeStatus === 'not_ready' ? 'unknown' : 'down'),
+                'latency_ms' => $latency,
+                'checked_at' => $checkedAt,
+            ]);
+            if ($probeStatus !== 'not_ready') {
+                $this->syncDeviceAlert($device, $ok, $latency, (string) ($probe['message'] ?? ''), $checkedAt);
+            }
+            $this->message = 'OLT SNMP check '.($probeStatus === 'online' ? 'passed' : ($probeStatus === 'not_ready' ? 'not ready' : 'failed'))
+                .' on '.($device->ip_address ?: $device->host).':'.(int) ($probe['port'] ?? ($device->snmp_port ?: 161))
+                .' — '.(string) ($probe['message'] ?? 'No probe details available.');
+            return;
+        }
+
         $host = $device->ip_address ?: $device->host;
-        $port = (int) ($device->health_port ?: $device->port ?: ($device->type === 'olt' ? 23 : 80));
+        $port = (int) ($device->health_port ?: $device->port ?: 80);
         $this->socketProbe($host, $port, strtoupper(str_replace('-', ' ', $device->type)), $device->name,
             function (bool $ok, int $latency, ?string $error) use ($device): void {
                 $checkedAt = now();
@@ -154,7 +184,7 @@ class DeviceManager extends Component
                     'message' => 'Management connectivity failed. '.($error ?: 'Connection failed').' · '.$latency.' ms',
                     'status' => 'open', 'fingerprint' => $fingerprint, 'occurrences' => 1,
                     'first_seen_at' => $checkedAt, 'last_seen_at' => $checkedAt,
-                    'metadata' => ['ip_address' => $device->ip_address, 'port' => $device->health_port],
+                    'metadata' => ['ip_address' => $device->ip_address ?: $device->host, 'port' => $device->type === 'olt' ? ($device->snmp_port ?: 161) : ($device->health_port ?: $device->port), 'protocol' => $device->type === 'olt' ? 'snmp' : 'tcp'],
                 ]);
             }
         } elseif ($open) {
@@ -220,12 +250,12 @@ class DeviceManager extends Component
                 'authentication_failed', 'credentials_missing', 'api_error', 'degraded' => $raw,
                 default => 'unknown',
             };
-            $port = (int) ($d->health_port ?: $d->port ?: ($d->type === 'olt' ? 23 : 80));
+            $port = $d->type === 'olt' ? (int) ($d->snmp_port ?: 161) : (int) ($d->health_port ?: $d->port ?: 80);
             return [
                 'id' => $d->id, 'name' => $d->name, 'type' => strtolower($d->type),
                 'type_label' => ucfirst(str_replace('-', ' ', $d->type)), 'vendor' => $d->vendor ?: '—',
                 'model' => $d->model ?: '—', 'host' => $d->ip_address ?: $d->host, 'port' => $port,
-                'protocol' => $d->type === 'olt' ? 'OLT management TCP' : strtoupper((string) ($d->web_protocol ?: 'tcp')),
+                'protocol' => $d->type === 'olt' ? 'SNMP/UDP' : strtoupper((string) ($d->web_protocol ?: 'tcp')),
                 'status' => $status, 'location' => $d->location ?: '—', 'latency' => $d->last_latency_ms,
                 'seen' => $d->last_checked_at, 'alerts' => (int) ($deviceEventCounts[$d->id] ?? 0),
                 'url' => route('device-manager.detail', ['kind' => $d->type === 'olt' ? 'olt' : 'device', 'device' => $d->id]),

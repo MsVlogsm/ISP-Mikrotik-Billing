@@ -39,8 +39,31 @@ class DeviceDetail extends Component
             return;
         }
         $device = NetworkInventoryDevice::findOrFail($this->deviceId);
+        if ($device->type === 'olt') {
+            $probe = app(\App\Services\NetworkInventoryHealthProbe::class)->check($device);
+            $probeStatus = (string) ($probe['status'] ?? 'down');
+            $ok = $probeStatus === 'online';
+            $latency = (int) ($probe['latency_ms'] ?? 0);
+            $checkedAt = now();
+            $healthStatus = $probeStatus === 'online' ? 'ready' : ($probeStatus === 'not_ready' ? 'unknown' : 'failed');
+            $deviceStatus = $probeStatus === 'online' ? 'online' : ($probeStatus === 'not_ready' ? 'unknown' : 'offline');
+            $device->update(['status'=>$deviceStatus,'health_status'=>$healthStatus,'last_latency_ms'=>$latency,'last_checked_at'=>$checkedAt]);
+            NetworkInventoryHealthCheck::create([
+                'network_inventory_device_id'=>$device->id,
+                'status'=>$probeStatus === 'online' ? 'online' : ($probeStatus === 'not_ready' ? 'unknown' : 'down'),
+                'latency_ms'=>$latency,
+                'checked_at'=>$checkedAt,
+            ]);
+            if ($probeStatus !== 'not_ready') {
+                $this->syncDeviceAlert($device, $ok, $latency, (string) ($probe['message'] ?? ''), $checkedAt);
+            }
+            $this->message = 'OLT SNMP check '.($probeStatus === 'online' ? 'passed' : ($probeStatus === 'not_ready' ? 'not ready' : 'failed'))
+                .' on '.($device->ip_address ?: $device->host).':'.(int) ($probe['port'] ?? ($device->snmp_port ?: 161))
+                .' — '.(string) ($probe['message'] ?? 'No probe details available.');
+            return;
+        }
         $host = $device->ip_address ?: $device->host;
-        $port = (int) ($device->health_port ?: $device->port ?: ($device->type === 'olt' ? 23 : 80));
+        $port = (int) ($device->health_port ?: $device->port ?: 80);
         $this->socketProbe($host, $port, function ($ok, $latency, $error) use ($device) {
             $checkedAt = now();
             $device->update(['status' => $ok ? 'online' : 'offline','health_status' => $ok ? 'ready' : 'failed','last_latency_ms' => $latency,'last_checked_at' => $checkedAt]);
@@ -97,7 +120,7 @@ class DeviceDetail extends Component
                 $open->increment('occurrences');
                 $open->update(['last_seen_at' => $checkedAt, 'message' => 'Device remains unreachable. '.($error ?: 'Connection failed').' · '.$latency.' ms']);
             } else {
-                NetworkEvent::create(['device_id'=>$device->id,'source_type'=>'manual-probe','event_type'=>'device_down','severity'=>'critical','title'=>'Device unreachable: '.$device->name,'message'=>'Management connectivity failed. '.($error ?: 'Connection failed').' · '.$latency.' ms','status'=>'open','fingerprint'=>$fingerprint,'occurrences'=>1,'first_seen_at'=>$checkedAt,'last_seen_at'=>$checkedAt,'metadata'=>['ip_address'=>$device->ip_address,'port'=>$device->health_port]]);
+                NetworkEvent::create(['device_id'=>$device->id,'source_type'=>'manual-probe','event_type'=>'device_down','severity'=>'critical','title'=>'Device unreachable: '.$device->name,'message'=>'Management connectivity failed. '.($error ?: 'Connection failed').' · '.$latency.' ms','status'=>'open','fingerprint'=>$fingerprint,'occurrences'=>1,'first_seen_at'=>$checkedAt,'last_seen_at'=>$checkedAt,'metadata'=>['ip_address'=>$device->ip_address ?: $device->host,'port'=>$device->type === 'olt' ? ($device->snmp_port ?: 161) : ($device->health_port ?: $device->port),'protocol'=>$device->type === 'olt' ? 'snmp' : 'tcp']]);
             }
         } elseif ($open) {
             $open->update(['status'=>'resolved','resolved_by'=>null,'resolved_at'=>$checkedAt,'last_seen_at'=>$checkedAt,'message'=>'Device recovered. Connectivity is healthy at '.$latency.' ms.']);

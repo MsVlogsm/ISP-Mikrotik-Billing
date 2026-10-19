@@ -462,6 +462,7 @@ Route::middleware([
                 'location' => ['nullable','string','max:160'],
                 'notes' => ['nullable','string','max:1000'],
                 'health_port' => ['nullable','integer','min:1','max:65535'],
+                'snmp_port' => ['nullable','integer','min:1','max:65535'],
                 'latitude' => ['nullable','numeric','between:-90,90'],
                 'longitude' => ['nullable','numeric','between:-180,180'],
                 'onu_total' => ['nullable','integer','min:0'],
@@ -470,6 +471,7 @@ Route::middleware([
                 'customer_count' => ['nullable','integer','min:0'],
                 'monitor_enabled' => ['nullable','boolean'],
             ]);
+            if ($type === 'olt') $data['snmp_port'] = (int) ($data['snmp_port'] ?? 161);
             \App\Models\NetworkInventoryDevice::create($data + [
                 'type' => $type,
                 'monitor_enabled' => (bool) ($data['monitor_enabled'] ?? false),
@@ -485,6 +487,7 @@ Route::middleware([
                 'status' => ['required','in:online,offline,unknown'], 'location' => ['nullable','string','max:160'],
                 'notes' => ['nullable','string','max:1000'],
                 'health_port' => ['nullable','integer','min:1','max:65535'],
+                'snmp_port' => ['nullable','integer','min:1','max:65535'],
                 'latitude' => ['nullable','numeric','between:-90,90'],
                 'longitude' => ['nullable','numeric','between:-180,180'],
                 'onu_total' => ['nullable','integer','min:0'],
@@ -493,6 +496,7 @@ Route::middleware([
                 'customer_count' => ['nullable','integer','min:0'],
                 'monitor_enabled' => ['nullable','boolean'],
             ]);
+            if ($type === 'olt') $data['snmp_port'] = (int) ($data['snmp_port'] ?? $device->snmp_port ?? 161);
             $device->update($data + ['monitor_enabled' => (bool) ($data['monitor_enabled'] ?? false)]);
             return back()->with('inventory_message', 'Inventory record updated.');
         })->name('network-inventory.devices.update');
@@ -550,7 +554,7 @@ Route::middleware([
             $data=$request->validate([
                 'name'=>['required','string','max:120'],'olt_type_id'=>['nullable','string','max:120'],'host'=>['nullable','string','max:255'],
                 'ip_address'=>['nullable','ip'],'port'=>['nullable','integer','min:1','max:65535'],'username'=>['nullable','string','max:120'],'password'=>['nullable','string','max:128'],
-                'ssh_port'=>['nullable','integer','min:1','max:65535'],'snmp_version'=>['nullable','in:1,2C,3'],'snmp_community'=>['nullable','string','max:255'],'ssh_enabled'=>['nullable','boolean'],'provisioning_enabled'=>['nullable','boolean'],
+                'ssh_port'=>['nullable','integer','min:1','max:65535'],'snmp_port'=>['nullable','integer','min:1','max:65535'],'snmp_version'=>['nullable','in:1,2C,3'],'snmp_community'=>['nullable','string','max:255'],'ssh_enabled'=>['nullable','boolean'],'provisioning_enabled'=>['nullable','boolean'],
                 'model'=>['nullable','string','max:120'],'firmware'=>['nullable','string','max:120'],'serial_no'=>['nullable','string','max:160'],'vendor'=>['nullable','string','max:80'],
                 'pon_ports'=>['nullable','integer','min:0'],'ge_ports'=>['nullable','integer','min:0'],'sfp_ports'=>['nullable','integer','min:0'],'sfp_plus_ports'=>['nullable','integer','min:0'],
                 'web_protocol'=>['nullable','in:http,https'],'web_port'=>['nullable','integer','min:1','max:65535'],'connect_timeout'=>['nullable','integer','min:1'],'cli_timeout'=>['nullable','integer','min:1'],'read_delay_ms'=>['nullable','integer','min:0'],
@@ -559,28 +563,29 @@ Route::middleware([
             ]);
             $data['type']='olt'; $data['ip_address']=$data['ip_address']??($data['host']??null); $data['is_active']=(bool)($data['is_active']??false);
             $data['ssh_enabled']=(bool)($data['ssh_enabled']??false); $data['provisioning_enabled']=(bool)($data['provisioning_enabled']??false);
-            $data['ssh_port']=(int)($data['ssh_port']??22); $data['snmp_version']=$data['snmp_version']??'2C';
+            $data['ssh_port']=(int)($data['ssh_port']??22); $data['snmp_port']=(int)($data['snmp_port']??161); $data['snmp_version']=$data['snmp_version']??'2C';
             foreach (['username','password','snmp_community'] as $secretField) { if (!empty($data[$secretField])) $data[$secretField]=\Illuminate\Support\Facades\Crypt::encryptString((string)$data[$secretField]); else unset($data[$secretField]); }
             \App\Models\NetworkInventoryDevice::create($data); return redirect()->route('network-inventory.olt')->with('inventory_message','OLT created successfully.');
         })->name('network-inventory.olt.store');
         Route::get('/network-inventory/olt/{device}/edit', function(\App\Models\NetworkInventoryDevice $device){ abort_unless($device->type==='olt',404); return view('xlink.olt-form',['device'=>$device,'edit'=>true]); })->name('network-inventory.olt.edit');
         Route::put('/network-inventory/olt/{device}', function(\Illuminate\Http\Request $request, \App\Models\NetworkInventoryDevice $device){
-            abort_unless($device->type==='olt',404); $data=$request->validate(['name'=>['required','string','max:120'],'olt_type_id'=>['nullable','string','max:120'],'host'=>['nullable','string','max:255'],'ip_address'=>['nullable','ip'],'port'=>['nullable','integer','min:1','max:65535'],'username'=>['nullable','string','max:120'],'password'=>['nullable','string','max:128'],'ssh_port'=>['nullable','integer','min:1','max:65535'],'snmp_version'=>['nullable','in:1,2C,3'],'snmp_community'=>['nullable','string','max:255'],'ssh_enabled'=>['nullable','boolean'],'provisioning_enabled'=>['nullable','boolean'],'model'=>['nullable','string','max:120'],'firmware'=>['nullable','string','max:120'],'serial_no'=>['nullable','string','max:160'],'vendor'=>['nullable','string','max:80'],'pon_ports'=>['nullable','integer','min:0'],'ge_ports'=>['nullable','integer','min:0'],'sfp_ports'=>['nullable','integer','min:0'],'sfp_plus_ports'=>['nullable','integer','min:0'],'web_protocol'=>['nullable','in:http,https'],'web_port'=>['nullable','integer','min:1','max:65535'],'connect_timeout'=>['nullable','integer','min:1'],'cli_timeout'=>['nullable','integer','min:1'],'read_delay_ms'=>['nullable','integer','min:0'],'diagnostic_command'=>['nullable','string','max:1000'],'adapter_config'=>['nullable','string','max:2000'],'latitude'=>['nullable','numeric','between:-90,90'],'longitude'=>['nullable','numeric','between:-180,180'],'location'=>['nullable','string','max:255'],'onu_total'=>['nullable','integer','min:0'],'onu_online'=>['nullable','integer','min:0'],'rx_power'=>['nullable','numeric'],'customer_count'=>['nullable','integer','min:0'],'status'=>['required','in:online,offline,unknown'],'health_port'=>['nullable','integer','min:1','max:65535'],'notes'=>['nullable','string','max:2000'],'is_active'=>['nullable','boolean']]);
+            abort_unless($device->type==='olt',404); $data=$request->validate(['name'=>['required','string','max:120'],'olt_type_id'=>['nullable','string','max:120'],'host'=>['nullable','string','max:255'],'ip_address'=>['nullable','ip'],'port'=>['nullable','integer','min:1','max:65535'],'username'=>['nullable','string','max:120'],'password'=>['nullable','string','max:128'],'ssh_port'=>['nullable','integer','min:1','max:65535'],'snmp_port'=>['nullable','integer','min:1','max:65535'],'snmp_version'=>['nullable','in:1,2C,3'],'snmp_community'=>['nullable','string','max:255'],'ssh_enabled'=>['nullable','boolean'],'provisioning_enabled'=>['nullable','boolean'],'model'=>['nullable','string','max:120'],'firmware'=>['nullable','string','max:120'],'serial_no'=>['nullable','string','max:160'],'vendor'=>['nullable','string','max:80'],'pon_ports'=>['nullable','integer','min:0'],'ge_ports'=>['nullable','integer','min:0'],'sfp_ports'=>['nullable','integer','min:0'],'sfp_plus_ports'=>['nullable','integer','min:0'],'web_protocol'=>['nullable','in:http,https'],'web_port'=>['nullable','integer','min:1','max:65535'],'connect_timeout'=>['nullable','integer','min:1'],'cli_timeout'=>['nullable','integer','min:1'],'read_delay_ms'=>['nullable','integer','min:0'],'diagnostic_command'=>['nullable','string','max:1000'],'adapter_config'=>['nullable','string','max:2000'],'latitude'=>['nullable','numeric','between:-90,90'],'longitude'=>['nullable','numeric','between:-180,180'],'location'=>['nullable','string','max:255'],'onu_total'=>['nullable','integer','min:0'],'onu_online'=>['nullable','integer','min:0'],'rx_power'=>['nullable','numeric'],'customer_count'=>['nullable','integer','min:0'],'status'=>['required','in:online,offline,unknown'],'health_port'=>['nullable','integer','min:1','max:65535'],'notes'=>['nullable','string','max:2000'],'is_active'=>['nullable','boolean']]);
             foreach (['username','password','snmp_community'] as $secretField) { if (empty($data[$secretField])) unset($data[$secretField]); else $data[$secretField]=\Illuminate\Support\Facades\Crypt::encryptString((string)$data[$secretField]); }
             $data['ssh_enabled']=(bool)($data['ssh_enabled']??false); $data['provisioning_enabled']=(bool)($data['provisioning_enabled']??false);
-            $data['ssh_port']=(int)($data['ssh_port']??22); $data['snmp_version']=$data['snmp_version']??'2C';
+            $data['ssh_port']=(int)($data['ssh_port']??22); $data['snmp_port']=(int)($data['snmp_port']??$device->snmp_port??161); $data['snmp_version']=$data['snmp_version']??'2C';
             $data['ip_address']=$data['ip_address']??($data['host']??$device->ip_address); $data['is_active']=(bool)($data['is_active']??false); $device->update($data); return redirect()->route('network-inventory.olt')->with('inventory_message','OLT updated successfully.');
         })->name('network-inventory.olt.update');
-        Route::get('/network-inventory/olt/{device}/customers', function(\App\Models\NetworkInventoryDevice $device, \App\Services\Olt\OltReadOnlyAdapterManager $manager){
+        Route::get('/network-inventory/olt/{device}/customers', function(\App\Models\NetworkInventoryDevice $device){
             abort_unless($device->type==='olt',404);
             $q=trim((string)request('q',''));
             $status=(string)request('status','');
             $mappings=\App\Models\OltOnuCustomerMapping::with(['customer','pppUser'])->where('olt_device_id',$device->id)->latest('id')->get();
+            $inventoryMappings = $mappings;
             if($q!=='') $mappings=$mappings->filter(function($m) use($q){ $hay=implode(' ',[(string)$m->onu_id,(string)$m->onu_serial,(string)$m->onu_mac,(string)$m->pon_port,(string)optional($m->customer)->customer_unique_id,(string)optional($m->customer)->customer_name,(string)optional($m->pppUser)->username]); return stripos($hay,$q)!==false; })->values();
             if(in_array($status,['online','offline','unknown'],true)) $mappings=$mappings->where('status',$status)->values();
             $normalizeStable = static fn ($value) => strtolower(preg_replace('/[^a-z0-9]/i','',(string) $value));
             $mappingByOnu=collect();
-            foreach($mappings as $m){
+            foreach($inventoryMappings as $m){
                 $macKey=$normalizeStable($m->onu_mac);
                 $serialKey=strtolower(trim((string)$m->onu_serial));
                 if($macKey!=='') $mappingByOnu->put('mac:'.$macKey,$m);
@@ -588,8 +593,23 @@ Route::middleware([
                 $mappingByOnu->put('id:'.(string)$m->onu_id,$m);
             }
             $customers=\App\Models\CustomersInfo::with('pppUser')->orderBy('customer_unique_id')->get();
-            $live=['status'=>'error','onus'=>[],'error'=>null];
-            try { $live=$manager->read($device); } catch (\Throwable $e) { $live=['status'=>'error','onus'=>[],'error'=>$e->getMessage()]; }
+            // Never perform a blocking SNMP/SSH poll inside this page request. The inventory
+            // sync command records the latest known ONU rows; present those immediately.
+            $live=[
+                'status'=>'cached',
+                'onus'=>$inventoryMappings->map(static fn($m)=>[
+                    'onu_id'=>(string)$m->onu_id,
+                    'onu_serial'=>(string)($m->onu_serial ?? ''),
+                    'onu_mac'=>(string)($m->onu_mac ?? ''),
+                    'pon_port'=>(string)($m->pon_port ?? ''),
+                    'status'=>(string)($m->status ?: 'unknown'),
+                    'rx_power'=>$m->rx_power,
+                    'tx_power'=>$m->tx_power,
+                    'client_macs'=>[],
+                ])->values()->all(),
+                'error'=>null,
+                'meta'=>['cached'=>true,'opm_status'=>'cached'],
+            ];
             // Read-only candidate matching: surface only unambiguous evidence-based
             // suggestions on this OLT; no customer mapping is changed here.
             $candidateService = app(\App\Services\AiEngineerDiagnosticService::class);
@@ -697,17 +717,18 @@ Route::middleware([
             $ponOptions=collect($opm['onus']??[])->pluck('pon_port')->filter(fn($v)=>(string)$v!=='')->map(fn($v)=>(string)$v)->unique()->sort(SORT_NATURAL)->values();
             return view('xlink.olt-diagnostics',compact('device','opm','rows','ponOptions','q','pon'));
         })->name('network-inventory.olt.diagnostics');
-        Route::post('/network-inventory/olt/{device}/diagnostic-check', function(\App\Models\NetworkInventoryDevice $device){
+        Route::post('/network-inventory/olt/{device}/diagnostic-check', function(\App\Models\NetworkInventoryDevice $device, \App\Services\NetworkInventoryHealthProbe $probe){
             abort_unless($device->type==='olt',404);
-            $host=$device->host ?: $device->ip_address;
-            $port=(int)($device->port ?: 23);
-            $start=microtime(true); $ok=false; $err=''; $errno=0;
-            if($host){
-                $s=@fsockopen($host,$port,$errno,$err,3);
-                if($s){$ok=true; fclose($s);}
-            }
-            $device->update(['status'=>$ok?'online':'offline','health_status'=>$ok?'ready':'failed','last_latency_ms'=>(int)round((microtime(true)-$start)*1000),'last_checked_at'=>now()]);
-            return back()->with('diagnostic_message',$ok?'Connectivity check passed on '.$host.':'.$port.'.':'Connectivity check failed on '.$host.':'.$port.' — '.($err?:'connection refused').'. Health Port '.$device->health_port.' is reserved for health/SNMP monitoring.');
+            $host=$device->ip_address ?: $device->host;
+            $result=$probe->check($device);
+            $probeStatus=(string)($result['status'] ?? 'down');
+            $statusLabel=strtoupper((string)($result['protocol'] ?? 'connectivity'));
+            $port=(int)($result['port'] ?? $device->snmp_port ?? 161);
+            $healthStatus=$probeStatus==='online'?'ready':($probeStatus==='not_ready'?'unknown':'failed');
+            $deviceStatus=$probeStatus==='online'?'online':($probeStatus==='not_ready'?'unknown':'offline');
+            $device->update(['status'=>$deviceStatus,'health_status'=>$healthStatus,'last_latency_ms'=>(int)($result['latency_ms'] ?? 0),'last_checked_at'=>now()]);
+            $prefix=$probeStatus==='online'?'Connectivity check passed':($probeStatus==='not_ready'?'Connectivity check not ready':'Connectivity check failed');
+            return back()->with('diagnostic_message',$prefix.' via '.$statusLabel.' on '.$host.':'.$port.' — '.(string)($result['message'] ?? 'No probe details available.'));
         })->name('network-inventory.olt.diagnostic-check');
 
         Route::get('/network-inventory/switch-management', fn () => redirect()->route('network-inventory.devices', ['type' => 'switch']))

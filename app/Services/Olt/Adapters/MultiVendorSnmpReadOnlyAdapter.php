@@ -29,6 +29,10 @@ class MultiVendorSnmpReadOnlyAdapter implements OltReadOnlyAdapter
         if ($host === '') return $this->fail($device, 'OLT management host/IP is not configured.');
         if ($community === '') return $this->fail($device, 'SNMP community is not configured for the adapter.');
 
+        $address = $host;
+        $snmpPort = max(1, min(65535, (int) ($device->snmp_port ?: 161)));
+        $host = 'udp:' . $address . ':' . $snmpPort;
+
         $reportedModel = (string) $device->model;
         if (strtoupper(trim((string) $device->vendor)) === 'VSOL') {
             $liveDescription = @snmp2_get($host, $community, '1.3.6.1.2.1.1.1.0', 300000, 0);
@@ -49,7 +53,7 @@ class MultiVendorSnmpReadOnlyAdapter implements OltReadOnlyAdapter
         $result = [
             'ok' => false, 'status' => 'reachable',
             'message' => 'Read-only multi-vendor SNMP probe completed.',
-            'device' => ['id'=>$device->id,'host'=>$host,'vendor'=>$device->vendor,'model'=>$device->model,'transport'=>'snmp','version'=>strtoupper((string)($config['version'] ?? $device->snmp_version ?? '2C'))],
+            'device' => ['id'=>$device->id,'host'=>$address,'vendor'=>$device->vendor,'model'=>$device->model,'transport'=>'snmp','snmp_port'=>$snmpPort,'version'=>strtoupper((string)($config['version'] ?? $device->snmp_version ?? '2C'))],
             'onus' => [],
             'meta' => ['read_only'=>true,'writes_performed'=>false,'profile'=>$profile['key'],'enterprise_oid'=>$profile['enterprise_oid'],'oid_count'=>0,'onu_count'=>0,'failed_oids'=>[],'oid_source'=>$profile['source']],
         ];
