@@ -73,14 +73,16 @@
         <thead><tr><th>Customer</th><th>OLT / PON</th><th>ONU ID / Model</th><th>MAC / Serial</th><th>RX / TX Power</th><th>Status</th><th>Last Seen</th><th>Action</th></tr></thead>
         <tbody>
         @forelse($mappings as $m)
-          @php($rx=is_numeric($m->rx_power) ? (float)$m->rx_power : null)
+          @php($opmFresh=$m->opm_last_seen_at !== null)
+          @php($rx=$opmFresh && is_numeric($m->rx_power) ? (float)$m->rx_power : null)
+          @php($tx=$opmFresh && is_numeric($m->tx_power) ? (float)$m->tx_power : null)
           @php($signalClass=$rx===null?'na':($rx>=-20?'good':($rx>=-27?'warning':'critical')))
           <tr>
             <td><div class="onu-primary">{{ $m->customer?->customer_name ?: 'Unmapped customer' }}</div><div class="onu-secondary">{{ $m->customer?->customer_unique_id ?: 'No customer ID' }}</div><div class="onu-secondary">PPPoE: {{ $m->pppUser?->username ?: '—' }}</div></td>
             <td><div class="onu-primary">{{ $m->olt?->name ?: 'OLT unavailable' }}</div><div class="onu-secondary">PON {{ $m->pon_port ?: '—' }}</div></td>
             <td><div class="onu-primary">{{ $m->onu_id ?: '—' }}</div><div class="onu-secondary">{{ $m->onu_type ?: 'Model unavailable' }}</div></td>
             <td><div>{{ $m->onu_mac ?: '—' }}</div><div class="onu-secondary">{{ $m->onu_serial ?: 'Serial unavailable' }}</div></td>
-            <td><div class="onu-signal {{ $signalClass }}">RX {{ $rx!==null ? number_format($rx,2).' dBm' : '—' }}</div><div class="onu-secondary">TX {{ is_numeric($m->tx_power) ? number_format((float)$m->tx_power,2).' dBm' : '—' }}</div><div class="onu-secondary">OPM: {{ $m->opm_last_seen_at ? $m->opm_last_seen_at->format('d M Y H:i:s') : (($m->rx_power !== null || $m->tx_power !== null) ? 'measurement time unknown' : 'no reading') }}</div></td>
+            <td><div class="onu-signal {{ $signalClass }}">RX {{ $rx!==null ? number_format($rx,2).' dBm' : '—' }}</div><div class="onu-secondary">TX {{ $tx!==null ? number_format($tx,2).' dBm' : '—' }}</div><div class="onu-secondary">OPM: {{ $m->opm_last_seen_at ? (($m->opm_source==='operator-supplied-olt-cli' ? 'CLI sample · ' : '').$m->opm_last_seen_at->format('d M Y H:i:s')) : (($m->rx_power !== null || $m->tx_power !== null) ? 'stale value hidden · no timestamp' : 'no reading') }}</div></td>
             <td><span class="onu-status {{ in_array($m->status,['online','offline'],true) ? $m->status : 'unknown' }}"><i class="bi {{ $m->status==='online'?'bi-check-circle-fill':($m->status==='offline'?'bi-x-circle-fill':'bi-question-circle-fill') }}"></i>{{ ucfirst($m->status ?: 'unknown') }}</span></td>
             <td>{{ $m->last_seen_at ? $m->last_seen_at->format('d M Y') : '—' }}<div class="onu-secondary">{{ $m->last_seen_at ? $m->last_seen_at->format('H:i:s') : 'No successful sync recorded' }}</div></td>
             <td><div class="d-flex gap-1"><a class="btn btn-sm btn-outline-primary" href="{{ $m->olt ? route('network-inventory.olt.customers',$m->olt) : route('network-inventory.onu-management') }}" title="Open OLT/customer mapping"><i class="bi bi-link-45deg"></i></a><a class="btn btn-sm btn-outline-secondary" href="{{ $m->olt ? route('network-inventory.olt.diagnostics',$m->olt) : route('network-inventory.onu-management') }}" title="Read-only OLT diagnostics"><i class="bi bi-activity"></i></a></div></td>

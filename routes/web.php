@@ -680,7 +680,10 @@ Route::middleware([
             $storedMappings=\App\Models\OltOnuCustomerMapping::where('olt_device_id',$device->id)->get();
             $cachedRows=$storedMappings->map(fn($m)=>[
                 'onu_id'=>$m->onu_id, 'pon_port'=>$m->pon_port, 'onu_mac'=>$m->onu_mac,
-                'tx_power'=>$m->tx_power, 'rx_power'=>$m->rx_power,
+                // A stored number without an OPM timestamp is historical/unknown,
+                // not a valid current signal reading. Never present it as live.
+                'tx_power'=>$m->opm_last_seen_at ? $m->tx_power : null,
+                'rx_power'=>$m->opm_last_seen_at ? $m->rx_power : null,
             ])->values()->all();
             $storedOpmCount=collect($cachedRows)->filter(fn($r)=>is_numeric($r['tx_power']??null)||is_numeric($r['rx_power']??null))->count();
             $opm=[
@@ -710,10 +713,12 @@ Route::middleware([
                     $stored=$storedByKey->get($key);
                 }
                 if($stored){
-                    if(!is_numeric($liveRow['tx_power']??null) && is_numeric($stored->tx_power)) $liveRow['tx_power']=(float)$stored->tx_power;
-                    if(!is_numeric($liveRow['rx_power']??null) && is_numeric($stored->rx_power)) $liveRow['rx_power']=(float)$stored->rx_power;
+                    // Only reuse a saved OPM value when its measurement timestamp exists.
+                    // A historical number with no measurement time must never look live.
+                    if($stored->opm_last_seen_at && !is_numeric($liveRow['tx_power']??null) && is_numeric($stored->tx_power)) $liveRow['tx_power']=(float)$stored->tx_power;
+                    if($stored->opm_last_seen_at && !is_numeric($liveRow['rx_power']??null) && is_numeric($stored->rx_power)) $liveRow['rx_power']=(float)$stored->rx_power;
                     if(trim((string)($liveRow['onu_mac']??''))==='' && trim((string)$stored->onu_mac)!=='') $liveRow['onu_mac']=$stored->onu_mac;
-                    $liveRow['stored_opm']=true;
+                    if($stored->opm_last_seen_at && (is_numeric($stored->tx_power) || is_numeric($stored->rx_power))) $liveRow['stored_opm']=true;
                 }
             }
             unset($liveRow);
@@ -773,17 +778,17 @@ Route::middleware([
             if ($oltId !== '' && ctype_digit($oltId)) $query->where('olt_device_id',(int)$oltId);
             if ($pon !== '') $query->where('pon_port',$pon);
             if (in_array($status,['online','offline','unknown'],true)) $query->where('status',$status);
-            if ($signal === 'great') $query->whereNotNull('rx_power')->where('rx_power','>=',-20);
-            elseif ($signal === 'good') $query->whereNotNull('rx_power')->whereBetween('rx_power',[-24,-20]);
-            elseif ($signal === 'poor') $query->whereNotNull('rx_power')->whereBetween('rx_power',[-27,-24]);
-            elseif ($signal === 'critical') $query->whereNotNull('rx_power')->where('rx_power','<',-27);
+            if ($signal === 'great') $query->whereNotNull('opm_last_seen_at')->whereNotNull('rx_power')->where('rx_power','>=',-20);
+            elseif ($signal === 'good') $query->whereNotNull('opm_last_seen_at')->whereNotNull('rx_power')->whereBetween('rx_power',[-24,-20]);
+            elseif ($signal === 'poor') $query->whereNotNull('opm_last_seen_at')->whereNotNull('rx_power')->whereBetween('rx_power',[-27,-24]);
+            elseif ($signal === 'critical') $query->whereNotNull('opm_last_seen_at')->whereNotNull('rx_power')->where('rx_power','<',-27);
             $mappings = $query->paginate((int)request('per_page',20) === 50 ? 50 : 20)->withQueryString();
             $all = \App\Models\OltOnuCustomerMapping::query();
             $stats = [
                 'total'=>(clone $all)->count(),
                 'online'=>(clone $all)->where('status','online')->count(),
                 'offline'=>(clone $all)->where('status','offline')->count(),
-                'critical'=>(clone $all)->whereNotNull('rx_power')->where('rx_power','<',-27)->count(),
+                'critical'=>(clone $all)->whereNotNull('opm_last_seen_at')->whereNotNull('rx_power')->where('rx_power','<',-27)->count(),
                 'unmapped'=>(clone $all)->whereNull('customer_id')->count(),
             ];
             $olts = \App\Models\NetworkInventoryDevice::type('olt')->orderBy('name')->get(['id','name','ip_address']);
@@ -827,9 +832,9 @@ Route::middleware([
             });
             if ($oltId !== '' && ctype_digit($oltId)) $query->where('olt_device_id',(int)$oltId);
             if (in_array($status,['online','offline','unknown'],true)) $query->where('status',$status);
-            if ($signal === 'good') $query->whereNotNull('rx_power')->where('rx_power','>=',-20);
-            elseif ($signal === 'warning') $query->whereNotNull('rx_power')->whereBetween('rx_power',[-27,-20]);
-            elseif ($signal === 'critical') $query->whereNotNull('rx_power')->where('rx_power','<',-27);
+            if ($signal === 'good') $query->whereNotNull('opm_last_seen_at')->whereNotNull('rx_power')->where('rx_power','>=',-20);
+            elseif ($signal === 'warning') $query->whereNotNull('opm_last_seen_at')->whereNotNull('rx_power')->whereBetween('rx_power',[-27,-20]);
+            elseif ($signal === 'critical') $query->whereNotNull('opm_last_seen_at')->whereNotNull('rx_power')->where('rx_power','<',-27);
             $mappings = $query->paginate(25)->withQueryString();
             $base = \App\Models\OltOnuCustomerMapping::query();
             $stats = [
