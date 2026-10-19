@@ -31,7 +31,9 @@ class MultiVendorSnmpReadOnlyAdapter implements OltReadOnlyAdapter
 
         $address = $host;
         $snmpPort = max(1, min(65535, (int) ($device->snmp_port ?: 161)));
-        $host = 'udp:' . $address . ':' . $snmpPort;
+        // PHP's SNMP extension expects host:port. The udp:host:port format is
+        // for the CLI snmpget utility and can be misparsed as a DNS hostname here.
+        $host = $address . ':' . $snmpPort;
 
         $reportedModel = (string) $device->model;
         if (strtoupper(trim((string) $device->vendor)) === 'VSOL') {

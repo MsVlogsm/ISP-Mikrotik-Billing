@@ -46,7 +46,10 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
 
         $address = $host;
         $snmpPort = max(1, min(65535, (int) ($device->snmp_port ?: 161)));
-        $host = 'udp:' . $address . ':' . $snmpPort;
+        // PHP's snmp2_get/snmp2_real_walk expect host:port, not the CLI
+        // snmpget transport syntax (udp:host:port). The latter makes PHP try
+        // to resolve "udp" as a hostname and silently returns no ONU rows.
+        $host = $address . ':' . $snmpPort;
 
         $timeout = min(max(100000, (int) ($config['timeout_us'] ?? 500000)), 1000000);
         $retries = min(max(0, (int) ($config['retries'] ?? 0)), 1);
