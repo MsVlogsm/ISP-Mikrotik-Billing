@@ -24,7 +24,9 @@ class EnsurePortalPort
             $port = (int) $forwardedPort;
         }
 
-        if (! in_array($host, ['bill.xlinkbd.net', 'portal.bill.xlinkbd.net'], true) || $port !== 8082) {
+        $allowedPort = $port === 8082 || ($port === 443 && $request->isSecure());
+
+        if (! in_array($host, ['bill.xlinkbd.net', 'portal.bill.xlinkbd.net'], true) || ! $allowedPort) {
             abort(404);
         }
 

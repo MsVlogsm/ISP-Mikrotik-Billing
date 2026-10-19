@@ -58,4 +58,9 @@ return [
         'app_key' => env('BKASH_APP_KEY'),
         'app_secret' => env('BKASH_APP_SECRET'),
     ],
+
+    'android_api' => [
+        // Keep payment writes disabled until a trusted backend verifies provider transactions.
+        'payment_writes_enabled' => env('ANDROID_API_PAYMENT_WRITES_ENABLED', false),
+    ],
 ];

@@ -21,7 +21,7 @@ class PaymentService
      * Process a successful online payment, update billing records,
      * record collection summary, and activate the user on MikroTik.
      */
-    public function processSuccessPayment(CustomersInfo $customer, float $amount, string $gateway, string $trxId): bool
+    public function processSuccessPayment(CustomersInfo $customer, float $amount, string $gateway, string $trxId, array $metadata = []): bool
     {
         $trxId = trim($trxId);
         if ($trxId === '' || $amount <= 0) {
@@ -119,6 +119,13 @@ class PaymentService
             $invoiceNo = $maxInvoice ? ($maxInvoice + 1) : 100001;
 
             // 2. Create Collection Record
+            $paymentDetails = array_filter([
+                'source' => $metadata['source'] ?? null,
+                'external_invoice_id' => $metadata['external_invoice_id'] ?? null,
+                'notes' => $metadata['notes'] ?? null,
+                'api_token_id' => $metadata['api_token_id'] ?? null,
+            ], static fn ($value) => $value !== null && $value !== '');
+
             CollectionSummary::create([
                 'customer_collection_unique_id' => $customer->customer_unique_id,
                 'collection_date' => Carbon::now(),
@@ -127,6 +134,7 @@ class PaymentService
                 'payment_type' => 'online',
                 'payment_method' => $gateway,
                 'transaction_id' => $trxId,
+                'details' => $paymentDetails ? json_encode($paymentDetails, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
                 'payment_status' => 'paid',
                 'invoice_no' => $invoiceNo,
                 'bill_month' => Carbon::now()->format('F Y'),

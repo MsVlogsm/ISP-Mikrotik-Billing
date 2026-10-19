@@ -139,8 +139,8 @@ class MainSiteData extends Model
 
     protected static function booted(): void
     {
-        static::saved(fn () => Cache::flush());
-        static::updated(fn () => Cache::flush());
-        static::deleted(fn () => Cache::flush());
+        // Only invalidate the cached MainSiteData snapshot; never flush unrelated app caches.
+        static::saved(fn () => Cache::forget('main_site_data_active'));
+        static::deleted(fn () => Cache::forget('main_site_data_active'));
     }
 }

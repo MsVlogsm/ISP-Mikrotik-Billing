@@ -819,6 +819,11 @@
                                     <label class="form-label fw-semibold">{{ __('Notification Email Address') }}</label>
                                     <input type="email" class="form-control rounded-3" wire:model="data.site_secret_email">
                                 </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">{{ __('Android App API Base URL') }}</label>
+                                    <input type="url" class="form-control rounded-3" wire:model="data.android_app_api_url" placeholder="https://your-domain.com/api">
+                                    <small class="text-muted">{{ __('Base API URL for connecting the Android app to this website. Enter the API endpoint provided by your app/backend integration.') }}</small>
+                                </div>
                             </div>
 
                             <h5 class="form-section-title text-primary fw-bold mt-5"><i class="bi bi-folder-symlink me-2"></i>{{ __('Local System Database Binary Path') }}</h5>

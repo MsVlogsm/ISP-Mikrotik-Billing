@@ -128,6 +128,7 @@ class MainSiteSetup extends Component implements HasActions, HasForms
             'site_secret_validity' => MainSiteData::getValue('site_secret_validity'),
             'site_secret_url' => MainSiteData::getValue('site_secret_url'),
             'site_secret_email' => MainSiteData::getValue('site_secret_email'),
+            'android_app_api_url' => MainSiteData::getValue('android_app_api_url', ''),
 
             // Log Server
             'mysql_binary_path' => MainSiteData::getValue('mysql_binary_path', ''),
@@ -419,6 +420,7 @@ class MainSiteSetup extends Component implements HasActions, HasForms
             'data.main_site_locale' => 'required|string|in:en,bn',
             'data.site_phone'  => ['nullable', 'string', new ValidPhoneDigits],
             'data.site_whatsapp'  => ['nullable', 'string', new ValidPhoneDigits],
+            'data.android_app_api_url' => 'nullable|url|max:2048',
         ]);
 
         $singleFileFields = $this->getSingleFileUploadFields();
@@ -434,7 +436,7 @@ class MainSiteSetup extends Component implements HasActions, HasForms
             'site_facebook', 'site_twitter', 'site_instagram', 'site_whatsapp', 'site_linkedin', 'site_youtube', 'site_pinterest',
             'site_currency', 'site_invoice_prefix', 'customer_id_prefix', 'site_invoice_logo', 'site_invoice_color', 'site_invoice_footer', 'site_invoice_notes', 'site_invoice_terms', 'site_invoice_signature',
             'disable_check_no', 'disable_check_days', 'expired_profile_name',
-            'site_secret_key', 'site_secret_value', 'site_secret_validity', 'site_secret_url', 'site_secret_email',
+            'site_secret_key', 'site_secret_value', 'site_secret_validity', 'site_secret_url', 'site_secret_email', 'android_app_api_url',
             'mysql_binary_path', 'log_server_enabled', 'log_server_routers', 'log_retention_days',
             'hero_title', 'hero_subtitle', 'hero_button_text', 'hero_button_link', 'registration_link',
             'about_title', 'about_body', 'packages_section_title', 'testimonial_title', 'footer_copyright', 'is_active',
