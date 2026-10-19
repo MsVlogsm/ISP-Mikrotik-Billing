@@ -671,10 +671,28 @@ Route::middleware([
         Route::post('/network-inventory/olt/{device}/provisioning/execute', [\App\Http\Controllers\OltProvisioningController::class, 'execute'])->name('network-inventory.olt.provisioning.execute');
         Route::post('/network-inventory/olt/{device}/discover', [\App\Http\Controllers\OltProvisioningController::class, 'discover'])->name('network-inventory.olt.discover');
         Route::post('/network-inventory/olt/{device}/provision', [\App\Http\Controllers\OltProvisioningController::class, 'execute'])->name('network-inventory.olt.provision');
-        Route::get('/network-inventory/olt/{device}/diagnostics', function(\App\Models\NetworkInventoryDevice $device, \App\Services\Olt\OltReadOnlyAdapterManager $manager){
+        Route::get('/network-inventory/olt/{device}/diagnostics', function(\App\Models\NetworkInventoryDevice $device){
             abort_unless($device->type==='olt',404);
-            $opm=['status'=>'error','onus'=>[],'error'=>null];
-            try { $opm=$manager->read($device); } catch (\Throwable $e) { $opm=['status'=>'error','onus'=>[],'error'=>$e->getMessage()]; }
+
+            // Never perform a live SNMP walk during page rendering. An unreachable
+            // OLT can otherwise hold PHP-FPM until Nginx returns 504. Render the
+            // last saved read-only ONU/OPM snapshot; refresh telemetry separately.
+            $storedMappings=\App\Models\OltOnuCustomerMapping::where('olt_device_id',$device->id)->get();
+            $cachedRows=$storedMappings->map(fn($m)=>[
+                'onu_id'=>$m->onu_id, 'pon_port'=>$m->pon_port, 'onu_mac'=>$m->onu_mac,
+                'tx_power'=>$m->tx_power, 'rx_power'=>$m->rx_power,
+            ])->values()->all();
+            $storedOpmCount=collect($cachedRows)->filter(fn($r)=>is_numeric($r['tx_power']??null)||is_numeric($r['rx_power']??null))->count();
+            $opm=[
+                'status'=>$storedOpmCount > 0 ? 'stored' : 'not_ready',
+                'onus'=>$cachedRows,
+                'meta'=>[
+                    'opm_status'=>$storedOpmCount > 0 ? 'stored' : 'not_ready',
+                    'opm_message'=>$storedOpmCount > 0
+                        ? "Showing {$storedOpmCount} ONU rows with saved optical-power values. Live SNMP is not called during page load."
+                        : 'No saved optical-power sample is available. Showing saved ONU mappings without blocking on live SNMP.',
+                ],
+            ];
 
             // When live CLI OPM is unavailable, use the last stored read-only
             // MAC/TX/RX snapshot. Stable MAC is the primary key; PON+ONU ID
@@ -703,7 +721,7 @@ Route::middleware([
             $storedOpmCount=collect($opm['onus']??[])->filter(fn($r)=>is_numeric($r['tx_power']??null)||is_numeric($r['rx_power']??null))->count();
             if(($opm['meta']['opm_status']??'')!=='ok' && $storedOpmCount>0){
                 $opm['meta']['opm_status']='stored';
-                $opm['meta']['opm_message']="Showing {$storedOpmCount} ONU rows from the last stored read-only MAC/TX/RX snapshot. Live CLI will replace these values when SSH OPM is available.";
+                $opm['meta']['opm_message']="Showing {$storedOpmCount} ONU rows from the last saved read-only MAC/TX/RX snapshot. This page does not poll the OLT; update telemetry separately to refresh these values.";
             }
 
             $q=trim((string)request('opm_q',''));
