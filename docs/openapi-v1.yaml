@@ -1,0 +1,331 @@
+openapi: 3.1.0
+info:
+  title: X-Link Billing Android API
+  version: 1.0.0
+  description: |
+    Bearer-token API for X-Link Billing staff/reseller Android apps.
+    Production deployment must use HTTPS. Subscriber self-service authentication and payment-write endpoints are not included in this first version.
+servers:
+  - url: https://YOUR-TLS-BILLING-HOST/api/v1
+    description: Replace with the TLS-enabled Billing host before configuring an Android app.
+tags:
+  - name: Authentication
+  - name: Dashboard
+  - name: Customers
+  - name: Billing
+  - name: Packages
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      summary: Create an Android bearer token
+      description: Rate-limited. Only users with an eligible role/permission can use this API.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, device_name]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+                device_name: { type: string, minLength: 2, maxLength: 100, example: Pixel 8 }
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token_type, access_token, expires_at, user]
+                properties:
+                  token_type: { type: string, const: Bearer }
+                  access_token: { type: string, description: Store securely; never log. }
+                  expires_at: { type: string, format: date-time }
+                  user: { $ref: '#/components/schemas/UserProfile' }
+        '401': { description: Invalid credentials }
+        '403': { description: API access not permitted for this account }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { description: Too many login attempts }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      security: [{ BearerAuth: [] }]
+      summary: Revoke the current device token
+      responses:
+        '200': { description: Token revoked }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /me:
+    get:
+      tags: [Authentication]
+      security: [{ BearerAuth: [] }]
+      summary: Get current user profile, roles and effective permissions
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/UserProfile' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      security: [{ BearerAuth: [] }]
+      summary: Get permission-aware dashboard counters
+      responses:
+        '200':
+          description: Dashboard values; unavailable stats are null
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      generated_at: { type: string, format: date-time }
+                      user:
+                        type: object
+                        properties:
+                          id: { type: integer }
+                          name: { type: string }
+                          roles: { type: array, items: { type: string } }
+                      stats:
+                        type: object
+                        properties:
+                          active_customers: { type: [integer, 'null'] }
+                          pending_customers: { type: [integer, 'null'] }
+                          total_customers: { type: [integer, 'null'] }
+                          outstanding_due: { type: [number, 'null'] }
+                          collections_this_month: { type: [number, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /customers:
+    get:
+      tags: [Customers]
+      security: [{ BearerAuth: [] }]
+      summary: Paginated customer list
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: q
+          description: Search customer ID/name/mobile/address/PPPoE username
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [active, pending, inactive, disable, free] }
+      responses:
+        '200':
+          description: Paginated customers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Customer' } }
+                  meta: { $ref: '#/components/schemas/PaginationMeta' }
+                  links: { $ref: '#/components/schemas/PaginationLinks' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /customers/{customerId}:
+    parameters:
+      - $ref: '#/components/parameters/CustomerId'
+    get:
+      tags: [Customers]
+      security: [{ BearerAuth: [] }]
+      summary: Get customer detail and service package
+      description: PPPoE passwords are never returned. A Reseller can only access customers in its own profile.
+      responses:
+        '200':
+          description: Customer detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/CustomerDetail' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Customer not found in caller's scope }
+  /customers/{customerId}/billing:
+    parameters:
+      - $ref: '#/components/parameters/CustomerId'
+    get:
+      tags: [Billing]
+      security: [{ BearerAuth: [] }]
+      summary: Get customer billing summary
+      responses:
+        '200':
+          description: Billing record
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      customer_id: { type: integer }
+                      customer_unique_id: { type: string }
+                      billing_type: { type: string }
+                      monthly_rent: { type: number }
+                      additional_charge: { type: number }
+                      discount: { type: number }
+                      vat: { type: number }
+                      previous_due: { type: number }
+                      total_amount: { type: number }
+                      paid_amount: { type: number }
+                      due_amount: { type: number }
+                      paid_date: { type: [string, 'null'], format: date-time }
+                      next_disable_date: { type: [string, 'null'], format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Customer or billing record not found }
+  /customers/{customerId}/payments:
+    parameters:
+      - $ref: '#/components/parameters/CustomerId'
+      - in: query
+        name: page
+        schema: { type: integer, minimum: 1, default: 1 }
+      - in: query
+        name: per_page
+        schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    get:
+      tags: [Billing]
+      security: [{ BearerAuth: [] }]
+      summary: Get collection/payment history
+      responses:
+        '200':
+          description: Payment history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        invoice_no: { type: [integer, 'null'] }
+                        date: { type: [string, 'null'], format: date-time }
+                        amount: { type: number }
+                        status: { type: [string, 'null'] }
+                        method: { type: [string, 'null'] }
+                        type: { type: [string, 'null'] }
+                        bill_month: { type: [string, 'null'] }
+                  meta: { $ref: '#/components/schemas/PaginationMeta' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: Customer not found in caller's scope }
+  /packages:
+    get:
+      tags: [Packages]
+      security: [{ BearerAuth: [] }]
+      summary: List published plans visible to the current account
+      responses:
+        '200':
+          description: Visible packages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                        price: { type: number }
+                        description: { type: [string, 'null'] }
+                        plan_label: { type: [string, 'null'] }
+                        speed: { type: [string, 'null'] }
+                        features: { type: array, items: {} }
+                        is_featured: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum personal access token
+  parameters:
+    CustomerId:
+      in: path
+      name: customerId
+      required: true
+      schema: { type: integer, minimum: 1 }
+  responses:
+    Unauthenticated:
+      description: Missing, invalid, expired or revoked token
+    Forbidden:
+      description: User lacks required permissions
+    ValidationError:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+              errors: { type: object, additionalProperties: { type: array, items: { type: string } } }
+  schemas:
+    UserProfile:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string, format: email }
+        mobile: { type: [string, 'null'] }
+        roles: { type: array, items: { type: string } }
+        permissions: { type: array, items: { type: string } }
+    Customer:
+      type: object
+      properties:
+        id: { type: integer }
+        customer_unique_id: { type: string }
+        name: { type: [string, 'null'] }
+        contact_person: { type: [string, 'null'] }
+        mobile: { type: [string, 'null'] }
+        alternative_mobile: { type: [string, 'null'] }
+        email: { type: [string, 'null'], format: email }
+        status: { type: string }
+        connection_date: { type: [string, 'null'], format: date-time }
+        package: { oneOf: [{ type: object }, { type: 'null' }] }
+        billing: { oneOf: [{ type: object }, { type: 'null' }] }
+    CustomerDetail:
+      allOf:
+        - $ref: '#/components/schemas/Customer'
+        - type: object
+          properties:
+            address: { type: [string, 'null'] }
+            pppoe_username: { type: [string, 'null'] }
+            addresses: { type: array, items: { type: object } }
+    PaginationMeta:
+      type: object
+      properties:
+        current_page: { type: integer }
+        last_page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+    PaginationLinks:
+      type: object
+      properties:
+        first: { type: [string, 'null'], format: uri }
+        last: { type: [string, 'null'], format: uri }
+        prev: { type: [string, 'null'], format: uri }
+        next: { type: [string, 'null'], format: uri }
