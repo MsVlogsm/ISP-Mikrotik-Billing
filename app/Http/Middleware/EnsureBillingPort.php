@@ -24,7 +24,15 @@ class EnsureBillingPort
             $port = (int) $forwardedPort;
         }
 
-        if (! in_array($host, ['bill.xlinkbd.net', 'billing.bill.xlinkbd.net'], true) || $port !== 8081) {
+        // The billing application is also served securely on the canonical HTTPS host.
+        // Keep the legacy :8081 endpoint working while allowing authenticated dashboard
+        // and billing routes on bill.xlinkbd.net:443 only when the request is actually HTTPS.
+        $isCanonicalHttps = $host === 'bill.xlinkbd.net'
+            && $port === 443
+            && $request->isSecure();
+
+        if (! in_array($host, ['bill.xlinkbd.net', 'billing.bill.xlinkbd.net'], true)
+            || ($port !== 8081 && ! $isCanonicalHttps)) {
             abort(404);
         }
 
