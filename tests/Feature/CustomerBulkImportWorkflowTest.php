@@ -27,6 +27,22 @@ class CustomerBulkImportWorkflowTest extends TestCase
         Storage::fake('local');
     }
 
+    public function test_bulk_import_sample_templates_download_for_all_supported_formats(): void
+    {
+        $formats = [
+            'csv' => ['customer-bulk-import-sample.csv', 'text/csv'],
+            'xlsx' => ['customer-bulk-import-sample.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+            'xls' => ['customer-bulk-import-sample.xls', 'application/vnd.ms-excel'],
+        ];
+
+        foreach ($formats as $format => [$filename, $contentType]) {
+            $response = $this->get(route('customer-bulk-import.sample', ['format' => $format]));
+
+            $response->assertOk()->assertDownload($filename);
+            $this->assertStringContainsString($contentType, (string) $response->headers->get('Content-Type'));
+        }
+    }
+
     public function test_bulk_import_requires_manual_customer_id_and_reports_missing_pppoe_users(): void
     {
         $csv = "username,customer_unique_id,customer_name\nmissing-pppoe,FC-MANUAL-01,Test Subscriber\n";

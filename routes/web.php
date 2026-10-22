@@ -272,6 +272,8 @@ Route::middleware([
         Route::get('/unverified-customers', fn () => redirect()->route('broadband-unverified-customers'))->name('unverified-customers');
         Route::get('/broadband-packages', fn () => redirect()->route('broadband-packages'))->name('broadband-packages-alias');
         Route::get('/customer-bulk-import', [\App\Http\Controllers\CustomerBulkImportController::class, 'index'])->name('customer-bulk-import');
+        Route::get('/customer-bulk-import/sample/{format}', [\App\Http\Controllers\CustomerBulkImportController::class, 'downloadSample'])
+            ->where('format', 'csv|xlsx|xls')->name('customer-bulk-import.sample');
         Route::post('/customer-bulk-import/preview', [\App\Http\Controllers\CustomerBulkImportController::class, 'preview'])->name('customer-bulk-import.preview');
         Route::post('/customer-bulk-import/validate', [\App\Http\Controllers\CustomerBulkImportController::class, 'validateMapping'])->name('customer-bulk-import.validate');
         Route::post('/customer-bulk-import/commit', [\App\Http\Controllers\CustomerBulkImportController::class, 'commit'])->name('customer-bulk-import.commit');

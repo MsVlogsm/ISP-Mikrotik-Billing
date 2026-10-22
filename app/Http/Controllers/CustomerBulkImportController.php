@@ -27,6 +27,59 @@ class CustomerBulkImportController extends Controller
         'address' => 'Address',
     ];
 
+    /** Download a blank template with the exact headers accepted by this importer. */
+    public function downloadSample(string $format)
+    {
+        $format = strtolower($format);
+        abort_unless(in_array($format, ['csv', 'xlsx', 'xls'], true), 404);
+
+        $headers = array_values(self::FIELDS);
+        $filename = 'customer-bulk-import-sample.'.$format;
+
+        if ($format === 'csv') {
+            return response()->streamDownload(function () use ($headers) {
+                $output = fopen('php://output', 'wb');
+                fwrite($output, "\xEF\xBB\xBF"); // UTF-8 BOM for Excel compatibility.
+                fputcsv($output, $headers);
+                fclose($output);
+            }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+        }
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Customer Import');
+        foreach ($headers as $index => $header) {
+            $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($index + 1);
+            $sheet->setCellValue($column.'1', $header);
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
+        $sheet->getStyle('A1:'.$lastColumn.'1')->getFont()->setBold(true);
+        $sheet->freezePane('A2');
+
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'customer-import-template-');
+        if ($temporaryPath === false) {
+            throw new \RuntimeException('Could not create a temporary customer import template.');
+        }
+
+        try {
+            $writer = $format === 'xlsx'
+                ? new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet)
+                : new \PhpOffice\PhpSpreadsheet\Writer\Xls($spreadsheet);
+            $writer->save($temporaryPath);
+        } catch (\Throwable $exception) {
+            @unlink($temporaryPath);
+            throw $exception;
+        }
+
+        $contentType = $format === 'xlsx'
+            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            : 'application/vnd.ms-excel';
+
+        return response()->download($temporaryPath, $filename, ['Content-Type' => $contentType])
+            ->deleteFileAfterSend(true);
+    }
+
     public function index(Request $request)
     {
         if ($request->boolean('reset')) {
