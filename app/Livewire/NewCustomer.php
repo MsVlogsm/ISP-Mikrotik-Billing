@@ -11,7 +11,9 @@ use App\Models\OfficialInfo;
 use App\Models\PackageList;
 use App\Models\PPPSecrets;
 use App\Models\RouterList;
+use App\Models\Reseller;
 use App\Models\User;
+use Livewire\Attributes\Locked;
 // MikrotikSSHService removed — all router I/O routed through MikrotikController (pooled + cached)
 use App\Rules\ValidPhoneDigits;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +27,9 @@ use Livewire\WithFileUploads;
 class NewCustomer extends Component
 {
     use WithFileUploads;
+
+    #[Locked]
+    public bool $macResellerPortalMode = false;
 
     public $customer_name;
 
@@ -138,16 +143,25 @@ class NewCustomer extends Component
         return app(\App\Http\Controllers\MikrotikController::class)->mtQuote($value);
     }
 
+    private function currentReseller(): ?Reseller
+    {
+        if ($this->macResellerPortalMode) {
+            return Reseller::where('panel_type', 'mac')->find(session('mac_reseller_context_id'));
+        }
+        return auth()->user()->reseller()->first();
+    }
+
     public function mount()
     {
-        if (! auth()->user()->can('create-customer') && ! auth()->user()->hasRole('Reseller')) {
+        $this->macResellerPortalMode = auth()->user()->hasRole('Super Admin') && request()->is('mac-reseller*') && session()->has('mac_reseller_context_id');
+        if (! auth()->user()->can('create-customer') && ! ($this->macResellerPortalMode || auth()->user()->hasRole('Reseller')) && ! $this->macResellerPortalMode) {
             abort(403, 'Unauthorized action.');
         }
 
         $this->connected_by = auth()->id();
 
         $mikrotikClientId = request()->integer('mikrotik_client');
-        if ($mikrotikClientId && auth()->user()->hasRole('Reseller')) {
+        if ($mikrotikClientId && ($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
             abort(403, 'MikroTik user import is only available to authorized billing administrators.');
         }
         if ($mikrotikClientId) {
@@ -276,8 +290,8 @@ class NewCustomer extends Component
         if (strcasecmp(trim((string) $this->package_name), 'Free Customer') === 0) {
             $this->monthly_rent = 0;
         } elseif ($this->package_name) {
-            if (auth()->user()->hasRole('Reseller')) {
-                $reseller = auth()->user()->reseller;
+            if (($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
+                $reseller = $this->currentReseller();
                 $package = PackageList::where('package', $this->package_name)
                     ->where(function ($q) use ($reseller) {
                         $q->whereIn('id', $reseller->assignedPackages->pluck('id'))
@@ -437,7 +451,7 @@ class NewCustomer extends Component
                     $this->validate($stepRules);
                 }
 
-            } elseif ($this->step === 3 && !auth()->user()->hasRole('Reseller')) {
+            } elseif ($this->step === 3 && !($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
                 // Collect rules for Step 3 (Network Config)
                 if ($this->router_name || $this->service) {
                     $stepRules['router_name'] = $allRules['router_name'];
@@ -461,7 +475,7 @@ class NewCustomer extends Component
                     $this->validate($stepRules);
                 }
 
-            } elseif ($this->step === (!auth()->user()->hasRole('Reseller') ? 4 : 3)) {
+            } elseif ($this->step === (!($this->macResellerPortalMode || auth()->user()->hasRole('Reseller')) ? 4 : 3)) {
                 // Collect rules for Step 4 (Billing Info)
                 $stepRules['package_name'] = 'required|string|max:255';
                 $stepRules['monthly_rent'] = 'required|numeric';
@@ -481,7 +495,7 @@ class NewCustomer extends Component
                                 }
                             }
                         }
-                    } elseif ($s === 3 && !auth()->user()->hasRole('Reseller')) {
+                    } elseif ($s === 3 && !($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
                         if ($this->router_name || $this->service) {
                             $targetRules['router_name'] = 'required';
                             $targetRules['service'] = 'required';
@@ -495,7 +509,7 @@ class NewCustomer extends Component
                                 $targetRules['username'] = 'required|string|max:25';
                             }
                         }
-                    } elseif ($s === (!auth()->user()->hasRole('Reseller') ? 4 : 3)) {
+                    } elseif ($s === (!($this->macResellerPortalMode || auth()->user()->hasRole('Reseller')) ? 4 : 3)) {
                         $targetRules['package_name'] = 'required|string|max:255';
                         $targetRules['monthly_rent'] = 'required|numeric';
                     }
@@ -515,7 +529,7 @@ class NewCustomer extends Component
 
     public function save()
     {
-        if (! hasAccess(['Super Admin'], ['create-customer']) && ! auth()->user()->hasRole('Reseller')) {
+        if (! hasAccess(['Super Admin'], ['create-customer']) && ! ($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -604,7 +618,7 @@ class NewCustomer extends Component
             }
 
             $pppUser = null;
-            if (auth()->user()->can('mikrotik-user-create') || auth()->user()->hasRole('Reseller')) {
+            if (auth()->user()->can('mikrotik-user-create') || ($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
                 // create ppp_user table record
                 $pppUserCheck = PPPSecrets::query()
                     ->when(filled($this->router_name), fn ($q) => $q->where('router_name', $this->router_name))
@@ -653,8 +667,8 @@ class NewCustomer extends Component
                 ]);
             }
             $customer = new CustomersInfo;
-            if (auth()->user()->hasRole('Reseller')) {
-                $customer->reseller_id = auth()->user()->reseller->id;
+            if (($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
+                $customer->reseller_id = $this->currentReseller()?->id ?? abort(403, 'Select a MAC Reseller portal first.');
                 $customer->status = 'pending';
             }
             $customer->customer_unique_id = $newId;
@@ -674,8 +688,8 @@ class NewCustomer extends Component
             // Get package_id based on selected package name and router
             $assignedPackageId = null;
             if ($this->package_name && strcasecmp(trim((string) $this->package_name), 'Free Customer') !== 0) {
-                if (auth()->user()->hasRole('Reseller')) {
-                    $reseller = auth()->user()->reseller;
+                if (($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
+                    $reseller = $this->currentReseller();
                     $pkg = PackageList::where('package', $this->package_name)
                         ->where(function ($q) use ($reseller) {
                             $q->whereIn('id', $reseller->assignedPackages->pluck('id'))
@@ -765,12 +779,12 @@ class NewCustomer extends Component
 
             flash()->success('Customer created successfully!');
 
-            // Clear form
-            $this->reset();
+            // Clear form while preserving the locked portal context.
+            $this->resetExcept('macResellerPortalMode');
 
             // Redirect to customers list
-            if (auth()->user()->hasRole('Reseller')) {
-                $routePrefix = auth()->user()->reseller?->isMacPanel() ? 'mac-reseller' : 'reseller';
+            if (($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
+                $routePrefix = $this->currentReseller()?->isMacPanel() ? 'mac-reseller' : 'reseller';
                 return redirect()->route($routePrefix.'.customers.index');
             }
 
@@ -802,8 +816,8 @@ class NewCustomer extends Component
         $this->addressFields = AddressField::orderBy('order', 'asc')->get();
         $this->routers = RouterList::select('router_name')->where('action', 'connected')->get();
 
-        if (auth()->user()->hasRole('Reseller')) {
-            $reseller = auth()->user()->reseller;
+        if (($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
+            $reseller = $this->currentReseller();
             $this->packages = PackageList::where(function ($q) use ($reseller) {
                 $q->whereIn('id', $reseller->assignedPackages->pluck('id'))
                     ->orWhere('reseller_id', $reseller->id);
@@ -823,7 +837,7 @@ class NewCustomer extends Component
         }
 
         // Keep internal user lists out of reseller Livewire state.
-        $this->users = auth()->user()->hasRole('Reseller')
+        $this->users = ($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))
             ? User::query()->select('id', 'name')->whereKey(auth()->id())->get()
             : User::select('id', 'name')->get();
 

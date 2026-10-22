@@ -1,13 +1,13 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="h4 font-weight-bold text-dark mb-0">
-            <i class="bi bi-person-plus-fill me-2 text-success"></i>{{ __('Create Reseller') }}
+            <i class="bi bi-person-plus-fill me-2 text-success"></i>{{ request('panel_type') === 'mac' ? __('Add MAC Reseller') : __('Create Reseller') }}
         </h2>
     </x-slot>
 
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-header bg-white py-3 border-0">
-            <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-person-plus-fill text-success me-2"></i>{{ __('Create New Reseller') }}</h5>
+            <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-person-plus-fill text-success me-2"></i>{{ request('panel_type') === 'mac' ? __('Add MAC Reseller') : __('Create New Reseller') }}</h5>
         </div>
         <div class="card-body">
             @if ($errors->any())
@@ -71,8 +71,8 @@
                             <div class="col-md-6 mb-3">
                                 <label class="form-label fw-semibold text-muted small">{{ __('Panel Type') }}</label>
                                 <select name="panel_type" class="form-select shadow-xs" required style="border-radius: 6px;">
-                                    <option value="standard" {{ old('panel_type', 'standard') === 'standard' ? 'selected' : '' }}>{{ __('Standard Reseller') }}</option>
-                                    <option value="mac" {{ old('panel_type') === 'mac' ? 'selected' : '' }}>{{ __('MAC Reseller — Independent Client Panel') }}</option>
+                                    <option value="standard" {{ old('panel_type', request('panel_type', 'standard')) === 'standard' ? 'selected' : '' }}>{{ __('Standard Reseller') }}</option>
+                                    <option value="mac" {{ old('panel_type', request('panel_type', 'standard')) === 'mac' ? 'selected' : '' }}>{{ __('MAC Reseller — Independent Client Panel') }}</option>
                                 </select>
                                 <small class="text-muted">{{ __('MAC Resellers receive only their separate client-management panel; global billing/admin permissions are not assigned.') }}</small>
                             </div>

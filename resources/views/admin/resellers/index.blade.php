@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="h4 font-weight-bold text-dark mb-0">
-            <i class="bi bi-people-fill me-2 text-success"></i>{{ __('Reseller Management') }}
+            <i class="bi bi-people-fill me-2 text-success"></i>{{ request('panel_type') === 'mac' ? __('MAC Reseller List') : __('Reseller Management') }}
         </h2>
     </x-slot>
 
@@ -25,6 +25,7 @@
             </div>
 
             <form method="GET" action="{{ route('admin.resellers.index') }}" class="d-flex align-items-center gap-2">
+                @if (request('panel_type') === 'mac') <input type="hidden" name="panel_type" value="mac"> @endif
                 <select name="month" id="month-select" class="form-select form-select-sm rounded-3" style="width:140px;">
                     @foreach($months as $num => $name)
                         <option value="{{ $num }}" @selected((string)$num === (string)$month)>{{ $name }}</option>
@@ -142,8 +143,8 @@
 
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-person-badge-fill text-success me-2"></i>{{ __('All Resellers') }}</h5>
-            <a href="{{ route('admin.resellers.create') }}" wire:navigate class="btn btn-sm btn-success rounded-3"><i class="bi bi-plus-lg me-1"></i>{{ __('Create Reseller') }}</a>
+            <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-person-badge-fill text-success me-2"></i>{{ request('panel_type') === 'mac' ? __('All MAC Resellers') : __('All Resellers') }}</h5>
+            <a href="{{ route('admin.resellers.create', request('panel_type') === 'mac' ? ['panel_type' => 'mac'] : []) }}" wire:navigate class="btn btn-sm btn-success rounded-3"><i class="bi bi-plus-lg me-1"></i>{{ request('panel_type') === 'mac' ? __('Add MAC Reseller') : __('Create Reseller') }}</a>
         </div>
         <div class="card-body p-0">
             @if(session('success'))

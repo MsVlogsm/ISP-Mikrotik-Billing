@@ -38,6 +38,9 @@ class ResellerController extends Controller
         $year  = request('year', now()->year);
 
         $resellersQuery = Reseller::with('user');
+        if (request()->query('panel_type') === 'mac') {
+            $resellersQuery->where('panel_type', 'mac');
+        }
 
         if ($month !== 'all') {
             $monthVal = (int) $month;

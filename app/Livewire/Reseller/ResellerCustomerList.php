@@ -6,6 +6,7 @@ use App\Models\CustomersInfo;
 use App\Models\PaymentSummary;
 use App\Models\PPPSecrets;
 use App\Models\RouterList;
+use App\Models\Reseller;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Livewire\Attributes\On;
@@ -18,9 +19,19 @@ class ResellerCustomerList extends Component
 
     public $routers = [];
 
+    private function currentReseller(): ?Reseller
+    {
+        $user = auth()->user();
+        if ($user?->hasRole('Super Admin')) {
+            $id = session('mac_reseller_context_id');
+            return $id ? Reseller::where('panel_type', 'mac')->find($id) : null;
+        }
+        return $user?->reseller;
+    }
+
     public function render()
     {
-        $reseller = auth()->user()->reseller;
+        $reseller = $this->currentReseller();
         if (! $reseller) {
             abort(403);
         }
@@ -33,7 +44,7 @@ class ResellerCustomerList extends Component
 
     public function getData(Request $request)
     {
-        $reseller = auth()->user()->reseller;
+        $reseller = $this->currentReseller();
         if (! $reseller) {
             abort(403, 'Unauthorized action.');
         }
@@ -195,8 +206,8 @@ class ResellerCustomerList extends Component
     public function activateCustomer($id): void
     {
         $id = is_array($id) ? ($id['id'] ?? $id) : $id;
-        $reseller = auth()->user()?->reseller;
-        abort_unless(auth()->user()?->hasRole('Reseller') && $reseller && $reseller->isActive(), 403);
+        $reseller = $this->currentReseller();
+        abort_unless($reseller && (auth()->user()?->hasRole('Super Admin') || (auth()->user()?->hasRole('Reseller') && $reseller->isActive())), 403);
 
         try {
             $uniqueId = decrypt($id);
@@ -289,8 +300,8 @@ class ResellerCustomerList extends Component
     public function disableCustomer($id): void
     {
         $id = is_array($id) ? ($id['id'] ?? $id) : $id;
-        $reseller = auth()->user()?->reseller;
-        abort_unless(auth()->user()?->hasRole('Reseller') && $reseller && $reseller->isActive(), 403);
+        $reseller = $this->currentReseller();
+        abort_unless($reseller && (auth()->user()?->hasRole('Super Admin') || (auth()->user()?->hasRole('Reseller') && $reseller->isActive())), 403);
 
         try {
             $uniqueId = decrypt($id);
@@ -374,8 +385,8 @@ class ResellerCustomerList extends Component
     public function deleteCustomer($id): void
     {
         $id = is_array($id) ? ($id['id'] ?? $id) : $id;
-        $reseller = auth()->user()?->reseller;
-        abort_unless(auth()->user()?->hasRole('Reseller') && $reseller && $reseller->isActive(), 403);
+        $reseller = $this->currentReseller();
+        abort_unless($reseller && (auth()->user()?->hasRole('Super Admin') || (auth()->user()?->hasRole('Reseller') && $reseller->isActive())), 403);
 
         try {
             $uniqueId = decrypt($id);
@@ -453,8 +464,8 @@ class ResellerCustomerList extends Component
     public function openEditCustomerModal($id)
     {
         $id = is_array($id) ? ($id['id'] ?? $id) : $id;
-        $reseller = auth()->user()?->reseller;
-        abort_unless(auth()->user()?->hasRole('Reseller') && $reseller && $reseller->isActive(), 403);
+        $reseller = $this->currentReseller();
+        abort_unless($reseller && (auth()->user()?->hasRole('Super Admin') || (auth()->user()?->hasRole('Reseller') && $reseller->isActive())), 403);
         $uniqueId = decrypt($id);
         abort_unless(CustomersInfo::where('reseller_id', $reseller->id)->where('customer_unique_id', $uniqueId)->exists(), 403);
         $this->editingCustomerId = $id;

@@ -1492,6 +1492,9 @@ Route::middleware([
         // Reseller Portal Routes
         // MAC Reseller: isolated customer-management panel.
         Route::prefix('mac-reseller')->middleware(['mac-reseller'])->name('mac-reseller.')->group(function () {
+            Route::get('/choose', [MacResellerDashboardController::class, 'choose'])->name('choose');
+            Route::post('/select', [MacResellerDashboardController::class, 'select'])->name('select');
+            Route::post('/exit', [MacResellerDashboardController::class, 'exit'])->name('exit');
             Route::get('/dashboard', [MacResellerDashboardController::class, 'index'])->name('dashboard');
             Route::get('customers/data', [ResellerCustomerList::class, 'getData'])->name('customers.data');
             Route::get('customers', ResellerCustomerList::class)->name('customers.index');

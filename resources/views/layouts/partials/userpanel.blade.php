@@ -144,9 +144,6 @@
             <div class="bg-white dark__bg-1000 rounded-2 py-2">
                 <a wire:navigate.hover wire:current="active" class="dropdown-item" href="{{route('profile.show')}}">{{ __('Profile & account') }}</a>
                 <div class="dropdown-divider"></div>
-                @if (hasAccess(['Super Admin'], ['site-settings']))
-                    <a class="dropdown-item" wire:navigate.hover wire:current="active" href="{{route('site-settings')}}">{{ __('Master Setup') }}</a>
-                @endif
                 @if (hasAccess(['Super Admin'], ['create-user', 'edit-user', 'delete-user']))
                     <a class="dropdown-item" wire:navigate.hover wire:current="active" href="{{route('admin-users')}}">{{ __('Manage Users') }}</a>
                 @endif

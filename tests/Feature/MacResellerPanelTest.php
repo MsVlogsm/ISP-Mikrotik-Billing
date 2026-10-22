@@ -67,6 +67,72 @@ class MacResellerPanelTest extends TestCase
             ->assertRedirect(route('mac-reseller.dashboard'));
     }
 
+    public function test_super_admin_can_choose_and_enter_any_mac_reseller_portal(): void
+    {
+        $admin = User::factory()->create();
+        $adminRole = Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => 'web']);
+        $admin->assignRole($adminRole);
+        [, $reseller] = $this->createMacReseller();
+
+        $this->actingAs($admin)
+            ->get('/mac-reseller/dashboard')
+            ->assertRedirect(route('mac-reseller.choose'));
+
+        $this->actingAs($admin)
+            ->get('/mac-reseller/choose')
+            ->assertOk()
+            ->assertSee('Select a MAC Reseller Portal')
+            ->assertSee('Test MAC Reseller');
+
+        $this->actingAs($admin)
+            ->post('/mac-reseller/select', ['reseller_id' => $reseller->id])
+            ->assertRedirect(route('mac-reseller.dashboard'));
+
+        $this->assertSame($reseller->id, (int) session('mac_reseller_context_id'));
+        $this->actingAs($admin)
+            ->get('/mac-reseller/dashboard')
+            ->assertOk()
+            ->assertSee('MAC Reseller Dashboard');
+
+        $this->actingAs($admin)
+            ->post('/mac-reseller/exit')
+            ->assertRedirect(route('mac-reseller.choose'));
+        $this->assertNull(session('mac_reseller_context_id'));
+    }
+
+    public function test_super_admin_mac_portal_context_keeps_client_actions_scoped_to_selected_reseller(): void
+    {
+        $admin = User::factory()->create();
+        $adminRole = Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => 'web']);
+        $admin->assignRole($adminRole);
+        [, $selectedReseller] = $this->createMacReseller();
+        [, $otherReseller] = $this->createMacReseller();
+        $own = $this->makeCustomer('MAC-ADMIN-OWN-001', $selectedReseller->id, 'pending');
+        $other = $this->makeCustomer('MAC-ADMIN-OTHER-001', $otherReseller->id, 'pending');
+
+        $this->actingAs($admin)->withSession(['mac_reseller_context_id' => $selectedReseller->id]);
+        Livewire::actingAs($admin)
+            ->test(ResellerCustomerList::class)
+            ->call('disableCustomer', encrypt($other->customer_unique_id));
+
+        $this->assertDatabaseHas('customers_infos', [
+            'id' => $other->id,
+            'reseller_id' => $otherReseller->id,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($admin)->withSession(['mac_reseller_context_id' => $selectedReseller->id]);
+        Livewire::actingAs($admin)
+            ->test(ResellerCustomerList::class)
+            ->call('disableCustomer', encrypt($own->customer_unique_id));
+
+        $this->assertDatabaseHas('customers_infos', [
+            'id' => $own->id,
+            'reseller_id' => $selectedReseller->id,
+            'status' => 'disable',
+        ]);
+    }
+
     public function test_standard_reseller_cannot_enter_the_mac_panel(): void
     {
         [$user] = $this->createMacReseller('standard');

@@ -458,7 +458,7 @@
                     @elseif($menuId === 'systemSettingsMenu')
                     <div class="collapse ps-4" id="{{ $menuId }}">
                         <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route($route) }}">{{ __('Overview') }}</a>
-                        <a wire:navigate.hover class="nav-link" href="{{ route('site-settings') }}">{{ __('Site Settings') }}</a>
+                        <a wire:navigate.hover class="nav-link" href="{{ route('site-settings') }}">{{ __('Master Setup') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('company-settings') }}">{{ __('Company Settings') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('mikrotik-sync') }}">{{ __('MikroTik Setup') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('sms-setup') }}">{{ __('SMS Setup') }}</a>
@@ -526,6 +526,21 @@
                         <span class="nav-link-text ps-1">{{ __('Purchase Requests') }}</span>
                     </div>
                 </a>
+                <!-- Dedicated MAC Reseller module menu -->
+                <a class="nav-link dropdown-indicator collapsed" href="#macResellerAdminMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="macResellerAdminMenu">
+                    <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-people-fill"></i></span><span class="nav-link-text ps-1">{{ __('MAC Reseller') }}</span></div>
+                </a>
+                <ul class="nav collapse ps-2" id="macResellerAdminMenu">
+                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mac-reseller.dashboard') }}"><i class="bi bi-speedometer2 me-2"></i>{{ __('Dashboard') }}</a></li>
+                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('package-list-setup') }}"><i class="bi bi-box2 me-2"></i>{{ __('Package') }}</a></li>
+                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('package-list-setup') }}"><i class="bi bi-sliders me-2"></i>{{ __('Tariff Config') }}</a></li>
+                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('admin.resellers.create', ['panel_type' => 'mac']) }}"><i class="bi bi-person-plus-fill me-2"></i>{{ __('Add MAC Reseller') }}</a></li>
+                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('admin.resellers.index', ['panel_type' => 'mac']) }}"><i class="bi bi-list-ul me-2"></i>{{ __('MAC Reseller List') }}</a></li>
+                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('reseller-cashflow') }}"><i class="bi bi-wallet2 me-2"></i>{{ __('Reseller Funding') }}</a></li>
+                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('xlink.mobile-banking') }}"><i class="bi bi-phone me-2"></i>{{ __('Client PGW Payments') }}</a></li>
+                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mobile-banking.logs') }}"><i class="bi bi-receipt me-2"></i>{{ __('PGW Transaction Settlement') }}</a></li>
+                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('communication-center.notifications') }}"><i class="bi bi-megaphone me-2"></i>{{ __('MACReseller Notice') }}</a></li>
+                </ul>
                 <!-- reseller setup page-->
                 <a wire:navigate.hover wire:current="active" class="nav-link"
                     href="{{ route('admin.resellers.index') }}" role="button">
