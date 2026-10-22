@@ -526,7 +526,8 @@
                         <span class="nav-link-text ps-1">{{ __('Purchase Requests') }}</span>
                     </div>
                 </a>
-                <!-- Dedicated MAC Reseller module menu -->
+                <!-- Dedicated MAC Reseller module menu: Super Admin only -->
+                @if (auth()->user()->hasRole('Super Admin'))
                 <a class="nav-link dropdown-indicator collapsed" href="#macResellerAdminMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="macResellerAdminMenu">
                     <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-people-fill"></i></span><span class="nav-link-text ps-1">{{ __('MAC Reseller') }}</span></div>
                 </a>
@@ -541,6 +542,7 @@
                     <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mobile-banking.logs') }}"><i class="bi bi-receipt me-2"></i>{{ __('PGW Transaction Settlement') }}</a></li>
                     <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('communication-center.notifications') }}"><i class="bi bi-megaphone me-2"></i>{{ __('MACReseller Notice') }}</a></li>
                 </ul>
+                @endif
                 <!-- reseller setup page-->
                 <a wire:navigate.hover wire:current="active" class="nav-link"
                     href="{{ route('admin.resellers.index') }}" role="button">

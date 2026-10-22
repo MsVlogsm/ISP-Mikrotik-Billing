@@ -248,7 +248,9 @@
                             href="{{ route('admin.resellers.index') }}">
                             {{ __('Reseller Setup') }}
                         </a>
-                        <a wire:navigate.hover wire:current="active" class="dropdown-item link-600 fw-medium" href="{{ route('mac-reseller.choose') }}"><i class="bi bi-people-fill me-1"></i>{{ __('All MAC Reseller Portals') }}</a>
+                        @if (auth()->user()->hasRole('Super Admin'))
+                            <a wire:navigate.hover wire:current="active" class="dropdown-item link-600 fw-medium" href="{{ route('mac-reseller.choose') }}"><i class="bi bi-people-fill me-1"></i>{{ __('All MAC Reseller Portals') }}</a>
+                        @endif
                         <a wire:navigate.hover wire:current="active" class="dropdown-item link-600 fw-medium"
                             href="{{ route('admin.purchase-requests') }}">
                             {{ __('Purchase Requests') }}
