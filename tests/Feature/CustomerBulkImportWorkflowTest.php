@@ -43,6 +43,42 @@ class CustomerBulkImportWorkflowTest extends TestCase
         }
     }
 
+    public function test_bulk_import_reads_legacy_xls_uploads(): void
+    {
+        $headers = ['PPPoE Username', 'Customer Unique ID', 'Customer Name', 'Mobile', 'Alternative Mobile', 'Address'];
+        $values = ['missing-pppoe-xls', 'FC-XLS-01', 'XLS Import Test', '01700000001', '01800000001', 'Sample Address'];
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        foreach ($headers as $index => $header) {
+            $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($index + 1);
+            $sheet->setCellValue($column.'1', $header);
+            $sheet->setCellValueExplicit(
+                $column.'2',
+                $values[$index],
+                \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
+            );
+        }
+
+        $temporaryBase = tempnam(sys_get_temp_dir(), 'customer-bulk-import-xls-');
+        $path = $temporaryBase.'.xls';
+        @unlink($temporaryBase);
+        (new \PhpOffice\PhpSpreadsheet\Writer\Xls($spreadsheet))->save($path);
+        $spreadsheet->disconnectWorksheets();
+
+        try {
+            $upload = UploadedFile::fake()->createWithContent('customers.xls', file_get_contents($path));
+            $this->post(route('customer-bulk-import.preview'), ['file' => $upload])
+                ->assertRedirect(route('customer-bulk-import'));
+
+            $this->assertSame($headers, session('customer_bulk_import_headers'));
+            $this->assertSame('FC-XLS-01', session('customer_bulk_import_preview_rows.0.Customer Unique ID'));
+            $this->assertSame('01700000001', (string) session('customer_bulk_import_preview_rows.0.Mobile'));
+        } finally {
+            @unlink($path);
+        }
+    }
+
     public function test_bulk_import_requires_manual_customer_id_and_reports_missing_pppoe_users(): void
     {
         $csv = "username,customer_unique_id,customer_name\nmissing-pppoe,FC-MANUAL-01,Test Subscriber\n";

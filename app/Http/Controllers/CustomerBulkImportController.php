@@ -55,6 +55,9 @@ class CustomerBulkImportController extends Controller
         }
         $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
         $sheet->getStyle('A1:'.$lastColumn.'1')->getFont()->setBold(true);
+        // Pre-format data rows as text so PPPoE IDs, manually entered customer IDs,
+        // phone numbers and addresses retain leading zeros and identifier formatting.
+        $sheet->getStyle('A2:'.$lastColumn.'10001')->getNumberFormat()->setFormatCode('@');
         $sheet->freezePane('A2');
 
         $temporaryPath = tempnam(sys_get_temp_dir(), 'customer-import-template-');
@@ -251,6 +254,48 @@ class CustomerBulkImportController extends Controller
 
     private function readRows(string $path)
     {
+        // OpenSpout (used by SimpleExcelReader) does not support the legacy BIFF .xls format.
+        // Route only .xls files through PhpSpreadsheet; keep CSV and XLSX on the existing path.
+        if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'xls') {
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path);
+
+            try {
+                $rawRows = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+                if ($rawRows === []) {
+                    return collect();
+                }
+
+                $headers = array_map(
+                    static fn ($header) => trim((string) ($header ?? '')),
+                    array_shift($rawRows)
+                );
+
+                $rows = [];
+                foreach (array_slice($rawRows, 0, 10000) as $values) {
+                    $row = [];
+                    foreach ($headers as $index => $header) {
+                        if ($header !== '') {
+                            $row[$header] = $values[$index] ?? null;
+                        }
+                    }
+
+                    // Match the existing reader's behavior by excluding blank spreadsheet rows.
+                    if (count(array_filter(
+                        $row,
+                        static fn ($value) => $value !== null && trim((string) $value) !== ''
+                    )) === 0) {
+                        continue;
+                    }
+
+                    $rows[] = $row;
+                }
+
+                return collect($rows)->values();
+            } finally {
+                $spreadsheet->disconnectWorksheets();
+            }
+        }
+
         return SimpleExcelReader::create($path)->getRows()->take(10000)->values();
     }
 
