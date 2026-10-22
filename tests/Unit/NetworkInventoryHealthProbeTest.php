@@ -15,6 +15,6 @@ class NetworkInventoryHealthProbeTest extends TestCase
         $this->assertFalse($result['ok']);
         $this->assertSame('not_ready',$result['status']);
         $this->assertSame('snmp',$result['protocol']);
-        $this->assertStringContainsString('TCP probing of port 161 is intentionally disabled',$result['message']);
+        $this->assertStringContainsString('TCP probing is not a valid SNMP check',$result['message']);
     }
 }

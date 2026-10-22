@@ -14,8 +14,8 @@ class NetworkMonitoringAlertTest extends TestCase
     private function createDevice(array $overrides = []): NetworkInventoryDevice
     {
         return NetworkInventoryDevice::query()->create(array_merge([
-            'type' => 'olt',
-            'name' => 'Test OLT',
+            'type' => 'switch',
+            'name' => 'Test Switch',
             'ip_address' => '127.0.0.1',
             'health_port' => 9,
             'monitor_enabled' => true,
@@ -53,7 +53,7 @@ class NetworkMonitoringAlertTest extends TestCase
             'source_type' => 'network-monitoring',
             'event_type' => 'device_down',
             'severity' => 'critical',
-            'title' => 'Device unreachable: Test OLT',
+            'title' => 'Device unreachable: Test Switch',
             'message' => 'test',
             'status' => 'open',
             'fingerprint' => 'device-down:'.$device->id,

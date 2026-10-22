@@ -53,6 +53,7 @@ class OnuManagementTest extends TestCase
             'status' => 'online',
             'rx_power' => -18.50,
             'tx_power' => 2.10,
+            'opm_last_seen_at' => now(),
         ]);
 
         $this->get(route('network-inventory.olt'))
