@@ -524,3 +524,57 @@ html[data-bs-theme="dark"] .content .apexcharts-tooltip-title {
     background: var(--xlink-surface-raised) !important;
     border-bottom-color: var(--xlink-border) !important;
 }
+
+/* High-legibility type scale for legacy page-specific labels and values. */
+html[data-bs-theme="dark"] .content :where(p, label, small, span, em, dt, dd, td, th, li, strong, b, h1, h2, h3, h4, h5, h6, .card-title, .section-label):not(:where(.badge, .btn, .alert, .text-danger, .text-success, .text-primary, .text-info, .text-warning, .text-white, .text-light, .customer-hero *, .finance-hero *, .ai-hero *, .ai-mini-head *, .bg-primary *, .bg-success *, .bg-danger *, .bg-warning *, .bg-info *, .bg-dark *, .bg-secondary *, .badge *, .btn *)) {
+    color: var(--xlink-text) !important;
+}
+
+/* Labels and supporting text are intentionally softer, but still high contrast. */
+html[data-bs-theme="dark"] .content :where(label, small, dt, .form-text, .info-grid span, .inventory-grid span, .section-label, .customer-stat-label, .ai-muted, .ai-readonly, .device-meta, .nt-muted, .oa-muted, .empty-state, .activity-item .text-muted, .text-muted):not(:where(.badge, .btn, .alert, .text-danger, .text-success, .text-primary, .text-info, .text-warning, .text-white, .text-light, .customer-hero *, .finance-hero *, .ai-hero *, .ai-mini-head *, .bg-primary *, .bg-success *, .bg-danger *, .bg-warning *, .bg-info *, .bg-dark *, .bg-secondary *, .badge *, .btn *)) {
+    color: var(--xlink-muted) !important;
+}
+
+/* Customer Profile had legacy low-contrast labels and ink-dark values. */
+html[data-bs-theme="dark"] .content .info-grid,
+html[data-bs-theme="dark"] .content .inventory-grid {
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .info-grid > div,
+html[data-bs-theme="dark"] .content .inventory-grid > div,
+html[data-bs-theme="dark"] .content .activity-item {
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .info-grid span,
+html[data-bs-theme="dark"] .content .inventory-grid span {
+    display: block;
+    color: var(--xlink-muted) !important;
+    font-size: .8rem !important;
+    line-height: 1.4;
+    letter-spacing: .01em;
+}
+html[data-bs-theme="dark"] .content .info-grid strong,
+html[data-bs-theme="dark"] .content .inventory-grid strong,
+html[data-bs-theme="dark"] .content .activity-item strong {
+    color: var(--xlink-text) !important;
+    font-size: .94rem;
+    font-weight: 600;
+    line-height: 1.45;
+}
+html[data-bs-theme="dark"] .content .section-label,
+html[data-bs-theme="dark"] .content .info-card > .card-title,
+html[data-bs-theme="dark"] .content .actions-card > .section-label {
+    color: #f1f6ff !important;
+}
+html[data-bs-theme="dark"] .content .action-btn {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface-raised) !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .action-btn:hover {
+    color: #fff !important;
+    background: var(--xlink-surface-hover) !important;
+}
+html[data-bs-theme="dark"] .content .empty-state {
+    color: var(--xlink-muted) !important;
+}
