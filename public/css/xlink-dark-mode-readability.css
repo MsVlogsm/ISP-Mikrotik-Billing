@@ -1,0 +1,129 @@
+/* X-Link Billing: shared dark-mode contrast fixes. Light mode is untouched. */
+html[data-bs-theme="dark"] {
+    color-scheme: dark;
+    --xlink-dark-text: #e6edf7;
+    --xlink-dark-muted: #b6c3d5;
+    --xlink-dark-border: #3a4a60;
+    --cp-body-color: #dbe5f1;
+    --cp-heading-color: #eef4ff;
+    --cp-link-color: #8ab4ff;
+    --cp-link-hover-color: #bfd5ff;
+    --cp-border-color: var(--xlink-dark-border);
+}
+
+html[data-bs-theme="dark"] body,
+html[data-bs-theme="dark"] .content {
+    color: var(--xlink-dark-text);
+}
+
+/* Prevent legacy Bootstrap text-dark utilities from rendering nearly black on dark surfaces. */
+html[data-bs-theme="dark"] .content :where(.text-dark):not(:where(.badge, .btn, .alert, .bg-light, .bg-white)):not(:where(.bg-light *, .bg-white *)),
+html[data-bs-theme="dark"] .content :where(.card-title, .modal-title, .form-label):not(:where(.bg-light *, .bg-white *)) {
+    color: var(--xlink-dark-text) !important;
+}
+
+/* Keep dark lettering on deliberately light surfaces and status badges. */
+html[data-bs-theme="dark"] .content .bg-light.text-dark,
+html[data-bs-theme="dark"] .content .bg-light .text-dark,
+html[data-bs-theme="dark"] .content .bg-white.text-dark,
+html[data-bs-theme="dark"] .content .bg-white .text-dark,
+html[data-bs-theme="dark"] .content .badge.bg-light,
+html[data-bs-theme="dark"] .content .btn-light,
+html[data-bs-theme="dark"] .content .alert-light,
+html[data-bs-theme="dark"] .content .table-light,
+html[data-bs-theme="dark"] .content .table-light > * > * {
+    color: #212529 !important;
+}
+
+html[data-bs-theme="dark"] .content .text-muted,
+html[data-bs-theme="dark"] .content .form-text,
+html[data-bs-theme="dark"] .content .text-500,
+html[data-bs-theme="dark"] .content .text-600,
+html[data-bs-theme="dark"] .content .text-gray-500,
+html[data-bs-theme="dark"] .content .text-gray-600 {
+    color: var(--xlink-dark-muted) !important;
+}
+
+html[data-bs-theme="dark"] .content .card,
+html[data-bs-theme="dark"] .content .modal-content,
+html[data-bs-theme="dark"] .content .offcanvas,
+html[data-bs-theme="dark"] .content .list-group-item,
+html[data-bs-theme="dark"] .content .dropdown-menu:not(.bg-white) {
+    border-color: var(--xlink-dark-border);
+}
+
+html[data-bs-theme="dark"] .content .form-control,
+html[data-bs-theme="dark"] .content .form-select,
+html[data-bs-theme="dark"] .content .input-group-text,
+html[data-bs-theme="dark"] .content textarea,
+html[data-bs-theme="dark"] .content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) {
+    color: var(--xlink-dark-text);
+    border-color: #53647b;
+}
+
+html[data-bs-theme="dark"] .content .form-control,
+html[data-bs-theme="dark"] .content .form-select,
+html[data-bs-theme="dark"] .content textarea,
+html[data-bs-theme="dark"] .content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) {
+    background-color: #111c2b;
+}
+
+html[data-bs-theme="dark"] .content .form-control::placeholder,
+html[data-bs-theme="dark"] .content textarea::placeholder,
+html[data-bs-theme="dark"] .content input::placeholder {
+    color: #9eafc5;
+    opacity: 1;
+}
+
+html[data-bs-theme="dark"] .content .form-control:focus,
+html[data-bs-theme="dark"] .content .form-select:focus,
+html[data-bs-theme="dark"] .content textarea:focus,
+html[data-bs-theme="dark"] .content input:focus {
+    border-color: #7aa9f5;
+    box-shadow: 0 0 0 .2rem rgba(122, 169, 245, .2);
+}
+
+html[data-bs-theme="dark"] .content .table:not(.table-light) {
+    --cp-table-color: var(--xlink-dark-text);
+    --cp-table-bg: transparent;
+    --cp-table-border-color: var(--xlink-dark-border);
+    --bs-table-color: var(--xlink-dark-text);
+    --bs-table-bg: transparent;
+    --bs-table-border-color: var(--xlink-dark-border);
+}
+
+html[data-bs-theme="dark"] .content .table:not(.table-light) > :not(caption) > * > * {
+    color: var(--xlink-dark-text);
+    border-color: var(--xlink-dark-border);
+}
+
+html[data-bs-theme="dark"] .content .table:not(.table-light) thead th,
+html[data-bs-theme="dark"] .content .table:not(.table-light) thead td {
+    color: #f0f5fc;
+}
+
+html[data-bs-theme="dark"] .content a:not(.btn):not(.nav-link) {
+    color: var(--cp-link-color);
+}
+html[data-bs-theme="dark"] .content a:not(.btn):not(.nav-link):hover {
+    color: var(--cp-link-hover-color);
+}
+
+html[data-bs-theme="dark"] .content hr,
+html[data-bs-theme="dark"] .content .border,
+html[data-bs-theme="dark"] .content .border-bottom,
+html[data-bs-theme="dark"] .content .border-top {
+    border-color: var(--xlink-dark-border) !important;
+}
+
+html[data-bs-theme="dark"] .content :is(.dataTables_wrapper, .dataTables_info, .dataTables_paginate, .pagination) {
+    color: var(--xlink-dark-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html[data-bs-theme="dark"] *,
+    html[data-bs-theme="dark"] *::before,
+    html[data-bs-theme="dark"] *::after {
+        scroll-behavior: auto !important;
+    }
+}
