@@ -3,42 +3,42 @@
 
     @push('styles')
     <style>
-        .finance-dashboard{--fin-ink:#172554;--fin-muted:#64748b;--fin-line:#e7edf5;--fin-bg:#f5f7fb;color:#172033}
-        .finance-dashboard .finance-hero{position:relative;overflow:hidden;border-radius:24px;padding:clamp(1.35rem,3vw,2.25rem);background:linear-gradient(120deg,#111c3b 0%,#183a69 54%,#126b78 100%);color:#fff;box-shadow:0 18px 42px rgba(15,35,76,.16)}
+        .finance-dashboard{--fin-ink:#172554;--fin-muted:#64748b;--fin-line:#e3eaf3;--fin-bg:#f4f7fb;color:#172033;background:var(--fin-bg);border:1px solid #e8edf5;border-radius:24px;padding-top:1.15rem;padding-bottom:1.35rem;font-variant-numeric:tabular-nums}
+        .finance-dashboard .finance-hero{position:relative;overflow:hidden;border-radius:24px;padding:clamp(1.35rem,3vw,2.25rem);background:linear-gradient(118deg,#111d35 0%,#1b3154 68%,#20505e 100%);color:#fff;box-shadow:0 14px 34px rgba(20,39,70,.14);border:1px solid rgba(255,255,255,.08)}
         .finance-dashboard .finance-hero:before,.finance-dashboard .finance-hero:after{content:"";position:absolute;border-radius:50%;pointer-events:none}
-        .finance-dashboard .finance-hero:before{width:290px;height:290px;right:-35px;top:-150px;border:1px solid rgba(255,255,255,.18);box-shadow:0 0 0 28px rgba(255,255,255,.035),0 0 0 58px rgba(255,255,255,.025)}
-        .finance-dashboard .finance-hero:after{width:150px;height:150px;right:21%;bottom:-118px;background:rgba(95,220,201,.13);filter:blur(2px)}
+        .finance-dashboard .finance-hero:before{width:240px;height:240px;right:-55px;top:-150px;border:1px solid rgba(255,255,255,.13);box-shadow:0 0 0 26px rgba(255,255,255,.025),0 0 0 54px rgba(255,255,255,.018)}
+        .finance-dashboard .finance-hero:after{width:150px;height:150px;right:21%;bottom:-118px;background:rgba(95,220,201,.08);filter:blur(4px)}
         .finance-dashboard .finance-hero-content{position:relative;z-index:1}
         .finance-dashboard .finance-overline{font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#a6e8e4}
-        .finance-dashboard .finance-hero h2{font-size:clamp(1.7rem,3vw,2.45rem);font-weight:800;letter-spacing:-.035em;color:#fff;margin:.45rem 0 .5rem}
-        .finance-dashboard .finance-hero p{color:rgba(255,255,255,.75);max-width:660px;margin:0}
+        .finance-dashboard .finance-hero h2{font-size:clamp(1.8rem,3vw,2.5rem);font-weight:820;line-height:1.13;letter-spacing:-.04em;color:#fff;margin:.5rem 0 .6rem}
+        .finance-dashboard .finance-hero p{color:rgba(255,255,255,.75);max-width:680px;margin:0;font-size:.94rem;line-height:1.7}
         .finance-dashboard .finance-hero-date{display:inline-flex;align-items:center;gap:.5rem;color:#e4f4ff;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);padding:.55rem .8rem;border-radius:12px;font-size:.82rem}
         .finance-dashboard .btn-finance-light{border:0;background:#fff;color:#19345a;font-weight:750;border-radius:11px;padding:.7rem 1rem}
         .finance-dashboard .btn-finance-glass{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.28);color:#fff;font-weight:700;border-radius:11px;padding:.7rem 1rem}
         .finance-dashboard .finance-section-head{display:flex;justify-content:space-between;align-items:end;gap:1rem;margin:1.7rem 0 .85rem}
         .finance-dashboard .finance-section-head h3{font-size:1.05rem;font-weight:800;letter-spacing:-.02em;margin:0;color:#182747}
         .finance-dashboard .finance-section-head p{font-size:.82rem;color:var(--fin-muted);margin:.25rem 0 0}
-        .finance-dashboard .finance-stat{height:100%;border:1px solid var(--fin-line);border-radius:18px;background:#fff;padding:1.15rem;box-shadow:0 5px 18px rgba(21,41,74,.035);transition:transform .18s ease,box-shadow .18s ease}
-        .finance-dashboard .finance-stat:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(21,41,74,.08)}
+        .finance-dashboard .finance-stat{height:100%;border:1px solid var(--fin-line);border-radius:16px;background:#fff;padding:1.2rem;box-shadow:0 3px 12px rgba(21,41,74,.025);transition:border-color .18s ease,box-shadow .18s ease;position:relative}
+        .finance-dashboard .finance-stat:hover{border-color:#c9d6e7;box-shadow:0 9px 22px rgba(21,41,74,.07)}
         .finance-dashboard .finance-stat-top{display:flex;justify-content:space-between;align-items:center;gap:.8rem}
         .finance-dashboard .finance-stat-label{font-size:.78rem;font-weight:750;color:#65738b}
         .finance-dashboard .finance-stat-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;font-size:1.2rem;flex:none}
-        .finance-dashboard .finance-stat-value{font-size:clamp(1.35rem,2vw,1.8rem);font-weight:850;letter-spacing:-.04em;color:#192947;margin:.8rem 0 .25rem;overflow-wrap:anywhere}
+        .finance-dashboard .finance-stat-value{font-size:clamp(1.3rem,2vw,1.75rem);font-weight:820;letter-spacing:-.045em;color:#192947;margin:.85rem 0 .3rem;overflow-wrap:anywhere;line-height:1.2}
         .finance-dashboard .finance-stat-note{font-size:.75rem;color:#8290a5}
         .finance-dashboard .finance-icon-teal{background:#e3f8f4;color:#087e74}.finance-dashboard .finance-icon-blue{background:#eaf1ff;color:#315bc6}
         .finance-dashboard .finance-icon-amber{background:#fff4dc;color:#b77905}.finance-dashboard .finance-icon-red{background:#ffebed;color:#cf3b52}
         .finance-dashboard .finance-icon-violet{background:#f1eaff;color:#7648ce}.finance-dashboard .finance-icon-green{background:#e4f8ea;color:#19834b}
-        .finance-dashboard .finance-panel{height:100%;border:1px solid var(--fin-line);border-radius:19px;background:#fff;box-shadow:0 5px 18px rgba(21,41,74,.035);overflow:hidden}
+        .finance-dashboard .finance-panel{height:100%;border:1px solid var(--fin-line);border-radius:17px;background:#fff;box-shadow:0 3px 13px rgba(21,41,74,.025);overflow:hidden}
         .finance-dashboard .finance-panel-head{padding:1.1rem 1.2rem;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center;gap:1rem}
-        .finance-dashboard .finance-panel-head h3{font-size:.98rem;font-weight:800;color:#1b2b4a;margin:0}
+        .finance-dashboard .finance-panel-head h3{font-size:.98rem;font-weight:820;letter-spacing:-.015em;color:#1b2b4a;margin:0}
         .finance-dashboard .finance-panel-head p{font-size:.75rem;color:#8995a8;margin:.25rem 0 0}
         .finance-dashboard .finance-panel-body{padding:1.1rem 1.2rem}
         .finance-dashboard .finance-link{font-size:.79rem;font-weight:750;text-decoration:none;color:#315bc6;white-space:nowrap}
-        .finance-dashboard .finance-link:hover{text-decoration:underline}
+        .finance-dashboard .finance-link:hover{text-decoration:underline}.finance-dashboard a:focus-visible,.finance-dashboard button:focus-visible{outline:3px solid rgba(49,91,198,.32);outline-offset:3px}
         .finance-dashboard .finance-trend-chart{height:205px;display:flex;align-items:stretch;gap:.7rem;padding:.4rem .1rem 0}
         .finance-dashboard .finance-month-group{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:end;gap:.6rem}
-        .finance-dashboard .finance-bars{height:164px;width:100%;display:flex;align-items:end;justify-content:center;gap:4px;border-bottom:1px solid #edf1f6;padding:0 3px}
-        .finance-dashboard .finance-bar{width:min(26px,42%);min-height:3px;border-radius:6px 6px 2px 2px;transition:opacity .15s}
+        .finance-dashboard .finance-bars{height:164px;width:100%;display:flex;align-items:end;justify-content:center;gap:4px;border-bottom:1px solid #edf1f6;padding:0 3px;background:repeating-linear-gradient(to top,#fff 0,#fff 39px,#f0f3f8 40px)}
+        .finance-dashboard .finance-bar{width:min(26px,42%);min-height:0;border-radius:5px 5px 2px 2px;transition:opacity .15s}
         .finance-dashboard .finance-bar:hover{opacity:.72}
         .finance-dashboard .finance-bar-revenue{background:linear-gradient(180deg,#48cbb8,#138f9b)}
         .finance-dashboard .finance-bar-expenses{background:linear-gradient(180deg,#a9b9d8,#647ca7)}
@@ -62,18 +62,19 @@
         .finance-dashboard .finance-table tbody tr:hover td{background:#fbfcff}
         .finance-dashboard .finance-customer-name{font-weight:750;color:#213252}
         .finance-dashboard .finance-subtext{font-size:.7rem;color:#8a97aa;margin-top:.15rem}
-        .finance-dashboard .finance-amount{font-weight:800;color:#1d3154;white-space:nowrap}
+        .finance-dashboard .finance-amount{font-weight:780;color:#1d3154;white-space:nowrap;font-variant-numeric:tabular-nums}
         .finance-dashboard .finance-negative{color:#c43f52}
         .finance-dashboard .finance-status{display:inline-flex;align-items:center;border-radius:99px;padding:.25rem .55rem;font-size:.68rem;font-weight:800;background:#edf7f1;color:#24804d}
         .finance-dashboard .finance-status-muted{background:#f1f4f8;color:#64748b}
         .finance-dashboard .finance-empty{text-align:center;color:#8996aa;padding:2rem 1rem;font-size:.83rem}
-        .finance-dashboard .finance-shortcut{height:100%;display:flex;align-items:center;gap:.85rem;padding:1rem;border:1px solid var(--fin-line);background:#fff;border-radius:15px;text-decoration:none;transition:transform .18s ease,border-color .18s ease}
-        .finance-dashboard .finance-shortcut:hover{transform:translateY(-2px);border-color:#a8baf7}
+        .finance-dashboard .finance-shortcut{height:100%;display:flex;align-items:center;gap:.85rem;padding:1rem;border:1px solid var(--fin-line);background:#fff;border-radius:14px;text-decoration:none;transition:box-shadow .18s ease,border-color .18s ease}
+        .finance-dashboard .finance-shortcut:hover{border-color:#a8baf7;box-shadow:0 8px 20px rgba(34,58,102,.06)}
         .finance-dashboard .finance-shortcut-icon{width:40px;height:40px;border-radius:12px;background:#edf3ff;color:#315bc6;display:grid;place-items:center;flex:none;font-size:1.12rem}
         .finance-dashboard .finance-shortcut strong{font-size:.84rem;color:#213252;display:block}.finance-dashboard .finance-shortcut small{font-size:.72rem;color:#7b8aa1;display:block;margin-top:.2rem}
-        .finance-dashboard .finance-footnote{font-size:.73rem;color:#8290a5}
-        @media(max-width:767.98px){.finance-dashboard .finance-hero{border-radius:18px}.finance-dashboard .finance-stat{padding:.95rem}.finance-dashboard .finance-stat-value{font-size:1.25rem}.finance-dashboard .finance-mini-metrics{grid-template-columns:1fr}.finance-dashboard .finance-trend-chart{gap:.35rem}.finance-dashboard .finance-panel-head,.finance-dashboard .finance-panel-body{padding:.9rem}.finance-dashboard .finance-table th,.finance-dashboard .finance-table td{padding:.65rem}.finance-dashboard .finance-section-head{align-items:start;flex-direction:column}}
+        .finance-dashboard .finance-footnote{font-size:.73rem;color:#8290a5;border-top:1px solid #e3eaf3;padding-top:1rem}
+        @media(max-width:767.98px){.finance-dashboard{border-radius:17px;padding-top:.75rem}.finance-dashboard .finance-hero{border-radius:16px}.finance-dashboard .finance-stat{padding:.95rem}.finance-dashboard .finance-stat-value{font-size:1.25rem}.finance-dashboard .finance-mini-metrics{grid-template-columns:1fr}.finance-dashboard .finance-trend-chart{gap:.35rem}.finance-dashboard .finance-panel-head,.finance-dashboard .finance-panel-body{padding:.9rem}.finance-dashboard .finance-table th,.finance-dashboard .finance-table td{padding:.65rem}.finance-dashboard .finance-section-head{align-items:start;flex-direction:column}}
         @media(prefers-reduced-motion:reduce){.finance-dashboard *{transition:none!important}}
+        @media print{body{background:#fff!important}.finance-dashboard{background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:0!important}.finance-dashboard .finance-hero{background:#172b49!important;box-shadow:none!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}.finance-dashboard .finance-hero:before,.finance-dashboard .finance-hero:after{display:none!important}.finance-dashboard a{text-decoration:none!important}.finance-dashboard .finance-panel,.finance-dashboard .finance-stat,.finance-dashboard .finance-shortcut{break-inside:avoid;box-shadow:none!important}.finance-dashboard .finance-section-head{break-after:avoid}.finance-dashboard .finance-table{font-size:10px!important}}
     </style>
     @endpush
 
@@ -90,7 +91,7 @@
                 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
                     <div>
                         <div class="finance-overline"><i class="bi bi-bar-chart-line-fill me-2"></i>Finance Control Center</div>
-                        <h2>Billing &amp; Finance</h2>
+                        <h2>Financial overview</h2>
                         <p>Collection performance, outstanding balances, operational expenses and financial health in one independent workspace.</p>
                     </div>
                     <div class="finance-hero-date"><i class="bi bi-calendar3"></i>{{ $now->format('l, d M Y') }}</div>
@@ -106,12 +107,12 @@
             <div class="col-6 col-xl-3"><div class="finance-stat">
                 <div class="finance-stat-top"><span class="finance-stat-label">Collected Today</span><span class="finance-stat-icon finance-icon-teal"><i class="bi bi-wallet2"></i></span></div>
                 <div class="finance-stat-value">{{ $formatMoney($todayTotal) }}</div>
-                <div class="finance-stat-note">Collection ledger + hotspot sales</div>
+                <div class="finance-stat-note">Ledger {{ $formatMoney($collectionToday) }} · Hotspot {{ $formatMoney($hotspotToday) }}</div>
             </div></div>
             <div class="col-6 col-xl-3"><div class="finance-stat">
                 <div class="finance-stat-top"><span class="finance-stat-label">This Month's Revenue</span><span class="finance-stat-icon finance-icon-blue"><i class="bi bi-graph-up-arrow"></i></span></div>
                 <div class="finance-stat-value">{{ $formatMoney($monthRevenue) }}</div>
-                <div class="finance-stat-note">Collection and hotspot sales</div>
+                <div class="finance-stat-note">Collections {{ $formatMoney($collectionMonth) }} · Hotspot {{ $formatMoney($hotspotMonth) }}</div>
             </div></div>
             <div class="col-6 col-xl-3"><div class="finance-stat">
                 <div class="finance-stat-top"><span class="finance-stat-label">Outstanding Due</span><span class="finance-stat-icon finance-icon-red"><i class="bi bi-exclamation-circle"></i></span></div>
@@ -127,9 +128,9 @@
 
         <div class="row g-3 mt-1 mb-3">
             <div class="col-12 col-lg-4"><div class="finance-stat">
-                <div class="finance-stat-top"><span class="finance-stat-label">Operating Snapshot · This Month</span><span class="finance-stat-icon finance-icon-green"><i class="bi bi-activity"></i></span></div>
+                <div class="finance-stat-top"><span class="finance-stat-label">Net Result · This Month</span><span class="finance-stat-icon finance-icon-green"><i class="bi bi-activity"></i></span></div>
                 <div class="finance-stat-value {{ $monthNet < 0 ? 'finance-negative' : '' }}">{{ $formatMoney($monthNet) }}</div>
-                <div class="finance-stat-note">Revenue minus recorded expenses and reseller commissions</div>
+                <div class="finance-stat-note">Revenue less recorded expenses and reseller commissions · {{ number_format($netMargin, 1) }}% margin</div>
             </div></div>
             <div class="col-6 col-lg-4"><div class="finance-stat">
                 <div class="finance-stat-top"><span class="finance-stat-label">Operating Expenses</span><span class="finance-stat-icon finance-icon-amber"><i class="bi bi-receipt"></i></span></div>
@@ -144,7 +145,7 @@
         </div>
 
         <div class="finance-section-head">
-            <div><h3>Financial performance</h3><p>Six-month trend based on saved collection, hotspot, expense and commission records.</p></div>
+            <div><h3>Financial performance</h3><p>Six-month trend from recorded collections, hotspot sales, expenses and commissions.</p></div>
             <a class="finance-link" href="{{ route('admin.profit-summary') }}">Full Profit &amp; Loss <i class="bi bi-arrow-up-right ms-1"></i></a>
         </div>
         <div class="row g-3 mb-3">
@@ -157,8 +158,8 @@
                             @foreach($trend as $item)
                                 <div class="finance-month-group">
                                     <div class="finance-bars">
-                                        <div class="finance-bar finance-bar-revenue" style="height:{{ max(3, (int) round($item['revenue'] / $trendMax * 100)) }}%" title="{{ $item['label'] }} revenue: {{ $formatMoney($item['revenue']) }}"></div>
-                                        <div class="finance-bar finance-bar-expenses" style="height:{{ max(3, (int) round($item['expenses'] / $trendMax * 100)) }}%" title="{{ $item['label'] }} expenses: {{ $formatMoney($item['expenses']) }}"></div>
+                                        <div class="finance-bar finance-bar-revenue" style="height:{{ $item['revenue'] > 0 ? max(3, (int) round($item['revenue'] / $trendMax * 100)) : 0 }}%" title="{{ $item['label'] }} revenue: {{ $formatMoney($item['revenue']) }}"></div>
+                                        <div class="finance-bar finance-bar-expenses" style="height:{{ $item['expenses'] > 0 ? max(3, (int) round($item['expenses'] / $trendMax * 100)) : 0 }}%" title="{{ $item['label'] }} expenses: {{ $formatMoney($item['expenses']) }}"></div>
                                     </div>
                                     <span class="finance-month-label">{{ $item['label'] }}</span>
                                 </div>
@@ -174,7 +175,7 @@
             </div>
             <div class="col-12 col-xl-4">
                 <section class="finance-panel">
-                    <div class="finance-panel-head"><div><h3>Payment methods</h3><p>Collection ledger · current month</p></div></div>
+                    <div class="finance-panel-head"><div><h3>Payment methods</h3><p>Top five methods · current month</p></div></div>
                     <div class="finance-panel-body">
                         @forelse($paymentMethods as $method)
                             <div class="finance-method">
@@ -252,17 +253,16 @@
             <div class="col-6 col-xl-3"><a class="finance-shortcut" href="{{ route('income-summary') }}"><span class="finance-shortcut-icon"><i class="bi bi-graph-up"></i></span><span><strong>Income &amp; Collection</strong><small>Filter collection by date</small></span></a></div>
         </div>
 
-        @if($recentExpenses->isNotEmpty())
-            <div class="finance-section-head">
+        <div class="finance-section-head">
                 <div><h3>Recent expenses</h3><p>Recorded expenses for {{ $now->format('F Y') }}.</p></div>
                 <a class="finance-link" href="{{ route('admin.expenses') }}">Expense register <i class="bi bi-arrow-right ms-1"></i></a>
-            </div>
-            <section class="finance-panel">
-                <div class="table-responsive">
-                    <table class="finance-table">
-                        <thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Entered by</th><th class="text-end">Amount</th></tr></thead>
-                        <tbody>
-                        @foreach($recentExpenses as $expense)
+        </div>
+        <section class="finance-panel">
+            <div class="table-responsive">
+                <table class="finance-table">
+                    <thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Entered by</th><th class="text-end">Amount</th></tr></thead>
+                    <tbody>
+                    @forelse($recentExpenses as $expense)
                             <tr>
                                 <td>{{ $expense->expense_date?->format('d M Y') ?: '—' }}</td>
                                 <td><div class="finance-customer-name">{{ $expense->title ?: 'Expense' }}</div><div class="finance-subtext">{{ $expense->reference_no ?: $expense->description }}</div></td>
@@ -270,13 +270,14 @@
                                 <td>{{ $expense->addedBy?->name ?: '—' }}</td>
                                 <td class="text-end"><span class="finance-amount">{{ $formatMoney($expense->amount) }}</span></td>
                             </tr>
-                        @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        @endif
+                    @empty
+                        <tr><td colspan="5"><div class="finance-empty">No expense records found for this month.</div></td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
-        <p class="finance-footnote mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>Figures are calculated from the saved collection ledger, hotspot sales, billing balances, expense register and reseller commission records. The monthly operating snapshot is revenue minus recorded expenses and commissions; it is not an audited accounting statement.</p>
+        <p class="finance-footnote mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>Figures use the saved collection ledger, hotspot sales, current billing balances, expense register and reseller commission records. The monthly operating snapshot is revenue minus recorded expenses and commissions; it is not an audited accounting statement.</p>
     </div>
 </x-app-layout>

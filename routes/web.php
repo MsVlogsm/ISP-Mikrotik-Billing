@@ -11,6 +11,7 @@ use App\Livewire\Admin\ManageReviews;
 use App\Livewire\Admin\AdminVoucherList;
 use App\Livewire\Admin\SystemLogViewer;
 use App\Http\Controllers\CollectionReportController;
+use App\Http\Controllers\BillingFinanceDashboardController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CustomerDetailsController;
 use App\Http\Controllers\ImportController;
@@ -1419,88 +1420,8 @@ Route::middleware([
 
         Route::get('/submit-comment', CommentSubmit::class)->name('submit.comment');
 
-        // Dedicated Billing & Finance dashboard. Uses live application ledgers only.
-        Route::get('/billing-finance', function () {
-            $now = now();
-            $today = $now->toDateString();
-            $monthStart = $now->copy()->startOfMonth()->toDateString();
-            $monthEnd = $now->copy()->endOfMonth()->toDateString();
-            $yearStart = $now->copy()->startOfYear()->toDateString();
-            $trendStart = $now->copy()->subMonths(5)->startOfMonth()->toDateString();
-            $driver = \Illuminate\Support\Facades\DB::connection()->getDriverName();
-            $currency = siteUrlSettings('site_currency') ?: '৳';
-
-            $collectionToday = (float) \App\Models\CollectionSummary::whereDate('collection_date', $today)->sum('collection_amount');
-            $hotspotToday = (float) \App\Models\HotspotSale::whereDate('sale_date', $today)->sum('amount');
-            $collectionMonth = (float) \App\Models\CollectionSummary::whereBetween('collection_date', [$monthStart, $monthEnd])->sum('collection_amount');
-            $hotspotMonth = (float) \App\Models\HotspotSale::whereBetween('sale_date', [$monthStart, $monthEnd])->sum('amount');
-            $collectionYear = (float) \App\Models\CollectionSummary::whereBetween('collection_date', [$yearStart, $today])->sum('collection_amount');
-            $hotspotYear = (float) \App\Models\HotspotSale::whereBetween('sale_date', [$yearStart, $today])->sum('amount');
-            $expenseMonth = (float) \App\Models\IspExpense::whereBetween('expense_date', [$monthStart, $monthEnd])->sum('amount');
-            $commissionMonth = (float) \App\Models\ResellerCommission::whereBetween('created_at', [$monthStart, $monthEnd])->sum('amount');
-            $monthlyRent = (float) \App\Models\BillingInfo::join('customers_infos', 'billing_infos.customer_bill_unique_id', '=', 'customers_infos.customer_unique_id')
-                ->whereNull('customers_infos.deleted_at')->where('customers_infos.status', 'active')->sum('billing_infos.monthly_rent');
-            $outstandingDue = (float) \App\Models\BillingInfo::join('customers_infos', 'billing_infos.customer_bill_unique_id', '=', 'customers_infos.customer_unique_id')
-                ->whereNull('customers_infos.deleted_at')->where('billing_infos.due_amount', '>', 0)->sum('billing_infos.due_amount');
-            $dueCustomersCount = \App\Models\CustomersInfo::whereIn('status', ['active', 'pending', 'disable', 'temporary_disable'])
-                ->whereHas('billing', fn ($query) => $query->where('due_amount', '>', 0))->count();
-            $activeCustomersCount = \App\Models\CustomersInfo::where('status', 'active')->count();
-            $monthRevenue = $collectionMonth + $hotspotMonth;
-            $monthCosts = $expenseMonth + $commissionMonth;
-            $monthNet = $monthRevenue - $monthCosts;
-            $yearRevenue = $collectionYear + $hotspotYear;
-
-            $monthExpression = $driver === 'sqlite'
-                ? "strftime('%Y-%m', collection_date)"
-                : "DATE_FORMAT(collection_date, '%Y-%m')";
-            $saleMonthExpression = $driver === 'sqlite'
-                ? "strftime('%Y-%m', sale_date)"
-                : "DATE_FORMAT(sale_date, '%Y-%m')";
-            $expenseMonthExpression = $driver === 'sqlite'
-                ? "strftime('%Y-%m', expense_date)"
-                : "DATE_FORMAT(expense_date, '%Y-%m')";
-            $commissionMonthExpression = $driver === 'sqlite'
-                ? "strftime('%Y-%m', created_at)"
-                : "DATE_FORMAT(created_at, '%Y-%m')";
-
-            $collectionsByMonth = \App\Models\CollectionSummary::whereBetween('collection_date', [$trendStart, $monthEnd])
-                ->selectRaw($monthExpression.' as month_key, SUM(collection_amount) as total')->groupBy('month_key')->pluck('total', 'month_key')->toArray();
-            $hotspotByMonth = \App\Models\HotspotSale::whereBetween('sale_date', [$trendStart, $monthEnd])
-                ->selectRaw($saleMonthExpression.' as month_key, SUM(amount) as total')->groupBy('month_key')->pluck('total', 'month_key')->toArray();
-            $expensesByMonth = \App\Models\IspExpense::whereBetween('expense_date', [$trendStart, $monthEnd])
-                ->selectRaw($expenseMonthExpression.' as month_key, SUM(amount) as total')->groupBy('month_key')->pluck('total', 'month_key')->toArray();
-            $commissionsByMonth = \App\Models\ResellerCommission::whereBetween('created_at', [$trendStart, $monthEnd])
-                ->selectRaw($commissionMonthExpression.' as month_key, SUM(amount) as total')->groupBy('month_key')->pluck('total', 'month_key')->toArray();
-
-            $trend = [];
-            for ($i = 5; $i >= 0; $i--) {
-                $date = $now->copy()->subMonths($i);
-                $key = $date->format('Y-m');
-                $revenue = (float) ($collectionsByMonth[$key] ?? 0) + (float) ($hotspotByMonth[$key] ?? 0);
-                $costs = (float) ($expensesByMonth[$key] ?? 0) + (float) ($commissionsByMonth[$key] ?? 0);
-                $trend[] = ['label' => $date->format('M'), 'revenue' => $revenue, 'expenses' => $costs, 'net' => $revenue - $costs];
-            }
-            $trendMax = max(1, ...array_map(fn ($row) => max($row['revenue'], $row['expenses']), $trend));
-
-            $paymentMethods = \App\Models\CollectionSummary::whereBetween('collection_date', [$monthStart, $monthEnd])
-                ->selectRaw("COALESCE(NULLIF(payment_method, ''), 'Other') as method, SUM(collection_amount) as total")
-                ->groupBy('method')->orderByDesc('total')->limit(5)->get();
-            $recentCollections = \App\Models\CollectionSummary::with('customer')
-                ->whereBetween('collection_date', [$monthStart, $monthEnd])->latest('collection_date')->latest('id')->limit(7)->get();
-            $topDueCustomers = \App\Models\BillingInfo::with('customer')->where('due_amount', '>', 0)
-                ->whereHas('customer', fn ($query) => $query->whereNotIn('status', ['inactive', 'free']))
-                ->orderByDesc('due_amount')->limit(7)->get();
-            $recentExpenses = \App\Models\IspExpense::with('addedBy')->whereBetween('expense_date', [$monthStart, $monthEnd])
-                ->latest('expense_date')->latest('id')->limit(5)->get();
-
-            return view('billing.finance-hub', compact(
-                'now', 'currency', 'collectionToday', 'hotspotToday', 'collectionMonth', 'hotspotMonth',
-                'collectionYear', 'hotspotYear', 'expenseMonth', 'commissionMonth', 'monthlyRent',
-                'outstandingDue', 'dueCustomersCount', 'activeCustomersCount', 'monthRevenue',
-                'monthCosts', 'monthNet', 'yearRevenue', 'trend', 'trendMax', 'paymentMethods',
-                'recentCollections', 'topDueCustomers', 'recentExpenses'
-            ));
-        })->name('billing-finance');
+        // Dedicated Billing & Finance dashboard.
+        Route::get('/billing-finance', [BillingFinanceDashboardController::class, 'index'])->name('billing-finance');
 
         Route::get('/income-summary', function () {
             $from = request('from', now()->startOfMonth()->toDateString());
