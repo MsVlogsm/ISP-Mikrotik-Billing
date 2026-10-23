@@ -705,9 +705,14 @@ class NewCustomer extends Component
                 ]);
             }
             $customer = new CustomersInfo;
+            $isFreeCustomer = strcasecmp(trim((string) $this->package_name), 'Free Customer') === 0;
             if (($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
                 $customer->reseller_id = $this->currentReseller()?->id ?? abort(403, 'Select a MAC Reseller portal first.');
+                // Reseller-created accounts must remain pending until an admin approves them.
                 $customer->status = 'pending';
+            } elseif ($isFreeCustomer) {
+                // Free Customer is a first-class customer status, not just a missing package.
+                $customer->status = 'free';
             }
             $customer->customer_unique_id = $newId;
             $customer->customer_name = $this->customer_name;

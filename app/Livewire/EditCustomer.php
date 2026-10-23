@@ -445,8 +445,14 @@ class EditCustomer extends Component
             }
 
             $packageName = $this->fields['pppUser']['package_name'] ?? null;
+            $isResellerEditor = $this->macResellerPortalMode || auth()->user()->hasRole('Reseller');
             if (strcasecmp(trim((string) $packageName), 'Free Customer') === 0) {
                 $customer->package_id = null;
+                // Do not let reseller edits bypass the approval/status guard.
+                // For approved customer accounts, keep the status aligned with the free plan.
+                if (! $isResellerEditor && in_array((string) $customer->status, ['active', 'free'], true)) {
+                    $customer->status = 'free';
+                }
                 $customer->save();
             } elseif ($packageName) {
                 $packageQuery = PackageList::where('package', $packageName)
@@ -455,7 +461,7 @@ class EditCustomer extends Component
                             $routeQuery->where('router_name', $router)->orWhereNull('router_name');
                         });
                     });
-                if (($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
+                if ($isResellerEditor) {
                     $reseller = $this->macResellerPortalMode ? Reseller::where('panel_type', 'mac')->find(session('mac_reseller_context_id')) : auth()->user()->reseller;
                     abort_unless($reseller, 403);
                     $packageQuery->where(function ($q) use ($reseller) {
@@ -466,6 +472,10 @@ class EditCustomer extends Component
                 $package = $packageQuery->first();
                 if ($package) {
                     $customer->package_id = $package->id;
+                    // Switching from Free Customer back to a real package restores the normal status.
+                    if (! $isResellerEditor && $customer->status === 'free') {
+                        $customer->status = 'active';
+                    }
                     $customer->save();
                 }
             }
