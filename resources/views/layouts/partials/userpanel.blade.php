@@ -1,12 +1,10 @@
 {{-- theme, alerts and settings --}}
 <ul class="navbar-nav navbar-nav-icons ms-auto flex-row align-items-center">
-    @if (request()->routeIs('dashboard'))
-        <li class="nav-item me-2">
-            <a href="{{ route('broadband-online-customers') }}" class="nav-link d-flex align-items-center gap-1 px-2 py-1 rounded-pill border text-success fw-semibold" title="Online Customer Monitoring">
-                <i class="bi bi-broadcast-pin"></i><span class="d-none d-xl-inline">Online Customers</span>
-            </a>
-        </li>
-    @endif
+    <li class="nav-item me-2">
+        <a href="{{ route('broadband-online-customers') }}" class="nav-link d-flex align-items-center gap-1 px-2 py-1 rounded-pill border text-success fw-semibold" title="Online Customer Monitoring" aria-label="Online Customers">
+            <i class="bi bi-broadcast-pin"></i><span class="d-none d-xl-inline">Online Customers</span>
+        </a>
+    </li>
     <li class="nav-item dropdown" wire:ignore
         x-data="{
             current: new Date('{{ now()->format('Y-m-d H:i:s') }}'),
