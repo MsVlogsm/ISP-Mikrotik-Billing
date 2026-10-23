@@ -7,6 +7,7 @@ use App\Http\Controllers\SMSController;
 use App\Models\BillingInfo;
 use App\Models\CollectionSummary;
 use App\Models\CustomersInfo;
+use App\Services\PrepaidBillingCycle;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
@@ -160,6 +161,12 @@ class PaymentCollection extends Component
             }
         } else {
             $this->expire_date = '';
+        }
+
+        if ($this->info_data?->billing?->billing_type === 'prepaid' && filled($this->expire_date)) {
+            $cycleAnchor = $this->info_data->connection_date
+                ?: ($this->info_data->billing->auto_disable_date ?: today()->toDateString());
+            $this->expire_date = PrepaidBillingCycle::alignToConnectionDay($cycleAnchor, $this->expire_date)->toDateString();
         }
     }
 

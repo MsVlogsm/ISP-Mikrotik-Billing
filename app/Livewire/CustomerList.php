@@ -9,6 +9,7 @@ use App\Models\PaymentSummary;
 use App\Models\PPPSecrets;
 use App\Models\Reseller;
 use App\Models\RouterList;
+use App\Services\PrepaidBillingCycle;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Livewire\Attributes\On;
@@ -543,7 +544,20 @@ class CustomerList extends Component
                 $customer->status = 'active';
                 $customer->save();
 
-                if ($bill->auto_disable_date) {
+                if ($bill->billing_type === 'prepaid') {
+                    $cycleAnchor = $customer->connection_date ?: ($bill->auto_disable_date ?: today()->toDateString());
+                    $currentExpiry = $bill->auto_disable_date
+                        ? PrepaidBillingCycle::alignToConnectionDay($cycleAnchor, $bill->auto_disable_date)
+                        : today();
+
+                    if ($currentExpiry->lte(today())) {
+                        $bill->auto_disable_date = PrepaidBillingCycle::nextExpiryDate($cycleAnchor, today())->toDateString();
+                        $bill->save();
+                    } elseif (! $bill->auto_disable_date || Carbon::parse($bill->auto_disable_date)->toDateString() !== $currentExpiry->toDateString()) {
+                        $bill->auto_disable_date = $currentExpiry->toDateString();
+                        $bill->save();
+                    }
+                } elseif ($bill->auto_disable_date) {
                     $autoDisableDate = Carbon::parse($bill->auto_disable_date)->startOfDay();
                     $autoDisableMonth = $bill->auto_disable_month;
                     $disableDate = $autoDisableDate->copy()->addMonths($autoDisableMonth);

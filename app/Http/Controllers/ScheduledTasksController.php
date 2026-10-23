@@ -11,6 +11,7 @@ use App\Models\PPPSecrets;
 use App\Models\RouterList;
 use App\Models\SmsTemplate;
 use App\Services\MikrotikSSHService;
+use App\Services\PrepaidBillingCycle;
 use Carbon\Carbon;
 use XLink\SmsBridge\Facades\SmsBridge;
 
@@ -315,9 +316,14 @@ class ScheduledTasksController extends Controller
         $template = SmsTemplate::where('template_name', 'auto_temporary_disable_alert')->first();
 
         CustomersInfo::active()
-            ->underDisableLimit(siteUrlSettings('disable_check_no') ?? 1)
+            ->where(function ($customerQuery) {
+                // Keep the existing postpaid/grace-limit selection unchanged.
+                $customerQuery->where(function ($legacyQuery) {
+                    $legacyQuery->underDisableLimit(siteUrlSettings('disable_check_no') ?? 1)
+                        ->whereHas('billing', fn ($q) => $q->autoDisable()->unpaid()->where('billing_type', '!=', 'prepaid'));
+                })->orWhereHas('billing', fn ($q) => $q->autoDisable()->where('billing_type', 'prepaid')->where('monthly_rent', '>', 0));
+            })
             ->hasPPPUser()
-            ->whereHas('billing', fn ($q) => $q->autoDisable()->unpaid())
             ->with(['pppUser', 'billing'])
             ->each(function ($customer) use (&$successfulIDs, &$errorIDs, &$fallbackIDs, $today, $template, $tz) {
                 $billing = $customer->billing;
@@ -328,51 +334,64 @@ class ScheduledTasksController extends Controller
                 $vat = $billing->vat;
                 $due = $billing->due_amount;
 
-                // Cast to int: siteUrlSettings() returns a string from DB, === 1 would always fail
-                $disableCheckNo = (int) (siteUrlSettings('disable_check_no') ?? 1);
-
-                // Parse the base auto_disable_date
-                $baseDate = Carbon::parse($billing->auto_disable_date, $tz);
-                
-                // If the auto_disable_date is in a past month/year, shift it to the current month & year
-                if ($baseDate->isPast() && ($baseDate->month !== now($tz)->month || $baseDate->year !== now($tz)->year)) {
-                    $baseDate->month(now($tz)->month)->year(now($tz)->year);
-                }
-
-                if ($disableCheckNo <= 1) {
-                    $autoDisableDate = $baseDate->copy()->startOfDay();
-                } else {
-                    $autoDisableDate = $baseDate->copy()->addDays((int) siteUrlSettings('disable_check_days') * $customer->disable_count)->startOfDay();
-                }
-                // for previous due
-                if ($disableCheckNo <= 1) {
-                    $previousDueDisableDate = Carbon::parse($billing->auto_disable_date, $tz)->month(now($tz)->month)->year(now($tz)->year)->startOfDay();
-                } else {
-                    $previousDueDisableDate = Carbon::parse($billing->auto_disable_date, $tz)->month(now($tz)->month)->year(now($tz)->year)->addDays((int) siteUrlSettings('disable_check_days') * $customer->disable_count)->startOfDay();
-                }
-                $autoDisableMonth = $billing->auto_disable_month;
-                $disableLimitDate = $autoDisableDate->copy()->addMonths($autoDisableMonth);
-
-                $totalBill = ($monthlyRent + $additionalCharge + $vat) * $autoDisableMonth;
                 $shouldDisable = false;
                 $disableFor = '';
 
-                // ✅ logic 1: Disable for previous due on the exact due date
-                if ($billing->previous_due > 0 && $due > $totalBill && $today->isSameDay($previousDueDisableDate)) {
-                    $shouldDisable = true;
-                    $disableFor = 'Auto Disable for Previous Due';
-                }
+                if ($billing->billing_type === 'prepaid') {
+                    // Correct legacy expiry drift in-place, but preserve the paid-through month.
+                    $cycleAnchor = $customer->connection_date ?: $billing->auto_disable_date;
+                    if (! $cycleAnchor) {
+                        return;
+                    }
 
-                // ✅ logic 2: Due exceeds totalBill → disable when autoDisableDate is reached
-                elseif ($due > $totalBill && $today->gte($autoDisableDate)) {
-                    $shouldDisable = true;
-                    $disableFor = 'Auto Disable for Due';
-                }
+                    if ($billing->auto_disable_date) {
+                        $autoDisableDate = PrepaidBillingCycle::alignToConnectionDay($cycleAnchor, $billing->auto_disable_date);
+                        if (Carbon::parse($billing->auto_disable_date, $tz)->toDateString() !== $autoDisableDate->toDateString()) {
+                            $billing->auto_disable_date = $autoDisableDate->toDateString();
+                            $billing->save();
+                        }
+                    } else {
+                        $autoDisableDate = PrepaidBillingCycle::nextExpiryDate($cycleAnchor, $today);
+                        $billing->auto_disable_date = $autoDisableDate->toDateString();
+                        $billing->save();
+                    }
 
-                // ✅ logic 3: Small due (≤ totalBill) → only disable after full grace period (disableLimitDate)
-                elseif ($due > 0 && $due <= $totalBill && $today->gte($disableLimitDate)) {
-                    $shouldDisable = true;
-                    $disableFor = 'Auto Disable Date reached';
+                    $shouldDisable = (float) $monthlyRent > 0 && $today->gte($autoDisableDate->copy()->startOfDay());
+                    $disableFor = 'Prepaid connection-day expiry';
+                } else {
+                    // Existing postpaid/grace-period logic remains unchanged.
+                    $disableCheckNo = (int) (siteUrlSettings('disable_check_no') ?? 1);
+                    $baseDate = Carbon::parse($billing->auto_disable_date, $tz);
+
+                    if ($baseDate->isPast() && ($baseDate->month !== now($tz)->month || $baseDate->year !== now($tz)->year)) {
+                        $baseDate->month(now($tz)->month)->year(now($tz)->year);
+                    }
+
+                    if ($disableCheckNo <= 1) {
+                        $autoDisableDate = $baseDate->copy()->startOfDay();
+                    } else {
+                        $autoDisableDate = $baseDate->copy()->addDays((int) siteUrlSettings('disable_check_days') * $customer->disable_count)->startOfDay();
+                    }
+
+                    if ($disableCheckNo <= 1) {
+                        $previousDueDisableDate = Carbon::parse($billing->auto_disable_date, $tz)->month(now($tz)->month)->year(now($tz)->year)->startOfDay();
+                    } else {
+                        $previousDueDisableDate = Carbon::parse($billing->auto_disable_date, $tz)->month(now($tz)->month)->year(now($tz)->year)->addDays((int) siteUrlSettings('disable_check_days') * $customer->disable_count)->startOfDay();
+                    }
+                    $autoDisableMonth = $billing->auto_disable_month;
+                    $disableLimitDate = $autoDisableDate->copy()->addMonths($autoDisableMonth);
+                    $totalBill = ($monthlyRent + $additionalCharge + $vat) * $autoDisableMonth;
+
+                    if ($billing->previous_due > 0 && $due > $totalBill && $today->isSameDay($previousDueDisableDate)) {
+                        $shouldDisable = true;
+                        $disableFor = 'Auto Disable for Previous Due';
+                    } elseif ($due > $totalBill && $today->gte($autoDisableDate)) {
+                        $shouldDisable = true;
+                        $disableFor = 'Auto Disable for Due';
+                    } elseif ($due > 0 && $due <= $totalBill && $today->gte($disableLimitDate)) {
+                        $shouldDisable = true;
+                        $disableFor = 'Auto Disable Date reached';
+                    }
                 }
 
                 if ($shouldDisable && $pppUser && $pppUser->username) {

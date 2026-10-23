@@ -13,6 +13,8 @@ use App\Models\PPPSecrets;
 use App\Models\RouterList;
 use App\Models\Reseller;
 use App\Models\User;
+use App\Services\PrepaidBillingCycle;
+use Carbon\Carbon;
 use Livewire\Attributes\Locked;
 // MikrotikSSHService removed — all router I/O routed through MikrotikController (pooled + cached)
 use App\Rules\ValidPhoneDigits;
@@ -159,6 +161,9 @@ class NewCustomer extends Component
         }
 
         $this->connected_by = auth()->id();
+        if (! filled($this->connection_date)) {
+            $this->connection_date = now()->format('Y-m-d');
+        }
 
         $mikrotikClientId = request()->integer('mikrotik_client');
         if ($mikrotikClientId && ($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
@@ -197,10 +202,39 @@ class NewCustomer extends Component
             }
             $this->profileNames = $this->profile ? [$this->profile] : [];
             $this->auto_disable = true;
-            $this->auto_disable_date = now()->addDays(30)->format('Y-m-d');
+            if (($this->billing_type ?? 'prepaid') === 'prepaid' && filled($this->connection_date)) {
+                $this->updatedConnectionDate($this->connection_date);
+            } else {
+                $this->auto_disable_date = now()->addDays(30)->format('Y-m-d');
+            }
         }
 
         return true;
+    }
+
+    public function updatedConnectionDate($value): void
+    {
+        if (($this->billing_type ?? 'prepaid') !== 'prepaid' || blank($value)) {
+            return;
+        }
+
+        $connectionDate = Carbon::parse($value)->startOfDay();
+        $referenceDate = $connectionDate->gt(today()) ? $connectionDate : today();
+        $this->auto_disable_date = PrepaidBillingCycle::nextExpiryDate($connectionDate, $referenceDate)->toDateString();
+    }
+
+    public function updatedBillingType($value): void
+    {
+        if ($value === 'prepaid' && filled($this->connection_date)) {
+            $this->updatedConnectionDate($this->connection_date);
+        }
+    }
+
+    public function updatedAutoDisable($value): void
+    {
+        if ((bool) $value && ($this->billing_type ?? 'prepaid') === 'prepaid' && filled($this->connection_date)) {
+            $this->updatedConnectionDate($this->connection_date);
+        }
     }
 
     private function parseMikrotikComment(?string $comment): array
@@ -338,7 +372,11 @@ class NewCustomer extends Component
             // auto disable date will be set only if router_name is set
             if ($this->router_name) {
                 $this->auto_disable = true;
-                $this->auto_disable_date = now()->addDays(30)->format('Y-m-d');
+                if (($this->billing_type ?? 'prepaid') === 'prepaid' && filled($this->connection_date)) {
+                    $this->updatedConnectionDate($this->connection_date);
+                } else {
+                    $this->auto_disable_date = now()->addDays(30)->format('Y-m-d');
+                }
             } else {
                 $this->auto_disable = false;
                 $this->auto_disable_date = $this->ip_address = $this->interface = $this->queue_name = $this->profile = $this->username = $this->password = $this->ppp_remote_ip = $this->caller_id = $this->bandwidth = $this->service = null;
@@ -755,6 +793,11 @@ class NewCustomer extends Component
             $customerBilling->vat = $this->normalizeValue($this->vat);
             $customerBilling->auto_disable = $this->auto_disable ?? 1;
             $customerBilling->auto_disable_date = $this->auto_disable_date ?? null;
+            if ($customerBilling->billing_type === 'prepaid' && filled($customer->connection_date)) {
+                $connectionDate = Carbon::parse($customer->connection_date)->startOfDay();
+                $referenceDate = $connectionDate->gt(today()) ? $connectionDate : today();
+                $customerBilling->auto_disable_date = PrepaidBillingCycle::nextExpiryDate($connectionDate, $referenceDate)->toDateString();
+            }
             $customerBilling->auto_disable_month = $this->auto_disable_month;
             $customerBilling->total_amount = $this->total_amount;
             $customerBilling->due_amount = $this->total_amount;

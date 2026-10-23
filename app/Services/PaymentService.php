@@ -10,6 +10,7 @@ use App\Models\CollectionSummary;
 use App\Models\CustomersInfo;
 use App\Models\PaymentSummary;
 use App\Models\PPPSecrets;
+use App\Services\PrepaidBillingCycle;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -114,6 +115,26 @@ class PaymentService
                 }
             }
 
+            $prepaidRentPaid = $billing->billing_type === 'prepaid'
+                && (float) $billing->monthly_rent > 0
+                && $amount >= (float) $billing->monthly_rent;
+
+            // Prepaid expiry follows the connection-day anchor while retaining existing
+            // payment allocation, advance-month, and prorated-validity rules.
+            if ($billing->billing_type === 'prepaid' && ! $isProratedApplied) {
+                $cycleAnchor = $customer->connection_date ?: ($billing->auto_disable_date ?: today()->toDateString());
+                $expiryToAlign = $expireDate ?: ($billing->auto_disable_date ?: today()->toDateString());
+                $alignedExpiry = PrepaidBillingCycle::alignToConnectionDay($cycleAnchor, $expiryToAlign);
+
+                // Never reactivate a prepaid customer with an expiry still in the past.
+                // Preserve old-due accounting, but start the paid validity at the next connection day.
+                if (($newDue <= 0 || $allowPartialActivation || $prepaidRentPaid) && $alignedExpiry->lte(today())) {
+                    $expireDate = PrepaidBillingCycle::nextExpiryDate($cycleAnchor, today())->toDateString();
+                } else {
+                    $expireDate = $alignedExpiry->toDateString();
+                }
+            }
+
             // Generate next sequential invoice number
             $maxInvoice = CollectionSummary::max('invoice_no');
             $invoiceNo = $maxInvoice ? ($maxInvoice + 1) : 100001;
@@ -167,7 +188,7 @@ class PaymentService
             }
 
             // 5. Update customer status based on due and partial activation setting
-            if ($newDue == 0 || $allowPartialActivation || $isProratedApplied) {
+            if ($newDue == 0 || $allowPartialActivation || $isProratedApplied || $prepaidRentPaid) {
                 $customer->status = 'active';
                 $customer->disable_count = 0;
             } else {
@@ -176,7 +197,7 @@ class PaymentService
             $customer->save();
 
             // 6. Extend auto_disable_date if today is beyond it
-            if (! $isProratedApplied && $billing->auto_disable_date) {
+            if ($billing->billing_type !== 'prepaid' && ! $isProratedApplied && $billing->auto_disable_date) {
                 $autoDisableDate = Carbon::parse($billing->auto_disable_date)->startOfDay();
                 $autoDisableMonth = $billing->auto_disable_month;
                 $disableDate = $autoDisableDate->copy()->addMonths($autoDisableMonth);
