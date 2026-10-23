@@ -11,6 +11,7 @@ export default defineConfig({
                 'resources/sass/main-site.scss',
                 'resources/sass/guest.scss',
                 'resources/js/main-site.js',
+                'resources/js/network-map.js',
             ],
             refresh: true,
         }),
