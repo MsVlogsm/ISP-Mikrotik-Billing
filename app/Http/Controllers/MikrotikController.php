@@ -572,10 +572,18 @@ class MikrotikController extends Controller
         $this->togglePPPSecret($customerID, $routerName, $username, 'enable');
     }
 
-    public function disablePPPSecret(int|string $customerID, string $routerName, string $username, bool $logFallback = true): string
+    public function disablePPPSecret(int|string $customerID, string $routerName, string $username, bool $logFallback = true, bool $hardDisable = false): string
     {
         $quotedUser = $this->mtQuote($username);
         $expiredProfile = siteUrlSettings('expired_profile_name') ?? 'Expired';
+
+        if ($hardDisable) {
+            // Auto-disable must be visible as disabled=yes in MikroTik, not only
+            // redirected through the Expired profile. Keep the saved plan profile.
+            $this->singleWrite($routerName, "/ppp secret set [find name={$quotedUser}] disabled=yes");
+            $this->singleWrite($routerName, "/ppp active remove [find name={$quotedUser}]");
+            return 'hard';
+        }
 
         try {
             // Priority 1: Soft Disable (Redirect via Expired profile)

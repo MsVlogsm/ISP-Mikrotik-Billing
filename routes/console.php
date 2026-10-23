@@ -26,7 +26,7 @@ Schedule::call(function () {
 
 Schedule::call(function () {
     app(ScheduledTasksController::class)->userDisable();
-})->dailyAt('08:30')->timezone($timezone);
+})->name('auto-disable-customers')->everyFiveMinutes()->timezone($timezone)->withoutOverlapping();
 
 Schedule::call(function () {
     app(MikrotikSync::class)->allSync();

@@ -212,44 +212,105 @@ class PaymentService
                 }
             }
 
-            // 7. Enable customer on Mikrotik Router
+            // 7. Sync the PPP account after billing state is updated.
+            // A confirmed gateway payment must not be rolled back just because the
+            // router is temporarily unreachable; queue an idempotent retry instead.
             if ($customer->pppUser) {
-                if ($customer->status === 'active') {
-                    // Enable secret (calls router via API/SSH)
-                    app(MikrotikController::class)->enablePPPSecret(
-                        $customer->customer_unique_id,
-                        $customer->pppUser->router_name,
-                        $customer->pppUser->username
-                    );
+                $routerName = $customer->pppUser->router_name;
+                $username = $customer->pppUser->username;
 
-                    // Restore their original plan profile
-                    app(MikrotikController::class)->updatePPPSecret(
-                        $customer->pppUser->router_name,
-                        $customer->pppUser->username,
-                        'profile',
-                        $customer->pppUser->profile
-                    );
+                if (filled($routerName) && filled($username)) {
+                    if ($customer->status === 'active') {
+                        try {
+                            app(MikrotikController::class)->enablePPPSecret(
+                                $customer->customer_unique_id,
+                                $routerName,
+                                $username
+                            );
 
-                    // Kick any current session to force reconnect with the active profile
-                    try {
-                        app(MikrotikController::class)->singleWrite(
-                            $customer->pppUser->router_name,
-                            '/ppp active remove [find name="'.$customer->pppUser->username.'"]'
-                        );
-                    } catch (\Exception $e) {
-                        Log::debug('PaymentService session kick skipped: '.$e->getMessage());
+                            if (filled($customer->pppUser->profile)) {
+                                app(MikrotikController::class)->updatePPPSecret(
+                                    $routerName,
+                                    $username,
+                                    'profile',
+                                    $customer->pppUser->profile
+                                );
+                            }
+
+                            try {
+                                app(MikrotikController::class)->singleWrite(
+                                    $routerName,
+                                    '/ppp active remove [find name="'.$username.'"]'
+                                );
+                            } catch (\Throwable $e) {
+                                Log::debug('PaymentService session kick skipped: '.$e->getMessage());
+                            }
+
+                            PPPSecrets::where('id', $customer->ppp_user_id)->update(['status' => 'active']);
+                        } catch (\Throwable $routerError) {
+                            Log::warning('Online payment recorded; MikroTik activation queued after router failure.', [
+                                'customer_unique_id' => $customer->customer_unique_id,
+                                'router' => $routerName,
+                                'username' => $username,
+                                'error' => $routerError->getMessage(),
+                            ]);
+                            try {
+                                app(MikrotikPendingActionQueue::class)->queue(
+                                    $customer->customer_unique_id,
+                                    $routerName,
+                                    $username,
+                                    'enable'
+                                );
+                            } catch (\Throwable $queueError) {
+                                Log::critical('Unable to queue MikroTik activation after successful online payment.', [
+                                    'customer_unique_id' => $customer->customer_unique_id,
+                                    'router' => $routerName,
+                                    'username' => $username,
+                                    'error' => $queueError->getMessage(),
+                                ]);
+                            }
+                            PPPSecrets::where('id', $customer->ppp_user_id)->update(['status' => 'active']);
+                        }
+                    } else {
+                        try {
+                            app(MikrotikController::class)->disablePPPSecret(
+                                $customer->customer_unique_id,
+                                $routerName,
+                                $username,
+                                false,
+                                true
+                            );
+                        } catch (\Throwable $routerError) {
+                            Log::warning('MikroTik disable queued after partial-payment decision.', [
+                                'customer_unique_id' => $customer->customer_unique_id,
+                                'router' => $routerName,
+                                'username' => $username,
+                                'error' => $routerError->getMessage(),
+                            ]);
+                            try {
+                                app(MikrotikPendingActionQueue::class)->queue(
+                                    $customer->customer_unique_id,
+                                    $routerName,
+                                    $username,
+                                    'disable'
+                                );
+                            } catch (\Throwable $queueError) {
+                                Log::critical('Unable to queue MikroTik disable action.', [
+                                    'customer_unique_id' => $customer->customer_unique_id,
+                                    'router' => $routerName,
+                                    'username' => $username,
+                                    'error' => $queueError->getMessage(),
+                                ]);
+                            }
+                        }
+                        PPPSecrets::where('id', $customer->ppp_user_id)->update(['status' => 'disabled']);
                     }
-
-                    // Sync the local PPPSecrets status
-                    PPPSecrets::where('id', $customer->ppp_user_id)->update(['status' => 'active']);
                 } else {
-                    // Disable secret on router if not active
-                    app(MikrotikController::class)->disablePPPSecret(
-                        $customer->customer_unique_id,
-                        $customer->pppUser->router_name,
-                        $customer->pppUser->username
-                    );
-                    PPPSecrets::where('id', $customer->ppp_user_id)->update(['status' => 'disabled']);
+                    Log::warning('Payment processed but PPP activation skipped because router/user mapping is incomplete.', [
+                        'customer_unique_id' => $customer->customer_unique_id,
+                        'router' => $routerName,
+                        'username' => $username,
+                    ]);
                 }
             }
 

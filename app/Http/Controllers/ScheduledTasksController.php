@@ -395,6 +395,16 @@ class ScheduledTasksController extends Controller
                 }
 
                 if ($shouldDisable && $pppUser && $pppUser->username) {
+                    if (filled($pppUser->router_name) && \DB::table('mikrotik_pending_actions')
+                        ->where('customer_unique_id', $customer->customer_unique_id)
+                        ->where('router_name', $pppUser->router_name)
+                        ->where('username', $pppUser->username)
+                        ->where('action', 'disable')
+                        ->where('status', 'pending')
+                        ->exists()) {
+                        return;
+                    }
+
                     $router = RouterList::where('router_name', $pppUser->router_name)->first();
                     if ($router) {
                         try {
@@ -403,7 +413,8 @@ class ScheduledTasksController extends Controller
                                 $customer->customer_unique_id,
                                 $router->router_name,
                                 $pppUser->username,
-                                false
+                                false,
+                                true
                             );
 
                             if ($disableStatus === 'fallback') {
@@ -411,7 +422,7 @@ class ScheduledTasksController extends Controller
                             }
 
                             // If we reached here, it's successful
-                            $successfulID = $customer->customer_unique_id.' ('.$pppUser->username.')';
+                            $successfulID = $customer->customer_unique_id.' ('.$pppUser->username.')'.($disableStatus === 'hard' ? ' [hard disabled]' : '');
                             $customer->update([
                                 'status' => 'disable',
                                 'disable_count' => $customer->disable_count + 1,
@@ -470,19 +481,55 @@ class ScheduledTasksController extends Controller
                             if (isset($successfulID)) {
                                 $successfulIDs[] = $successfulID.' '.($successfulSMS ?? $errorSMS ?? '').' - ('.$disableFor.')';
                             }
-                        } catch (\Exception $e) {
+                        } catch (\Throwable $e) {
+                            try {
+                                if (filled($pppUser->router_name) && filled($pppUser->username)) {
+                                    app(\App\Services\MikrotikPendingActionQueue::class)->queue(
+                                        $customer->customer_unique_id,
+                                        $pppUser->router_name,
+                                        $pppUser->username,
+                                        'disable'
+                                    );
+                                }
+                            } catch (\Throwable $queueError) {
+                                \Log::critical('Could not queue scheduled customer disable after router failure.', [
+                                    'customer_unique_id' => $customer->customer_unique_id,
+                                    'router' => $pppUser->router_name,
+                                    'username' => $pppUser->username,
+                                    'error' => $queueError->getMessage(),
+                                ]);
+                            }
+
                             NotificationLogs::create([
                                 'title' => 'Disconnection Error',
-                                'message' => $customer->customer_unique_id.' ('.$pppUser->username.') - '.$e->getMessage(),
+                                'message' => $customer->customer_unique_id.' ('.$pppUser->username.') - '.$e->getMessage().' A hard-disable retry has been queued where router mapping is available.',
                                 'status' => 'Error on Mikrotik Command',
                                 'type' => 'Mikrotik Command',
                             ]);
                             $errorIDs[] = $customer->customer_unique_id.' ('.$pppUser->username.') {'.$e->getMessage().'}';
                         }
                     } else {
+                        try {
+                            if (filled($pppUser->router_name) && filled($pppUser->username)) {
+                                app(\App\Services\MikrotikPendingActionQueue::class)->queue(
+                                    $customer->customer_unique_id,
+                                    $pppUser->router_name,
+                                    $pppUser->username,
+                                    'disable'
+                                );
+                            }
+                        } catch (\Throwable $queueError) {
+                            \Log::critical('Could not queue scheduled customer disable because router is missing.', [
+                                'customer_unique_id' => $customer->customer_unique_id,
+                                'router' => $pppUser->router_name,
+                                'username' => $pppUser->username,
+                                'error' => $queueError->getMessage(),
+                            ]);
+                        }
+
                         NotificationLogs::create([
                             'title' => 'Disconnection Warning',
-                            'message' => "Router '{$pppUser->router_name}' not found in router list for customer ID '{$customer->customer_unique_id}'.",
+                            'message' => "Router '{$pppUser->router_name}' not found in router list for customer ID '{$customer->customer_unique_id}'. A hard-disable retry has been queued where possible.",
                             'status' => 'Router Not Found',
                             'type' => 'System Alert',
                         ]);

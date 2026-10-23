@@ -222,7 +222,7 @@ class CustomersController extends Controller
                 $customer->disable_count = 0;
                 $customer->save();
 
-                if ($bill->auto_disable_date) {
+                if ($bill->billing_type !== 'prepaid' && $bill->auto_disable_date) {
                     $autoDisableDate = Carbon::parse($bill->auto_disable_date)->startOfDay();
                     $autoDisableMonth = (int) ($bill->auto_disable_month ?? 0);
                     $disableDate = $autoDisableDate->copy()->addMonths($autoDisableMonth);

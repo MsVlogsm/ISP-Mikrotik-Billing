@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Http\Controllers\MikrotikController;
 use App\Models\RouterList;
 use App\Models\PPPSecrets;
+use App\Models\CustomersInfo;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -51,7 +52,20 @@ class ReconcileMikrotikPendingAction implements ShouldQueue, ShouldBeUnique
 
         try {
             if ($action->action === 'disable') {
-                $mikrotik->disablePPPSecret($action->customer_unique_id ?: $action->id, $action->router_name, $action->username, false);
+                $mikrotik->disablePPPSecret($action->customer_unique_id ?: $action->id, $action->router_name, $action->username, false, true);
+
+                DB::transaction(function () use ($action) {
+                    $customer = CustomersInfo::where('customer_unique_id', $action->customer_unique_id)->lockForUpdate()->first();
+                    if ($customer && $customer->status === 'active') {
+                        $customer->status = 'disable';
+                        $customer->disable_count = (int) $customer->disable_count + 1;
+                        $customer->save();
+                    }
+
+                    PPPSecrets::where('router_name', $action->router_name)
+                        ->where('username', $action->username)
+                        ->update(['status' => 'disable']);
+                });
             } elseif ($action->action === 'enable') {
                 $ppp = PPPSecrets::where('router_name', $action->router_name)
                     ->where('username', $action->username)

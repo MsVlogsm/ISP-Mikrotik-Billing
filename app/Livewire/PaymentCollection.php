@@ -219,19 +219,35 @@ class PaymentCollection extends Component
             ? ($this->info_data['customer_unique_id'] ?? null)
             : ($this->info_data->customer_unique_id ?? null);
 
-        if ($customerUniqueId) {
-            $customer = CustomersInfo::where('customer_unique_id', $customerUniqueId)->first();
-            if ($customer) {
-                $customer->update([
-                    'status' => 'active',
-                ]);
-                $this->info_data = $customer;
-            }
+        $customerStatus = $customerUniqueId
+            ? CustomersInfo::where('customer_unique_id', $customerUniqueId)->value('status')
+            : null;
 
-            $customerEnable = new CustomersController;
-            $customerEnable->customerEnable(encrypt($customerUniqueId));
+        // Record the cash receipt before attempting activation. Do not pre-set the
+        // status: CustomersController::customerEnable must see pending/disable.
+        if (! $this->paymentSubmit()) {
+            return;
         }
-        $this->paymentSubmit();
+
+        if (! $customerUniqueId || ! in_array($customerStatus, ['pending', 'disable'], true)) {
+            return;
+        }
+
+        try {
+            $response = (new CustomersController)->customerEnable(encrypt($customerUniqueId));
+            $result = $response instanceof \Illuminate\Http\JsonResponse
+                ? $response->getData(true)
+                : [];
+
+            if (($result['success'] ?? true) === false) {
+                flash()->addError('Cash payment recorded, but customer activation did not complete: '.($result['message'] ?? 'Please use Enable from the Customer List.'));
+            } elseif (! empty($result['router_sync_pending'])) {
+                flash()->addError('Cash payment recorded. MikroTik activation is queued and will retry when the router is available.');
+            }
+        } catch (\Throwable $e) {
+            report($e);
+            flash()->addError('Cash payment recorded, but customer activation could not be confirmed. Retry Enable from the Customer List.');
+        }
     }
 
     #[On('sweetalert:denied')]
@@ -241,7 +257,7 @@ class PaymentCollection extends Component
         $this->paymentSubmit();
     }
 
-    public function paymentSubmit()
+    public function paymentSubmit(): bool
     {
         $this->authorizePaymentCollection();
         DB::beginTransaction();
@@ -266,7 +282,7 @@ class PaymentCollection extends Component
             DB::rollBack();
             report($th);
             sweetalert()->error('Unable to process the payment action. Please try again.', ['title' => 'Error']);
-            return;
+            return false;
         }
 
         try {
@@ -297,6 +313,8 @@ class PaymentCollection extends Component
             $this->reset();
             $this->dispatch('focusInput');
         }
+
+        return true;
     }
 
     public function render()
