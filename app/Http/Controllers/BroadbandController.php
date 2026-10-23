@@ -138,6 +138,7 @@ class BroadbandController extends Controller
 
         if ($status === 'unverified') $query->where(function ($q) { $q->whereNull('mobile')->orWhereNull('identification_no'); });
         if ($status === 'due') $query->whereHas('billing', fn ($q) => $q->where('due_amount', '>', 0));
+        if ($status === 'disabled') $query->whereIn('status', ['disable', 'temporary_disable']);
 
         if ($status === 'inactive') {
             // Left-customer date filters use the recorded departure date, not the

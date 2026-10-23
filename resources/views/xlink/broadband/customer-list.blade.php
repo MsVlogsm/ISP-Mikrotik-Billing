@@ -17,6 +17,7 @@
         'inactive' => 'Left Customers',
         'unverified' => 'Unverified Customers',
         'online' => 'Online Customers',
+        'disabled' => 'Disabled Customers',
         default => 'Customer List',
     };
 @endphp
@@ -69,6 +70,9 @@
     <div class="card shadow-sm border-0 mb-3 filter-card">
         <div class="card-body">
             <form method="GET" class="row g-2">
+                @if($mode !== 'all')
+                    <input type="hidden" name="status" value="{{ $mode }}">
+                @endif
                 <div class="col-12 col-lg-4">
                     <label class="form-label mb-1">Search customer</label>
                     <input class="form-control" name="q" value="{{ request('q') }}" placeholder="CID, name, mobile, username, IP, NID, address, router or package">
@@ -123,7 +127,7 @@
 
     <div class="card shadow-sm border-0">
         <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-            <strong>{{ $mode === 'inactive' ? 'Left Customer Register' : 'Customer List' }}</strong>
+            <strong>{{ $mode === 'inactive' ? 'Left Customer Register' : ($mode === 'disabled' ? 'Disabled Customer List' : 'Customer List') }}</strong>
             <span class="text-muted small">{{ number_format($customers->total()) }} records</span>
         </div>
         <div class="table-responsive">
