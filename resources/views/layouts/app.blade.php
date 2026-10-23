@@ -28,7 +28,7 @@
     @stack('styles')
     @filamentStyles
     <link rel="stylesheet" href="{{ asset('css/filament/filament/app.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/xlink-dark-mode-readability.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/xlink-dark-mode-readability.css') }}?v={{ filemtime(public_path('css/xlink-dark-mode-readability.css')) }}">
     @livewireStyles
     <!-- ===============================================-->
     <!--    Stylesheets-->

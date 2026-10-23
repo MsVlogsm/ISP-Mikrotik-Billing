@@ -1,123 +1,371 @@
-/* X-Link Billing: shared dark-mode contrast fixes. Light mode is untouched. */
+/* X-Link Billing unified dark theme. This file intentionally does not style light mode. */
 html[data-bs-theme="dark"] {
     color-scheme: dark;
-    --xlink-dark-text: #e6edf7;
-    --xlink-dark-muted: #b6c3d5;
-    --xlink-dark-border: #3a4a60;
-    --cp-body-color: #dbe5f1;
-    --cp-heading-color: #eef4ff;
-    --cp-link-color: #8ab4ff;
-    --cp-link-hover-color: #bfd5ff;
-    --cp-border-color: var(--xlink-dark-border);
+
+    /* Shared palette for every page using the main application layout. */
+    --xlink-app-bg: #0a1220;
+    --xlink-surface: #111d30;
+    --xlink-surface-raised: #17263b;
+    --xlink-surface-hover: #1d3049;
+    --xlink-input-bg: #0d192b;
+    --xlink-border: #334760;
+    --xlink-text: #eaf1fb;
+    --xlink-muted: #b2c0d3;
+    --xlink-subtle: #d0dbea;
+    --xlink-link: #91bbff;
+    --xlink-link-hover: #c1d8ff;
+
+    /* Legacy theme variables are used throughout the original Bootstrap skin. */
+    --cp-body-color: var(--xlink-text);
+    --cp-body-color-rgb: 234, 241, 251;
+    --cp-body-bg: var(--xlink-app-bg);
+    --cp-body-bg-rgb: 10, 18, 32;
+    --cp-emphasis-color: #f7faff;
+    --cp-emphasis-color-rgb: 247, 250, 255;
+    --cp-secondary-color: var(--xlink-muted);
+    --cp-secondary-color-rgb: 178, 192, 211;
+    --cp-tertiary-color: #9aacc3;
+    --cp-tertiary-bg: var(--xlink-surface-raised);
+    --cp-tertiary-bg-rgb: 23, 38, 59;
+    --cp-secondary-bg: var(--xlink-surface);
+    --cp-secondary-bg-rgb: 17, 29, 48;
+    --cp-heading-color: var(--xlink-text);
+    --cp-border-color: var(--xlink-border);
+    --cp-border-color-translucent: rgba(174, 194, 220, .18);
+    --cp-link-color: var(--xlink-link);
+    --cp-link-hover-color: var(--xlink-link-hover);
+    --cp-link-color-rgb: 145, 187, 255;
+    --cp-link-hover-color-rgb: 193, 216, 255;
+    --cp-prose-body: var(--xlink-text);
+
+    /* Bootstrap variable aliases used by plug-ins and newer components. */
+    --bs-body-color: var(--xlink-text);
+    --bs-body-bg: var(--xlink-app-bg);
+    --bs-secondary-color: var(--xlink-muted);
+    --bs-tertiary-color: #9aacc3;
+    --bs-secondary-bg: var(--xlink-surface);
+    --bs-tertiary-bg: var(--xlink-surface-raised);
+    --bs-border-color: var(--xlink-border);
+    --bs-heading-color: var(--xlink-text);
+    --bs-link-color: var(--xlink-link);
+    --bs-link-hover-color: var(--xlink-link-hover);
+    --bs-card-bg: var(--xlink-surface);
+    --bs-card-color: var(--xlink-text);
+    --bs-table-color: var(--xlink-text);
+    --bs-table-bg: transparent;
 }
 
 html[data-bs-theme="dark"] body,
+html[data-bs-theme="dark"] body.fi-body,
+html[data-bs-theme="dark"] .main {
+    color: var(--xlink-text);
+    background-color: var(--xlink-app-bg);
+}
+
 html[data-bs-theme="dark"] .content {
-    color: var(--xlink-dark-text);
+    color: var(--xlink-text);
+    background-color: transparent;
 }
 
-/* Prevent legacy Bootstrap text-dark utilities from rendering nearly black on dark surfaces. */
-html[data-bs-theme="dark"] .content :where(.text-dark):not(:where(.badge, .btn, .alert, .bg-light, .bg-white)):not(:where(.bg-light *, .bg-white *)),
-html[data-bs-theme="dark"] .content :where(.card-title, .modal-title, .form-label):not(:where(.bg-light *, .bg-white *)) {
-    color: var(--xlink-dark-text) !important;
+/* Consistent surfaces: cards, panels, menus, modal windows and nested sections. */
+html[data-bs-theme="dark"] .content .card:not(.bg-primary):not(.bg-secondary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-gradient),
+html[data-bs-theme="dark"] .content .modal-content,
+html[data-bs-theme="dark"] .content .offcanvas,
+html[data-bs-theme="dark"] .content .list-group-item,
+html[data-bs-theme="dark"] .content .dropdown-menu:not(.bg-primary):not(.bg-success):not(.bg-danger),
+html[data-bs-theme="dark"] .content .popover,
+html[data-bs-theme="dark"] .content .toast:not(.bg-success):not(.bg-danger):not(.bg-warning) {
+    --cp-card-bg: var(--xlink-surface);
+    --cp-card-color: var(--xlink-text);
+    --cp-card-title-color: var(--xlink-text);
+    --cp-card-border-color: var(--xlink-border);
+    color: var(--xlink-text);
+    background-color: var(--xlink-surface) !important;
+    border-color: var(--xlink-border) !important;
 }
 
-/* Keep dark lettering on deliberately light surfaces and status badges. */
-html[data-bs-theme="dark"] .content .bg-light.text-dark,
-html[data-bs-theme="dark"] .content .bg-light .text-dark,
-html[data-bs-theme="dark"] .content .bg-white.text-dark,
-html[data-bs-theme="dark"] .content .bg-white .text-dark,
-html[data-bs-theme="dark"] .content .badge.bg-light,
-html[data-bs-theme="dark"] .content .btn-light,
-html[data-bs-theme="dark"] .content .alert-light,
-html[data-bs-theme="dark"] .content .table-light,
-html[data-bs-theme="dark"] .content .table-light > * > * {
-    color: #212529 !important;
+html[data-bs-theme="dark"] .content .card-header:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
+html[data-bs-theme="dark"] .content .card-footer:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
+html[data-bs-theme="dark"] .content .list-group-item-action:not(.active):hover,
+html[data-bs-theme="dark"] .content .list-group-item-action:not(.active):focus,
+html[data-bs-theme="dark"] .content .dropdown-item:hover,
+html[data-bs-theme="dark"] .content .dropdown-item:focus {
+    color: var(--xlink-text);
+    background-color: var(--xlink-surface-raised) !important;
+    border-color: var(--xlink-border);
+}
+
+html[data-bs-theme="dark"] .content .bg-white:not(.badge):not(.btn):not(.alert),
+html[data-bs-theme="dark"] .content .bg-light:not(.badge):not(.btn):not(.alert):not(.table-light),
+html[data-bs-theme="dark"] .content .bg-body,
+html[data-bs-theme="dark"] .content .bg-body-secondary,
+html[data-bs-theme="dark"] .content .bg-body-tertiary {
+    color: var(--xlink-text);
+    background-color: var(--xlink-surface) !important;
+}
+
+/* Legacy inline white surfaces were used by several bespoke pages. */
+html[data-bs-theme="dark"] .content [style*="background:#fff"]:not(.badge):not(.btn),
+html[data-bs-theme="dark"] .content [style*="background: #fff"]:not(.badge):not(.btn),
+html[data-bs-theme="dark"] .content [style*="background:#ffffff"]:not(.badge):not(.btn),
+html[data-bs-theme="dark"] .content [style*="background: #ffffff"]:not(.badge):not(.btn),
+html[data-bs-theme="dark"] .content [style*="background-color:#fff"]:not(.badge):not(.btn),
+html[data-bs-theme="dark"] .content [style*="background-color: #fff"]:not(.badge):not(.btn),
+html[data-bs-theme="dark"] .content [style*="background-color:#ffffff"]:not(.badge):not(.btn),
+html[data-bs-theme="dark"] .content [style*="background-color: #ffffff"]:not(.badge):not(.btn),
+html[data-bs-theme="dark"] .content [style*="background-color: white"]:not(.badge):not(.btn) {
+    color: var(--xlink-text) !important;
+    background-color: var(--xlink-surface) !important;
+    border-color: var(--xlink-border) !important;
+}
+
+html[data-bs-theme="dark"] .content .card-title,
+html[data-bs-theme="dark"] .content .card-body,
+html[data-bs-theme="dark"] .content .modal-title,
+html[data-bs-theme="dark"] .content .modal-body,
+html[data-bs-theme="dark"] .content .modal-footer,
+html[data-bs-theme="dark"] .content .offcanvas-title,
+html[data-bs-theme="dark"] .content .popover-body,
+html[data-bs-theme="dark"] .content .form-label,
+html[data-bs-theme="dark"] .content legend,
+html[data-bs-theme="dark"] .content th {
+    color: var(--xlink-text);
+}
+
+/* Fix old text-dark and Tailwind gray utilities when their surface is now dark. */
+html[data-bs-theme="dark"] .content .text-dark:not(.badge):not(.btn):not(.alert),
+html[data-bs-theme="dark"] .content .text-gray-900,
+html[data-bs-theme="dark"] .content .text-gray-800,
+html[data-bs-theme="dark"] .content .text-gray-700,
+html[data-bs-theme="dark"] .content .text-black {
+    color: var(--xlink-text) !important;
 }
 
 html[data-bs-theme="dark"] .content .text-muted,
 html[data-bs-theme="dark"] .content .form-text,
+html[data-bs-theme="dark"] .content .text-400,
 html[data-bs-theme="dark"] .content .text-500,
 html[data-bs-theme="dark"] .content .text-600,
 html[data-bs-theme="dark"] .content .text-gray-500,
-html[data-bs-theme="dark"] .content .text-gray-600 {
-    color: var(--xlink-dark-muted) !important;
+html[data-bs-theme="dark"] .content .text-gray-600,
+html[data-bs-theme="dark"] .content small:not(.badge),
+html[data-bs-theme="dark"] .content .help-text {
+    color: var(--xlink-muted) !important;
 }
 
-html[data-bs-theme="dark"] .content .card,
-html[data-bs-theme="dark"] .content .modal-content,
-html[data-bs-theme="dark"] .content .offcanvas,
-html[data-bs-theme="dark"] .content .list-group-item,
-html[data-bs-theme="dark"] .content .dropdown-menu:not(.bg-white) {
-    border-color: var(--xlink-dark-border);
+/* Keep semantic light controls/status badges readable rather than turning all labels white. */
+html[data-bs-theme="dark"] .content .badge.bg-light,
+html[data-bs-theme="dark"] .content .bg-light .badge,
+html[data-bs-theme="dark"] .content .btn-light,
+html[data-bs-theme="dark"] .content .alert-light,
+html[data-bs-theme="dark"] .content .table-light .badge {
+    color: #1b2738 !important;
 }
 
+html[data-bs-theme="dark"] .content .badge.bg-light,
+html[data-bs-theme="dark"] .content .bg-light .badge,
+html[data-bs-theme="dark"] .content .btn-light,
+html[data-bs-theme="dark"] .content .alert-light {
+    background-color: #dce6f2 !important;
+    border-color: #b9c8db !important;
+}
+
+/* Inputs and interactive controls share one surface, border and focus state. */
 html[data-bs-theme="dark"] .content .form-control,
 html[data-bs-theme="dark"] .content .form-select,
 html[data-bs-theme="dark"] .content .input-group-text,
 html[data-bs-theme="dark"] .content textarea,
-html[data-bs-theme="dark"] .content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) {
-    color: var(--xlink-dark-text);
-    border-color: #53647b;
-}
-
-html[data-bs-theme="dark"] .content .form-control,
-html[data-bs-theme="dark"] .content .form-select,
-html[data-bs-theme="dark"] .content textarea,
-html[data-bs-theme="dark"] .content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) {
-    background-color: #111c2b;
+html[data-bs-theme="dark"] .content select,
+html[data-bs-theme="dark"] .content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]),
+html[data-bs-theme="dark"] .content .choices__inner,
+html[data-bs-theme="dark"] .content .select2-selection,
+html[data-bs-theme="dark"] .content .ts-control {
+    color: var(--xlink-text) !important;
+    background-color: var(--xlink-input-bg) !important;
+    border-color: #4a5e78 !important;
 }
 
 html[data-bs-theme="dark"] .content .form-control::placeholder,
 html[data-bs-theme="dark"] .content textarea::placeholder,
 html[data-bs-theme="dark"] .content input::placeholder {
-    color: #9eafc5;
+    color: #9fb0c7 !important;
     opacity: 1;
+}
+
+html[data-bs-theme="dark"] .content option,
+html[data-bs-theme="dark"] .content optgroup {
+    color: var(--xlink-text);
+    background-color: var(--xlink-input-bg);
 }
 
 html[data-bs-theme="dark"] .content .form-control:focus,
 html[data-bs-theme="dark"] .content .form-select:focus,
 html[data-bs-theme="dark"] .content textarea:focus,
-html[data-bs-theme="dark"] .content input:focus {
-    border-color: #7aa9f5;
-    box-shadow: 0 0 0 .2rem rgba(122, 169, 245, .2);
+html[data-bs-theme="dark"] .content input:focus,
+html[data-bs-theme="dark"] .content .choices.is-focused .choices__inner,
+html[data-bs-theme="dark"] .content .select2-container--focus .select2-selection,
+html[data-bs-theme="dark"] .content .ts-wrapper.focus .ts-control {
+    border-color: #8ab6ff !important;
+    box-shadow: 0 0 0 .2rem rgba(122, 169, 245, .22) !important;
 }
 
-html[data-bs-theme="dark"] .content .table:not(.table-light) {
-    --cp-table-color: var(--xlink-dark-text);
+html[data-bs-theme="dark"] .content input[type="checkbox"],
+html[data-bs-theme="dark"] .content input[type="radio"] {
+    accent-color: #8ab6ff;
+}
+
+/* Tables use the same dark surface and readable separators on every admin page. */
+html[data-bs-theme="dark"] .content .table:not(.table-primary):not(.table-secondary):not(.table-success):not(.table-info):not(.table-warning):not(.table-danger) {
+    --cp-table-color: var(--xlink-text);
     --cp-table-bg: transparent;
-    --cp-table-border-color: var(--xlink-dark-border);
-    --bs-table-color: var(--xlink-dark-text);
+    --cp-table-border-color: var(--xlink-border);
+    --cp-table-striped-bg: rgba(179, 202, 234, .055);
+    --cp-table-striped-color: var(--xlink-text);
+    --cp-table-hover-bg: rgba(145, 187, 255, .09);
+    --cp-table-hover-color: var(--xlink-text);
+    --bs-table-color: var(--xlink-text);
     --bs-table-bg: transparent;
-    --bs-table-border-color: var(--xlink-dark-border);
+    --bs-table-border-color: var(--xlink-border);
+    --bs-table-striped-bg: rgba(179, 202, 234, .055);
+    --bs-table-striped-color: var(--xlink-text);
+    --bs-table-hover-bg: rgba(145, 187, 255, .09);
+    --bs-table-hover-color: var(--xlink-text);
 }
 
-html[data-bs-theme="dark"] .content .table:not(.table-light) > :not(caption) > * > * {
-    color: var(--xlink-dark-text);
-    border-color: var(--xlink-dark-border);
+html[data-bs-theme="dark"] .content .table:not(.table-primary):not(.table-secondary):not(.table-success):not(.table-info):not(.table-warning):not(.table-danger) > :not(caption) > * > * {
+    color: var(--xlink-text);
+    border-color: var(--xlink-border);
 }
 
-html[data-bs-theme="dark"] .content .table:not(.table-light) thead th,
-html[data-bs-theme="dark"] .content .table:not(.table-light) thead td {
-    color: #f0f5fc;
+html[data-bs-theme="dark"] .content .table thead th,
+html[data-bs-theme="dark"] .content .table thead td {
+    color: #f3f7ff;
 }
 
-html[data-bs-theme="dark"] .content a:not(.btn):not(.nav-link) {
-    color: var(--cp-link-color);
+html[data-bs-theme="dark"] .content .page-link,
+html[data-bs-theme="dark"] .content .pagination .page-link {
+    color: var(--xlink-link);
+    background-color: var(--xlink-surface);
+    border-color: var(--xlink-border);
 }
-html[data-bs-theme="dark"] .content a:not(.btn):not(.nav-link):hover {
-    color: var(--cp-link-hover-color);
+html[data-bs-theme="dark"] .content .page-item.active .page-link {
+    color: #fff;
+    background-color: var(--cp-primary);
+    border-color: var(--cp-primary);
+}
+
+html[data-bs-theme="dark"] .content a:not(.btn):not(.nav-link):not([class*="text-"]) {
+    color: var(--xlink-link);
+}
+html[data-bs-theme="dark"] .content a:not(.btn):not(.nav-link):not([class*="text-"]):hover {
+    color: var(--xlink-link-hover);
 }
 
 html[data-bs-theme="dark"] .content hr,
 html[data-bs-theme="dark"] .content .border,
 html[data-bs-theme="dark"] .content .border-bottom,
-html[data-bs-theme="dark"] .content .border-top {
-    border-color: var(--xlink-dark-border) !important;
+html[data-bs-theme="dark"] .content .border-top,
+html[data-bs-theme="dark"] .content .border-start,
+html[data-bs-theme="dark"] .content .border-end {
+    border-color: var(--xlink-border) !important;
 }
 
-html[data-bs-theme="dark"] .content :is(.dataTables_wrapper, .dataTables_info, .dataTables_paginate, .pagination) {
-    color: var(--xlink-dark-text);
+html[data-bs-theme="dark"] .content pre,
+html[data-bs-theme="dark"] .content code:not([class*="language-"]),
+html[data-bs-theme="dark"] .content .table-responsive,
+html[data-bs-theme="dark"] .content .dataTables_wrapper,
+html[data-bs-theme="dark"] .content .dataTables_info,
+html[data-bs-theme="dark"] .content .dataTables_paginate {
+    color: var(--xlink-subtle);
+}
+
+html[data-bs-theme="dark"] .content .dropdown-item {
+    color: var(--xlink-text);
+}
+html[data-bs-theme="dark"] .content .dropdown-item.active,
+html[data-bs-theme="dark"] .content .dropdown-item:active {
+    color: #fff;
+    background-color: #24518a;
+}
+
+/* Shared legacy bespoke card components that previously hard-coded white backgrounds. */
+html[data-bs-theme="dark"] .content :is(.ai-card, .ai-bubble, .ai-chip, .dd-card, .oa-card, .nt-card, .ne-card, .dm-card, .onu-panel, .onu-kpi, .info-card, .actions-card, .customer-stat-card, .finance-stat, .finance-panel, .finance-shortcut, .finance-mini-metric, .device-manager .pill, .customer-list-card, .stat-card, .settings-card) {
+    color: var(--xlink-text) !important;
+    background-color: var(--xlink-surface) !important;
+    border-color: var(--xlink-border) !important;
+}
+
+html[data-bs-theme="dark"] .content :is(.ai-bubble, .ai-chip, .finance-mini-metric, .device-manager .pill) {
+    background-color: var(--xlink-surface-raised) !important;
+}
+
+html[data-bs-theme="dark"] .content :is(.ai-muted, .ai-readonly, .device-manager .device-meta, .oa-muted, .nt-muted, .onu-kpi-label, .onu-kpi-note) {
+    color: var(--xlink-muted) !important;
+}
+
+/* Customer List stat tiles keep the semantic color, but use dark-theme-friendly tones. */
+html[data-bs-theme="dark"] .content .stat-blue { background: #1b3153 !important; color: #b8ceff !important; }
+html[data-bs-theme="dark"] .content .stat-green { background: #123a32 !important; color: #9ae6c7 !important; }
+html[data-bs-theme="dark"] .content .stat-amber { background: #44341b !important; color: #ffdc9b !important; }
+html[data-bs-theme="dark"] .content .stat-red { background: #48242d !important; color: #ffb7c1 !important; }
+html[data-bs-theme="dark"] .content .stat-violet { background: #32294d !important; color: #d8c4ff !important; }
+
+/* ONU Mapping / monitoring cards use the shared variables instead of a separate white theme. */
+html[data-bs-theme="dark"] .content .onu-page {
+    --ir-bg: var(--xlink-app-bg);
+    --ir-panel: var(--xlink-surface);
+    --ir-ink: var(--xlink-text);
+    --ir-muted: var(--xlink-muted);
+    --ir-brand: var(--xlink-surface-raised);
+    --ir-accent: var(--xlink-link);
+    --ir-line: var(--xlink-border);
+    color: var(--xlink-text);
+}
+html[data-bs-theme="dark"] .content .onu-page .onu-primary { color: var(--xlink-text) !important; }
+html[data-bs-theme="dark"] .content .onu-page .onu-filter { background: var(--xlink-surface-raised) !important; border-color: var(--xlink-border) !important; }
+html[data-bs-theme="dark"] .content .onu-page .onu-status.online { color: #9ae6c7 !important; background: #123a32 !important; }
+html[data-bs-theme="dark"] .content .onu-page .onu-status.offline { color: #ffb7c1 !important; background: #48242d !important; }
+html[data-bs-theme="dark"] .content .onu-page .onu-status.unknown { color: #ffdc9b !important; background: #44341b !important; }
+
+/* Finance dashboard: keep the branded hero, standardize all supporting surfaces. */
+html[data-bs-theme="dark"] .content .finance-dashboard {
+    --fin-ink: var(--xlink-text);
+    --fin-muted: var(--xlink-muted);
+    --fin-line: var(--xlink-border);
+    --fin-bg: var(--xlink-app-bg);
+    color: var(--xlink-text) !important;
+    background: var(--xlink-app-bg) !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .finance-dashboard :is(.finance-stat, .finance-panel, .finance-shortcut) {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface) !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-bars {
+    background: repeating-linear-gradient(to top, var(--xlink-surface) 0, var(--xlink-surface) 39px, #2a3a51 40px) !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-progress { background: #273950 !important; }
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-icon-teal { background: #123a39 !important; color: #8ee7de !important; }
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-icon-blue { background: #1b3153 !important; color: #b8ceff !important; }
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-icon-amber { background: #44341b !important; color: #ffdc9b !important; }
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-icon-red { background: #48242d !important; color: #ffb7c1 !important; }
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-icon-violet { background: #32294d !important; color: #d8c4ff !important; }
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-icon-green { background: #123a32 !important; color: #9ae6c7 !important; }
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-status { background: #123a32 !important; color: #9ae6c7 !important; }
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-status-muted { background: #28364a !important; color: var(--xlink-muted) !important; }
+html[data-bs-theme="dark"] .content .finance-dashboard .finance-shortcut-icon { background: #1b3153 !important; color: #b8ceff !important; }
+
+/* App chrome aligns to the same palette without changing menu behavior. */
+html[data-bs-theme="dark"] .navbar-top,
+html[data-bs-theme="dark"] .navbar-vertical,
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-content,
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-footer {
+    --cp-navbar-vertical-default-link-color: #b8c8dd;
+    --cp-navbar-vertical-default-link-hover-color: #f0f5fc;
+    --cp-navbar-vertical-default-hr-color: rgba(179, 202, 234, .12);
+    border-color: var(--xlink-border);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -126,4 +374,153 @@ html[data-bs-theme="dark"] .content :is(.dataTables_wrapper, .dataTables_info, .
     html[data-bs-theme="dark"] *::after {
         scroll-behavior: auto !important;
     }
+}
+
+/* Final pass for pages with bespoke CSS that bypasses the shared Bootstrap variables. */
+html[data-bs-theme="dark"] .content .customer-page-header,
+html[data-bs-theme="dark"] .content .customer-page-title,
+html[data-bs-theme="dark"] .content .customer-stat-card strong {
+    color: var(--xlink-text) !important;
+}
+html[data-bs-theme="dark"] .content .customer-page-subtitle,
+html[data-bs-theme="dark"] .content .customer-stat-label {
+    color: var(--xlink-muted) !important;
+}
+html[data-bs-theme="dark"] .content .custom-data-table thead th {
+    color: var(--xlink-muted) !important;
+    border-bottom-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .custom-data-table tbody tr {
+    color: var(--xlink-text) !important;
+    background-color: var(--xlink-surface) !important;
+}
+html[data-bs-theme="dark"] .content .custom-data-table tbody tr:hover,
+html[data-bs-theme="dark"] .content .customer-row-actions .dropdown-item:hover {
+    color: var(--xlink-text) !important;
+    background-color: var(--xlink-surface-hover) !important;
+}
+html[data-bs-theme="dark"] .content .nt-canvas {
+    background: radial-gradient(circle at 1px 1px, #30445e 1px, transparent 0) !important;
+    background-color: var(--xlink-app-bg) !important;
+    background-size: 20px 20px !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .network-map-leaflet-status {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface) !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .device-manager .dm-stat .icon {
+    color: #c7d9f2 !important;
+    background: var(--xlink-surface-raised) !important;
+}
+html[data-bs-theme="dark"] .content .device-manager .device-row {
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .device-manager .device-row:hover {
+    background: var(--xlink-surface-hover) !important;
+}
+html[data-bs-theme="dark"] .content .ai-mini-msg {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface-raised) !important;
+}
+html[data-bs-theme="dark"] .content .ai-mini-user {
+    color: #dce9ff !important;
+    background: #1b3153 !important;
+}
+html[data-bs-theme="dark"] .content .placeholder-btn,
+html[data-bs-theme="dark"] .content .placeholder-btn:hover {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface-raised) !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .template-card:hover {
+    border-color: #6684ab !important;
+}
+html[data-bs-theme="dark"] .content .oa-table th,
+html[data-bs-theme="dark"] .content .oa-table td,
+html[data-bs-theme="dark"] .content .nt-table th,
+html[data-bs-theme="dark"] .content .nt-table td {
+    border-bottom-color: var(--xlink-border) !important;
+}
+
+/* Overlays and dialogs are sometimes teleported outside .content by Livewire. */
+html[data-bs-theme="dark"] .modal-content,
+html[data-bs-theme="dark"] .offcanvas,
+html[data-bs-theme="dark"] .popover,
+html[data-bs-theme="dark"] .toast,
+html[data-bs-theme="dark"] .dropdown-menu:not(.bg-primary):not(.bg-success):not(.bg-danger) {
+    color: var(--xlink-text);
+    background-color: var(--xlink-surface) !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .modal-header,
+html[data-bs-theme="dark"] .modal-footer,
+html[data-bs-theme="dark"] .offcanvas-header,
+html[data-bs-theme="dark"] .toast-header {
+    color: var(--xlink-text);
+    border-color: var(--xlink-border) !important;
+    background-color: var(--xlink-surface-raised);
+}
+html[data-bs-theme="dark"] .modal-content .text-dark:not(.badge):not(.btn):not(.alert),
+html[data-bs-theme="dark"] .offcanvas .text-dark:not(.badge):not(.btn):not(.alert),
+html[data-bs-theme="dark"] .modal-title,
+html[data-bs-theme="dark"] .offcanvas-title {
+    color: var(--xlink-text) !important;
+}
+html[data-bs-theme="dark"] .modal-content .form-control,
+html[data-bs-theme="dark"] .modal-content .form-select,
+html[data-bs-theme="dark"] .modal-content textarea,
+html[data-bs-theme="dark"] .modal-content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]),
+html[data-bs-theme="dark"] .offcanvas .form-control,
+html[data-bs-theme="dark"] .offcanvas .form-select,
+html[data-bs-theme="dark"] .offcanvas textarea,
+html[data-bs-theme="dark"] .offcanvas input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]) {
+    color: var(--xlink-text) !important;
+    background-color: var(--xlink-input-bg) !important;
+    border-color: #4a5e78 !important;
+}
+html[data-bs-theme="dark"] .modal-content option,
+html[data-bs-theme="dark"] .offcanvas option {
+    color: var(--xlink-text);
+    background-color: var(--xlink-input-bg);
+}
+html[data-bs-theme="dark"] .dropdown-item {
+    color: var(--xlink-text);
+}
+html[data-bs-theme="dark"] .dropdown-item:hover,
+html[data-bs-theme="dark"] .dropdown-item:focus {
+    color: var(--xlink-text);
+    background-color: var(--xlink-surface-raised) !important;
+}
+html[data-bs-theme="dark"] .dropdown-item.active,
+html[data-bs-theme="dark"] .dropdown-item:active {
+    color: #fff;
+    background-color: #24518a !important;
+}
+
+/* SVG-based charts keep their labels, tooltips and grid lines readable in dark mode. */
+html[data-bs-theme="dark"] .content .apexcharts-text,
+html[data-bs-theme="dark"] .content .apexcharts-legend-text,
+html[data-bs-theme="dark"] .content .apexcharts-title-text,
+html[data-bs-theme="dark"] .content .apexcharts-subtitle-text,
+html[data-bs-theme="dark"] .content .apexcharts-xaxis-label,
+html[data-bs-theme="dark"] .content .apexcharts-yaxis-label {
+    fill: var(--xlink-muted) !important;
+    color: var(--xlink-muted) !important;
+}
+html[data-bs-theme="dark"] .content .apexcharts-gridline {
+    stroke: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .apexcharts-tooltip,
+html[data-bs-theme="dark"] .content .apexcharts-xaxistooltip,
+html[data-bs-theme="dark"] .content .apexcharts-yaxistooltip {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface) !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .apexcharts-tooltip-title {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface-raised) !important;
+    border-bottom-color: var(--xlink-border) !important;
 }

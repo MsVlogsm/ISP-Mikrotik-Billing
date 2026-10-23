@@ -58,15 +58,17 @@
 window.initXlinkTopology = function () {
  const el = document.getElementById('xlink-topology-graph');
  if (!el || !window.vis) return;
+ if (el._themeObserver) { el._themeObserver.disconnect(); el._themeObserver = null; }
  if (el._network) { el._network.destroy(); el._network = null; }
+ const getGraphTextColor = () => document.documentElement.getAttribute('data-bs-theme') === 'dark' ? '#eaf1fb' : '#172033';
  const rawNodes = @json($nodes);
  const rawEdges = @json($graphEdges);
  const nodes = new vis.DataSet(rawNodes.map(n => ({
   ...n, color: n.alarm === 'critical' ? '#dc2626' : (n.alarm === 'warning' ? '#f59e0b' : (n.status === 'online' ? '#22c55e' : (n.status === 'offline' ? '#ef4444' : (n.group === 'splitter' ? '#f59e0b' : '#94a3b8')))),
   shape: n.group === 'router' ? 'box' : (n.group === 'olt' ? 'database' : (n.group === 'onu' ? 'diamond' : (n.group === 'customer' ? 'ellipse' : (n.group === 'splitter' ? 'triangle' : (n.group === 'odf' ? 'hexagon' : (n.group === 'pop' ? 'star' : (n.group === 'fiber_segment' ? 'text' : 'box'))))))),
-  font: {color:'#172033', size:13}, borderWidth:1, margin:12
+  font: {color:getGraphTextColor(), size:13}, borderWidth:1, margin:12
  })));
- const nodeAlarm=Object.fromEntries(rawNodes.map(n=>[n.id,n.alarm])); const edgeRows = rawEdges.map(e => { const u=Number(e.utilization||0); const metrics=[e.traffic_mbps!=null?e.traffic_mbps+' Mbps traffic':null,e.capacity_mbps?e.capacity_mbps+' Mbps capacity':null,e.latency_ms!=null?e.latency_ms+' ms latency':null,e.packet_loss!=null?e.packet_loss+'% loss':null].filter(Boolean).join(' · '); const alarm=nodeAlarm[e.from]==='critical'||nodeAlarm[e.to]==='critical'?'critical':(nodeAlarm[e.from]==='warning'||nodeAlarm[e.to]==='warning'?'warning':''); const color=alarm==='critical'?'#dc2626':(alarm==='warning'?'#f59e0b':(e.connection_type==='fiber_core'||e.connection_type==='splitter'?(u>=90?'#dc2626':u>=70?'#f59e0b':'#16a34a'):(e.connection_type==='uplink'?'#2563eb':'#94a3b8'))); const metric=e.utilization!==null&&e.utilization!==undefined ? ' · '+e.utilization+'%' : ''; return {...e,label:(e.label||'')+metric,title:metrics || (e.connection_type||'Connection'),color:{color,highlight:color},width:e.utilization>=90?5:e.utilization>=70?4:2,font:{size:10,align:'middle'},smooth:{type:'dynamic'},dashes:e.dashes||false}; });
+ const nodeAlarm=Object.fromEntries(rawNodes.map(n=>[n.id,n.alarm])); const edgeRows = rawEdges.map(e => { const u=Number(e.utilization||0); const metrics=[e.traffic_mbps!=null?e.traffic_mbps+' Mbps traffic':null,e.capacity_mbps?e.capacity_mbps+' Mbps capacity':null,e.latency_ms!=null?e.latency_ms+' ms latency':null,e.packet_loss!=null?e.packet_loss+'% loss':null].filter(Boolean).join(' · '); const alarm=nodeAlarm[e.from]==='critical'||nodeAlarm[e.to]==='critical'?'critical':(nodeAlarm[e.from]==='warning'||nodeAlarm[e.to]==='warning'?'warning':''); const color=alarm==='critical'?'#dc2626':(alarm==='warning'?'#f59e0b':(e.connection_type==='fiber_core'||e.connection_type==='splitter'?(u>=90?'#dc2626':u>=70?'#f59e0b':'#16a34a'):(e.connection_type==='uplink'?'#2563eb':'#94a3b8'))); const metric=e.utilization!==null&&e.utilization!==undefined ? ' · '+e.utilization+'%' : ''; return {...e,label:(e.label||'')+metric,title:metrics || (e.connection_type||'Connection'),color:{color,highlight:color},width:e.utilization>=90?5:e.utilization>=70?4:2,font:{color:getGraphTextColor(),size:10,align:'middle'},smooth:{type:'dynamic'},dashes:e.dashes||false}; });
  const edges = new vis.DataSet(edgeRows);
  const network = new vis.Network(el, {nodes, edges}, {
   autoResize:true, interaction:{hover:true,navigationButtons:true,keyboard:{enabled:true}},
@@ -74,6 +76,13 @@ window.initXlinkTopology = function () {
   edges:{arrows:{to:{enabled:true,scaleFactor:0.65}},width:2},
   groups:{router:{shape:'box'},olt:{shape:'database'},onu:{shape:'diamond'},customer:{shape:'ellipse'},splitter:{shape:'triangle'},olt_pon:{shape:'dot'},odf:{shape:'hexagon'},rack:{shape:'box'},pop:{shape:'star'},fiber_segment:{shape:'text'}}
  });
+ const applyGraphTheme = () => {
+  const color = getGraphTextColor();
+  nodes.update(nodes.getIds().map(id => { const node = nodes.get(id); return {id, font: {...(node.font || {}), color, size: (node.font && node.font.size) || 13}}; }));
+  edges.update(edges.getIds().map(id => { const edge = edges.get(id); return {id, font: {...(edge.font || {}), color, size: (edge.font && edge.font.size) || 10, align: (edge.font && edge.font.align) || 'middle'}}; }));
+ };
+ el._themeObserver = new MutationObserver(applyGraphTheme);
+ el._themeObserver.observe(document.documentElement, {attributes:true, attributeFilter:['data-bs-theme']});
  el._network = network;
  window.xlinkTopologyNetwork = network;
  const graphCard = el.closest('.nt-card');
