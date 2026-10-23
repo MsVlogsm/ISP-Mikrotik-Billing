@@ -544,20 +544,10 @@ class CustomerList extends Component
                 $customer->status = 'active';
                 $customer->save();
 
-                if ($bill->billing_type === 'prepaid') {
-                    $cycleAnchor = $customer->connection_date ?: ($bill->auto_disable_date ?: today()->toDateString());
-                    $currentExpiry = $bill->auto_disable_date
-                        ? PrepaidBillingCycle::alignToConnectionDay($cycleAnchor, $bill->auto_disable_date)
-                        : today();
-
-                    if ($currentExpiry->lte(today())) {
-                        $bill->auto_disable_date = PrepaidBillingCycle::nextExpiryDate($cycleAnchor, today())->toDateString();
-                        $bill->save();
-                    } elseif (! $bill->auto_disable_date || Carbon::parse($bill->auto_disable_date)->toDateString() !== $currentExpiry->toDateString()) {
-                        $bill->auto_disable_date = $currentExpiry->toDateString();
-                        $bill->save();
-                    }
-                } elseif ($bill->auto_disable_date) {
+                // Enabling a customer must not grant a fresh prepaid validity period.
+                // The expiry changes only through a payment/recharge or an explicit
+                // authorized billing-date update. Keep the existing postpaid schedule.
+                if ($bill->billing_type !== 'prepaid' && $bill->auto_disable_date) {
                     $autoDisableDate = Carbon::parse($bill->auto_disable_date)->startOfDay();
                     $autoDisableMonth = $bill->auto_disable_month;
                     $disableDate = $autoDisableDate->copy()->addMonths($autoDisableMonth);
