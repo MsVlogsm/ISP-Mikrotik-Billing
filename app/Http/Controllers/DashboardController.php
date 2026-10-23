@@ -11,6 +11,8 @@ use App\Models\Reseller;
 use App\Models\ResellerCommission;
 use App\Models\SupportTicket;
 use App\Models\KycRequest;
+use App\Models\NotificationLogs;
+use App\Services\PrepaidBillingCycle;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
@@ -201,6 +203,129 @@ class DashboardController extends Controller
             ->count();
 
         $lockedDisabled = CustomersInfo::whereIn('status', ['disable', 'temporary_disable'])->count();
+
+        // Use the same timezone and eligibility rules as the daily userDisable scheduler.
+        $billingTimezone = config('app.timezone') ?: 'Asia/Dhaka';
+        $billingToday = Carbon::now($billingTimezone)->startOfDay();
+        $autoDisableResultsToday = NotificationLogs::query()
+            ->whereDate('created_at', $billingToday->toDateString())
+            ->where(function ($query) {
+                $query->whereIn('title', ['Disconnection Success', 'Disconnection Failed', 'Disconnection Error', 'Disconnection Warning'])
+                    ->orWhere('title', 'like', 'User(s) profile%HARD DISABLED%');
+            })
+            ->orderByDesc('created_at')
+            ->limit(15)
+            ->get(['title', 'message', 'status', 'type', 'created_at']);
+        $autoDisableResultsTodayCount = NotificationLogs::query()
+            ->whereDate('created_at', $billingToday->toDateString())
+            ->where(function ($query) {
+                $query->whereIn('title', ['Disconnection Success', 'Disconnection Failed', 'Disconnection Error', 'Disconnection Warning'])
+                    ->orWhere('title', 'like', 'User(s) profile%HARD DISABLED%');
+            })
+            ->count();
+
+        $expiringTodayBase = CustomersInfo::query()
+            ->where('status', 'active')
+            ->whereHas('billing', fn ($query) => $query
+                ->whereNotNull('auto_disable_date')
+                ->whereDate('auto_disable_date', $billingToday->toDateString()));
+
+        $customersExpiringTodayCount = (clone $expiringTodayBase)->count();
+        $customersExpiringToday = (clone $expiringTodayBase)
+            ->with(['billing', 'pppUser'])
+            ->orderBy('customer_name')
+            ->limit(20)
+            ->get();
+
+        // Build a read-only preview of customers that satisfy today's scheduler disable rules.
+        // This list is eligibility, not proof the router disconnect has already succeeded.
+        $disableCheckNo = (int) (siteUrlSettings('disable_check_no') ?? 1);
+        $autoDisableCandidates = CustomersInfo::active()
+            ->where(function ($customerQuery) use ($disableCheckNo) {
+                $customerQuery->where(function ($legacyQuery) use ($disableCheckNo) {
+                    $legacyQuery->underDisableLimit($disableCheckNo)
+                        ->whereHas('billing', fn ($query) => $query
+                            ->autoDisable()
+                            ->unpaid()
+                            ->where('billing_type', '!=', 'prepaid'));
+                })->orWhereHas('billing', fn ($query) => $query
+                    ->autoDisable()
+                    ->where('billing_type', 'prepaid')
+                    ->where('monthly_rent', '>', 0));
+            })
+            ->hasPPPUser()
+            ->with(['billing', 'pppUser'])
+            ->get();
+
+        $autoDisableToday = collect();
+        $nowForDisable = Carbon::now($billingTimezone);
+
+        foreach ($autoDisableCandidates as $customer) {
+            $billing = $customer->billing;
+            $pppUser = $customer->pppUser;
+
+            if (! $billing || ! $pppUser || ! $pppUser->username) {
+                continue;
+            }
+
+            $shouldDisable = false;
+            $disableReason = '';
+
+            if ($billing->billing_type === 'prepaid') {
+                $cycleAnchor = $customer->connection_date ?: $billing->auto_disable_date;
+
+                if (! $cycleAnchor) {
+                    continue;
+                }
+
+                $autoDisableDate = $billing->auto_disable_date
+                    ? PrepaidBillingCycle::alignToConnectionDay($cycleAnchor, $billing->auto_disable_date)
+                    : PrepaidBillingCycle::nextExpiryDate($cycleAnchor, $billingToday);
+
+                $shouldDisable = (float) $billing->monthly_rent > 0
+                    && $billingToday->greaterThanOrEqualTo($autoDisableDate->copy()->startOfDay());
+                $disableReason = 'Prepaid connection-day expiry';
+            } else {
+                // Mirror the postpaid/grace-period decision in ScheduledTasksController::userDisable().
+                $baseDate = Carbon::parse($billing->auto_disable_date, $billingTimezone);
+
+                if ($baseDate->isPast() && ($baseDate->month !== $nowForDisable->month || $baseDate->year !== $nowForDisable->year)) {
+                    $baseDate->month($nowForDisable->month)->year($nowForDisable->year);
+                }
+
+                $autoDisableDate = $disableCheckNo <= 1
+                    ? $baseDate->copy()->startOfDay()
+                    : $baseDate->copy()->addDays((int) siteUrlSettings('disable_check_days') * $customer->disable_count)->startOfDay();
+
+                $previousDueDisableDate = $disableCheckNo <= 1
+                    ? Carbon::parse($billing->auto_disable_date, $billingTimezone)->month($nowForDisable->month)->year($nowForDisable->year)->startOfDay()
+                    : Carbon::parse($billing->auto_disable_date, $billingTimezone)->month($nowForDisable->month)->year($nowForDisable->year)->addDays((int) siteUrlSettings('disable_check_days') * $customer->disable_count)->startOfDay();
+
+                $autoDisableMonth = (int) ($billing->auto_disable_month ?? 0);
+                $totalBill = ((float) $billing->monthly_rent + (float) $billing->additional_charge + (float) $billing->vat) * $autoDisableMonth;
+
+                if ((float) $billing->previous_due > 0 && (float) $billing->due_amount > $totalBill && $billingToday->isSameDay($previousDueDisableDate)) {
+                    $shouldDisable = true;
+                    $disableReason = 'Auto Disable for Previous Due';
+                } elseif ((float) $billing->due_amount > $totalBill && $billingToday->greaterThanOrEqualTo($autoDisableDate)) {
+                    $shouldDisable = true;
+                    $disableReason = 'Auto Disable for Due';
+                } elseif ((float) $billing->due_amount > 0 && (float) $billing->due_amount <= $totalBill && $billingToday->greaterThanOrEqualTo($autoDisableDate->copy()->addMonths($autoDisableMonth))) {
+                    $shouldDisable = true;
+                    $disableReason = 'Auto Disable Date reached';
+                }
+            }
+
+            if ($shouldDisable) {
+                $customer->setAttribute('dashboard_disable_reason', $disableReason);
+                $autoDisableToday->push($customer);
+            }
+        }
+
+        $autoDisableToday = $autoDisableToday->sortBy('customer_name')->values();
+        $autoDisableTodayCount = $autoDisableToday->count();
+        $autoDisableToday = $autoDisableToday->take(20)->values();
+
         $runningDue = (float) (clone $activeCustomers)->join('billing_infos', 'billing_infos.customer_bill_unique_id', '=', 'customers_infos.customer_unique_id')
             ->sum('billing_infos.due_amount');
         $runningDue = abs($runningDue);
@@ -269,6 +394,7 @@ class DashboardController extends Controller
             'results', 'customersData', 'billInformationData', 'systemOverview', 'resellerData',
             'onlineNow', 'onlineCompany', 'onlineReseller', 'livePppSessions', 'livePppSessionsByRouter', 'livePppTelemetry', 'expired', 'lockedDisabled', 'runningDue', 'monthCollection', 'weekCollection',
             'todayCollection', 'mfsCollection', 'resellerDue', 'activeCustomerTotal', 'activeCompany', 'activeReseller',
+            'billingToday', 'customersExpiringToday', 'customersExpiringTodayCount', 'autoDisableToday', 'autoDisableTodayCount', 'autoDisableResultsToday', 'autoDisableResultsTodayCount',
             'openTickets', 'overdueTickets', 'ticketsToday', 'pendingKyc', 'kycApprovedMonth', 'mfsPending',
             'recentTransactions', 'newConnections', 'hotspotCustomers', 'hotspotCardStock', 'attendanceTotal', 'attendanceToday', 'deviceStats', 'monthCollectionPppoe', 'monthCollectionHotspot', 'todayPppoe', 'todayHotspot', 'weekPppoe', 'weekHotspot'
         ));

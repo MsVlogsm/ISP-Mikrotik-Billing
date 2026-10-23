@@ -5,6 +5,17 @@
 <link rel="stylesheet" href="{{ asset('xlink-dashboard/layout-fixes.css') }}">
 <link rel="stylesheet" href="{{ asset('xlink-dashboard/report-ux.css') }}">
 <link rel="stylesheet" href="{{ asset('xlink-dashboard/ui-polish-20260826.css') }}">
+<style>
+.dashboard-priority-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--db-gap);margin:0 0 18px}
+.dashboard-priority-metrics .dashboard-card{margin:0;min-width:0}
+.dashboard-daily-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:14px}
+.dashboard-daily-split h4{font-size:.9rem;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 9px}
+.dashboard-daily-split .table{font-size:.76rem;vertical-align:middle}
+.dashboard-daily-split .table th,.dashboard-daily-split .table td{padding:.5rem .55rem}
+.dashboard-daily-note{padding:0 14px 14px;font-size:.76rem;color:var(--bs-secondary-color)}
+@media(max-width:991px){.dashboard-priority-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-daily-split{grid-template-columns:1fr}}
+@media(max-width:575px){.dashboard-priority-metrics{grid-template-columns:1fr 1fr;gap:7px}.dashboard-priority-metrics .dashboard-card{grid-template-columns:42px minmax(0,1fr)}.dashboard-priority-metrics .dashboard-card-icon{width:42px;min-height:70px;font-size:1.3rem}.dashboard-priority-metrics .dashboard-card-value{font-size:1.1rem}}
+</style>
 @endpush
 <x-slot name="header">{{ __('Dashboard') }}</x-slot>
 @php
@@ -20,6 +31,17 @@ $expiring=\App\Models\BillingInfo::join('customers_infos','billing_infos.custome
 @endphp
 <div class="dashboard-shell preset-isp-color-cards size-compact show-subtext" style="--db-cols:4;--db-chart-height:362px">
 <div class="dashboard-controlbar"><div class="dashboard-heading-main"><div class="dashboard-meta-line"><span id="dashboardLocalClock" class="dashboard-local-clock" aria-live="off">Loading time…</span><span class="dashboard-monitor-pill" title="Active customer records with enabled PPPoE credentials; not a live router-session count"><span class="dashboard-monitor-dot"></span>PPPoE Ready <strong>{{ number_format($online) }}</strong></span></div><span class="dashboard-kicker">{{ __('X-Link Limited Billing') }}</span><h2>{{ __('Dashboard') }}</h2><p>{{ __('Live operational and billing overview') }}</p></div><button type="button" class="btn btn-sm btn-outline-secondary dashboard-expand-metrics" id="dashboardExpandMetrics" aria-expanded="false"><i class="bi bi-grid-3x3-gap"></i> <span>Expand metrics</span> <span class="dashboard-metric-count">+15</span></button></div>
+<div class="dashboard-priority-metrics" aria-label="Priority customer status summary">
+<a class="dashboard-card tone-blue" href="{{ route('broadband-customers') }}"><span class="dashboard-card-icon"><i class="bi bi-people-fill"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Total Customers</span><strong class="dashboard-card-value">{{ number_format($customersData['total']??0) }}</strong><small class="dashboard-card-sub">All customer records</small></span></a>
+<a class="dashboard-card tone-green" href="{{ route('broadband-customers') }}"><span class="dashboard-card-icon"><i class="bi bi-person-check-fill"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Enabled Customers</span><strong class="dashboard-card-value">{{ number_format($activeCustomerTotal??0) }}</strong><small class="dashboard-card-sub">Customer status is active</small></span></a>
+<a class="dashboard-card tone-cyan" href="{{ route('mikrotik-sync') }}"><span class="dashboard-card-icon"><i class="bi bi-wifi"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Live Online Sessions</span><strong class="dashboard-card-value">{{ $livePpp === null ? 'Unavailable' : number_format((int)$livePpp) }}</strong><small class="dashboard-card-sub">Live router sessions • {{ (int)($livePppTelemetry['successful_routers']??0) }}/{{ (int)($livePppTelemetry['router_count']??0) }} routers responding</small></span></a>
+<a class="dashboard-card tone-red" href="{{ route('broadband-customers') }}"><span class="dashboard-card-icon"><i class="bi bi-shield-lock-fill"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Disabled Customers</span><strong class="dashboard-card-value">{{ number_format($lockedDisabled??0) }}</strong><small class="dashboard-card-sub">Disabled or temporary disabled</small></span></a>
+<a class="dashboard-card tone-amber" href="{{ route('broadband-customers') }}"><span class="dashboard-card-icon"><i class="bi bi-hourglass-split"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Pending Customers</span><strong class="dashboard-card-value">{{ number_format($customersData['pending']??0) }}</strong><small class="dashboard-card-sub">Waiting for activation</small></span></a>
+<a class="dashboard-card tone-purple" href="{{ route('broadband-customers') }}"><span class="dashboard-card-icon"><i class="bi bi-gift-fill"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Free Customers</span><strong class="dashboard-card-value">{{ number_format($customersData['free']??0) }}</strong><small class="dashboard-card-sub">Free plan / free status</small></span></a>
+<a class="dashboard-card tone-slate" href="{{ route('broadband-customers') }}"><span class="dashboard-card-icon"><i class="bi bi-person-dash-fill"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Inactive / Left</span><strong class="dashboard-card-value">{{ number_format($customersData['inactive']??0) }}</strong><small class="dashboard-card-sub">Inactive customer records</small></span></a>
+<a class="dashboard-card tone-amber" href="#dashboard-daily-expiry"><span class="dashboard-card-icon"><i class="bi bi-calendar-event-fill"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Expires Today</span><strong class="dashboard-card-value">{{ number_format($customersExpiringTodayCount??0) }}</strong><small class="dashboard-card-sub">{{ optional($billingToday??null)->format('d M Y') }} • active customers</small></span></a>
+<a class="dashboard-card tone-rose" href="#dashboard-daily-expiry"><span class="dashboard-card-icon"><i class="bi bi-person-x-fill"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Auto-disable Queue</span><strong class="dashboard-card-value">{{ number_format($autoDisableTodayCount??0) }}</strong><small class="dashboard-card-sub">Matches scheduler eligibility rules</small></span></a>
+</div>
 <div class="dashboard-card-deck" aria-label="Dashboard cards">
 <a class="dashboard-card tone-teal" data-card-key="yesterday_collection" href="{{ route('income-summary') }}"><span class="dashboard-card-icon"><i class="bi bi-calendar2-minus-fill"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Yesterday Collection</span><strong class="dashboard-card-value">{{ number_format($yesterday,2).' ৳' }}</strong><small class="dashboard-card-sub">Verified broadband collection</small></span><i class="bi bi-arrow-up-right dashboard-card-open"></i></a>
 <a class="dashboard-card tone-slate" data-card-key="offline_now" href="{{ route('broadband-customers') }}"><span class="dashboard-card-icon"><i class="bi bi-wifi-off"></i></span><span class="dashboard-card-copy"><span class="dashboard-card-label">Without Active PPPoE</span><strong class="dashboard-card-value">{{ number_format($offline) }}</strong><small class="dashboard-card-sub">Company {{ number_format($companyPppNotEnabled) }} • Reseller {{ number_format($resellerPppNotEnabled) }}</small></span><i class="bi bi-arrow-up-right dashboard-card-open"></i></a>
@@ -54,6 +76,49 @@ $expiring=\App\Models\BillingInfo::join('customers_infos','billing_infos.custome
 </div>
 
 <div class="dashboard-panels" id="dashboardMasonryPanels">
+<section class="dashboard-panel dashboard-masonry-item panel-operations panel-span-full" id="dashboard-daily-expiry">
+<header><div><span>Daily Subscriber Actions</span><h3>Today's Expiry & Auto-disable Queue</h3></div><div class="text-end"><span>{{ $billingToday->format('d M Y') }}</span><a href="{{ route('broadband-customers') }}">Customer list <i class="bi bi-arrow-right"></i></a></div></header>
+<div class="dashboard-daily-split">
+<div>
+<h4><span>Active Customers Expiring Today</span><span class="badge text-bg-warning">{{ number_format($customersExpiringTodayCount??0) }}</span></h4>
+<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Customer</th><th>PPPoE / Mobile</th><th>Auto-disable</th></tr></thead><tbody>
+@forelse($customersExpiringToday as $customer)
+<tr><td><strong>{{ $customer->customer_name }}</strong><div class="small text-secondary">{{ $customer->customer_unique_id }}</div></td><td>{{ $customer->pppUser?->username ?? 'No PPP user' }}<div class="small text-secondary">{{ $customer->mobile ?: 'No mobile' }}</div></td><td>@if($customer->billing?->auto_disable)<span class="badge text-bg-success">ON</span>@else<span class="badge text-bg-secondary">OFF</span>@endif<div class="small text-secondary">{{ $customer->billing?->auto_disable_date ? \Carbon\Carbon::parse($customer->billing->auto_disable_date)->format('d M Y') : 'No expiry date' }}</div></td></tr>
+@empty
+<tr><td colspan="3" class="text-center text-secondary py-4">No active customer expires today.</td></tr>
+@endforelse
+</tbody></table></div>
+@if(($customersExpiringTodayCount??0) > $customersExpiringToday->count())<div class="small text-secondary mt-2">Showing 20 of {{ number_format($customersExpiringTodayCount) }} customers.</div>@endif
+</div>
+<div>
+<h4><span>Auto-disable Eligible Today</span><span class="badge text-bg-danger">{{ number_format($autoDisableTodayCount??0) }}</span></h4>
+<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Customer</th><th>Reason / Expiry</th><th>Due</th></tr></thead><tbody>
+@forelse($autoDisableToday as $customer)
+<tr><td><strong>{{ $customer->customer_name }}</strong><div class="small text-secondary">{{ $customer->customer_unique_id }} • {{ $customer->pppUser?->username ?? 'No PPP user' }}</div><div class="small text-secondary">{{ $customer->mobile ?: 'No mobile' }}</div></td><td>{{ $customer->getAttribute('dashboard_disable_reason') }}<div class="small text-secondary">{{ $customer->billing?->auto_disable_date ? \Carbon\Carbon::parse($customer->billing->auto_disable_date)->format('d M Y') : 'Expiry date not set' }}</div></td><td>{{ number_format((float)($customer->billing?->due_amount ?? 0), 2) }} ৳</td></tr>
+@empty
+<tr><td colspan="3" class="text-center text-secondary py-4">No customers currently match today's auto-disable rules.</td></tr>
+@endforelse
+</tbody></table></div>
+@if(($autoDisableTodayCount??0) > $autoDisableToday->count())<div class="small text-secondary mt-2">Showing 20 of {{ number_format($autoDisableTodayCount) }} eligible customers.</div>@endif
+</div>
+</div>
+@if(($autoDisableResultsTodayCount??0) > 0)
+<div class="dashboard-daily-results" style="padding:0 14px 14px">
+<h4><span>Today's Actual Scheduler / Router Results</span><span class="badge text-bg-info">{{ number_format($autoDisableResultsTodayCount) }}</span></h4>
+<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Result</th><th>Time</th><th>Customer IDs / Details</th></tr></thead><tbody>
+@forelse($autoDisableResultsToday as $result)
+<tr><td><strong>{{ $result->title }}</strong><div class="small text-secondary">{{ $result->status }}</div></td><td>{{ \Carbon\Carbon::parse($result->created_at, config('app.timezone') ?: 'Asia/Dhaka')->format('h:i A') }}</td><td><div style="max-height:150px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere">{{ $result->message }}</div></td></tr>
+@empty
+<tr><td colspan="3" class="text-center text-secondary py-3">No auto-disable result log recorded today.</td></tr>
+@endforelse
+</tbody></table></div>
+@if(($autoDisableResultsTodayCount??0) > $autoDisableResultsToday->count())<div class="small text-secondary mt-2">Showing latest 15 of {{ number_format($autoDisableResultsTodayCount) }} result logs.</div>@endif
+</div>
+@else
+<div class="dashboard-daily-note">No auto-disable execution result has been logged today. The queue above still shows customers currently eligible by scheduler rules; no result log alone does not confirm that the scheduler ran.</div>
+@endif
+<div class="dashboard-daily-note">Auto-disable eligibility is calculated from the current scheduler rules at dashboard load. A success log means the app's router-disable command returned without exception; the dashboard does not issue any disconnect action. Customer settings with Auto-disable OFF are excluded.</div>
+</section>
 <section class="dashboard-panel dashboard-masonry-item panel-analysis"><header><div><span>Subscriber Health</span><h3>Customer Account Analysis</h3></div><a href="{{route('broadband-customers')}}">Customer list <i class="bi bi-arrow-right"></i></a></header><div class="customer-ring-wrap"><div class="customer-ring-canvas"><canvas id="customerRingChart"></canvas><div class="ring-center"><small>Active</small><strong>{{number_format($total)}}</strong></div></div><div class="ring-metrics"><a class="ring-metric"><i class="ring-dot"></i><span>Total</span><strong>{{number_format($customersData['total']??0)}}</strong></a><a class="ring-metric active"><i class="ring-dot"></i><span>Active</span><strong>{{number_format($customersData['active']??0)}}</strong></a><a class="ring-metric"><i class="ring-dot"></i><span>Pending</span><strong>{{number_format($customersData['pending']??0)}}</strong></a><a class="ring-metric"><i class="ring-dot"></i><span>Free</span><strong>{{number_format($customersData['free']??0)}}</strong></a><a class="ring-metric"><i class="ring-dot"></i><span>Temporary Disable</span><strong>{{number_format($customersData['temporary_disable']??0)}}</strong></a><a class="ring-metric"><i class="ring-dot"></i><span>Inactive</span><strong>{{number_format($customersData['inactive']??0)}}</strong></a><a class="ring-metric"><i class="ring-dot"></i><span>Recent</span><strong>{{number_format($customersData['recent']??0)}}</strong></a></div></div></section>
 <section class="dashboard-panel dashboard-masonry-item panel-operations"><header><div><span>Billing Forecast</span><h3>Billing Health</h3></div><a href="{{route('income-summary')}}">Finance report <i class="bi bi-arrow-right"></i></a></header><div class="analysis-metric-list"><a href="{{route('income-summary')}}"><span>This Month Collection</span><strong>{{number_format($monthCollection??0,2)}} ৳</strong></a><a class="danger" href="{{route('broadband-due-customers')}}"><span>Running Due</span><strong>{{number_format($runningDue??0,2)}} ৳</strong></a><a href="{{route('broadband-due-customers')}}"><span>Expiring Next 7 Days</span><strong>{{$expiring}}</strong></a></div></section>
 <section class="dashboard-panel dashboard-masonry-item panel-operations"><header><div><span>Business Split</span><h3>Company vs Reseller Split</h3></div><a href="{{route('reseller.dashboard')}}">Partner network <i class="bi bi-arrow-right"></i></a></header><div class="analysis-metric-list"><a href="{{route('broadband-customers')}}"><span>Company Customers</span><strong>{{$company}}</strong></a><a href="{{route('reseller.dashboard')}}"><span>Reseller Customers</span><strong>{{$reseller}}</strong></a><a href="{{route('income-summary')}}"><span>Company Collection</span><strong>{{number_format($monthCollectionPppoe??0,2)}} ৳</strong></a><a href="{{route('reseller.dashboard')}}"><span>Reseller Due</span><strong>{{number_format($resellerDue??0,2)}} ৳</strong></a></div></section>
