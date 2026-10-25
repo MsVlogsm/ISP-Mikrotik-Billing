@@ -135,9 +135,8 @@ class PaymentService
                 }
             }
 
-            // Generate next sequential invoice number
-            $maxInvoice = CollectionSummary::max('invoice_no');
-            $invoiceNo = $maxInvoice ? ($maxInvoice + 1) : 100001;
+            // Use the same transaction-safe invoice sequence as manual collections.
+            $invoiceNo = CollectionSummary::nextInvoiceNumber();
 
             // 2. Create Collection Record
             $paymentDetails = array_filter([

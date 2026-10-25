@@ -308,7 +308,9 @@ class PaymentCollection extends Component
             }
         } catch (\Throwable $th) {
             report($th);
-            sweetalert()->error('Unable to process the payment action. Please try again.', ['title' => 'Error']);
+            // The ledger transaction has already committed at this point.
+            // Never show a generic payment-failure prompt that could cause a duplicate collection.
+            flash()->warning('Payment was recorded, but a post-payment action failed. Check the collection history before retrying.');
         } finally {
             $this->reset();
             $this->dispatch('focusInput');
