@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CustomersInfo;
 use App\Models\User;
 use App\Http\Middleware\RestrictToProfileIfNoPermissions;
 use App\Services\AiEngineerDiagnosticService;
@@ -18,6 +19,25 @@ class AiEngineerControllerTest extends TestCase
         parent::setUp();
         $this->withoutMiddleware(RestrictToProfileIfNoPermissions::class);
         $this->actingAs(User::factory()->create());
+    }
+
+    public function test_ai_engineer_map_onu_endpoint_calls_the_guarded_mapping_service(): void
+    {
+        $customer = CustomersInfo::create([
+            'customer_unique_id' => 'AI-MAP-HTTP-TEST',
+            'customer_name' => 'AI Mapping Test Customer',
+            'status' => 'active',
+        ]);
+        $service = Mockery::mock(AiEngineerDiagnosticService::class);
+        $service->shouldReceive('mapExactCandidate')->once()
+            ->with(77, $customer->id, auth()->id())
+            ->andReturn(['ok' => true, 'message' => 'Exact mapping saved.']);
+        $this->app->instance(AiEngineerDiagnosticService::class, $service);
+
+        $this->from('/ai-engineer')
+            ->post('/ai-engineer/map-onu', ['mapping_id' => 77, 'customer_id' => $customer->id])
+            ->assertRedirect('/ai-engineer')
+            ->assertSessionHas('ai_mapping_message', 'Exact mapping saved.');
     }
 
     public function test_customer_search_endpoint_returns_selectable_customer_results_as_json(): void
