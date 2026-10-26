@@ -22,7 +22,10 @@ class OnuMacLedgerService
 
             foreach ($oltMappings as $mapping) {
                 if (! $this->hasIdentityRecord($records, $mapping)) {
-                    $record = $this->createFromMapping($mapping);
+                    // Do not preserve a questionable Customer/PPPoE link from a mapping
+                    // explicitly flagged for manual review. Keep only the ONU identity.
+                    $includeCustomer = ! $this->requiresManualReview($mapping);
+                    $record = $this->createFromMapping($mapping, $includeCustomer);
                     if ($record) {
                         $records->push($record);
                         $created++;
@@ -164,15 +167,15 @@ class OnuMacLedgerService
         return $customer;
     }
 
-    private function createFromMapping(OltOnuCustomerMapping $mapping): ?OnuMacLedger
+    private function createFromMapping(OltOnuCustomerMapping $mapping, bool $includeCustomer = true): ?OnuMacLedger
     {
         if ($this->normalizeMac($mapping->onu_mac) === '' && $this->normalizeSerial($mapping->onu_serial) === '') {
             return null;
         }
 
         $mapping->loadMissing(['customer', 'pppUser']);
-        $customer = $mapping->customer;
-        $ppp = $mapping->pppUser ?: $customer?->pppUser;
+        $customer = $includeCustomer ? $mapping->customer : null;
+        $ppp = $includeCustomer ? ($mapping->pppUser ?: $customer?->pppUser) : null;
         $seenAt = $mapping->last_seen_at ?: $mapping->created_at ?: now();
 
         return OnuMacLedger::create([
@@ -193,6 +196,14 @@ class OnuMacLedgerService
             'last_seen_at' => $mapping->last_seen_at,
             'notes' => trim((string) $mapping->notes) !== '' ? $mapping->notes : null,
         ]);
+    }
+
+    private function requiresManualReview(OltOnuCustomerMapping $mapping): bool
+    {
+        $notes = strtolower(trim((string) $mapping->notes));
+
+        return str_contains($notes, 'manual review required')
+            || str_contains($notes, 'stable onu identity changed');
     }
 
     private function hasIdentityRecord(Collection $records, OltOnuCustomerMapping $mapping): bool

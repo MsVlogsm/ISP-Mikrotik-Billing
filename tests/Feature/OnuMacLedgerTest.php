@@ -129,6 +129,34 @@ class OnuMacLedgerTest extends TestCase
         $this->assertNull($candidate);
     }
 
+    public function test_bootstrap_quarantines_customer_link_for_identity_flagged_for_manual_review(): void
+    {
+        $olt = $this->olt();
+        $ppp = $this->ppp('ledger-router-review', 'ledger-review-user');
+        $customer = $this->customer('LEDGER-CID-REVIEW', $ppp->id);
+        $mapping = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'customer_id' => $customer->id,
+            'ppp_user_id' => $ppp->id,
+            'onu_id' => 'ONU-REVIEW',
+            'onu_serial' => 'SERIAL-REVIEW',
+            'onu_mac' => 'AA:BB:CC:DD:EE:09',
+            'status' => 'online',
+            'last_seen_at' => now()->subDay(),
+            'notes' => 'Stable ONU identity changed; manual review required.',
+        ]);
+
+        $service = app(OnuMacLedgerService::class);
+        $this->assertSame(1, $service->bootstrapMissingMappings(collect([$mapping])));
+        $ledger = OnuMacLedger::firstOrFail();
+        $this->assertSame('SERIAL-REVIEW', $ledger->serial_no);
+        $this->assertNull($ledger->customer_id);
+        $this->assertNull($ledger->customer_unique_id);
+        $this->assertNull($ledger->pppoe_username);
+        $this->assertNull($service->findExactCustomerMatch($olt->id, 'AA:BB:CC:DD:EE:09', 'SERIAL-REVIEW'));
+        $this->assertSame($customer->id, $mapping->fresh()->customer_id);
+    }
+
     public function test_super_admin_can_open_mac_ledger_dashboard(): void
     {
         $this->get(route('network-inventory.onu-mac-ledger'))
