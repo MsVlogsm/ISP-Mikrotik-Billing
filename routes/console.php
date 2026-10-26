@@ -11,7 +11,6 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Str;
-use RuntimeException;
 
 $timezone = config('app.timezone') ?: 'Asia/Dhaka';
 
@@ -26,7 +25,7 @@ $runCommand = static function (string $key, string $label, string $cadence, stri
         $output = trim(Artisan::output());
 
         if ($exitCode !== 0) {
-            throw new RuntimeException($signature.' exited with code '.$exitCode.': '.Str::limit($output, 1500));
+            throw new \RuntimeException($signature.' exited with code '.$exitCode.': '.Str::limit($output, 1500));
         }
 
         return ['message' => $output !== '' ? Str::limit($output, 1800) : $signature.' completed successfully.'];
