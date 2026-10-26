@@ -74,6 +74,22 @@ class SyncOltOnuMappingsTest extends TestCase
         $this->app->instance(OltReadOnlyAdapterManager::class, $manager);
     }
 
+    public function test_dry_run_does_not_backfill_the_mac_ledger(): void
+    {
+        $olt = $this->olt();
+        $mac = '00:11:46:95:1c:c6';
+        OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id, 'onu_id' => '25', 'onu_serial' => 'DRY-RUN-SERIAL',
+            'onu_mac' => $mac, 'status' => 'online',
+        ]);
+        $this->fakeAdapter($olt, $mac);
+
+        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id, '--dry-run' => true])
+            ->assertExitCode(0);
+
+        $this->assertDatabaseCount('onu_mac_ledgers', 0);
+    }
+
     public function test_exact_mac_match_prefers_one_active_ppp_customer_over_removed_legacy_record(): void
     {
         $olt = $this->olt();
