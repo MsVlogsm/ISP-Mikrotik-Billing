@@ -86,24 +86,12 @@ class BroadbandController extends Controller
             }
             $liveSessions = ['users' => $usersByRouter, 'successful_routers' => $successCount, 'router_count' => $routerCount];
             $onlineSessionStatus = ($liveSessions['successful_routers'] ?? 0) > 0 ? 'ok' : 'unavailable';
-            $onlineNames = [];
-            foreach (($liveSessions['users'] ?? []) as $routerName => $names) {
-                foreach (array_keys($names) as $username) $onlineNames[] = ['router' => $routerName, 'username' => $username];
-            }
-            if ($onlineSessionStatus === 'ok' && count($onlineNames) > 0) {
-                $query->where('status', 'active')->whereHas('pppUser', function ($q) use ($onlineNames) {
-                    $q->where('status', 'active')->where(function ($match) use ($onlineNames) {
-                        foreach ($onlineNames as $session) {
-                            $match->orWhere(function ($pair) use ($session) {
-                                $pair->where('router_name', $session['router'])->whereRaw('LOWER(username) = ?', [$session['username']]);
-                            });
-                        }
-                    });
-                });
-            } else {
-                // A confirmed zero-session read is a real empty list; unavailable telemetry must not fake online users.
-                $query->whereRaw('1 = 0');
-            }
+            // Shared predicate keeps this list and the Dashboard's Online Customers KPI consistent.
+            app(\App\Services\OnlineCustomerSessionFilter::class)->apply(
+                $query,
+                $liveSessions['users'],
+                (int) $liveSessions['successful_routers']
+            );
         }
 
         if ($status === 'inactive') {

@@ -176,11 +176,9 @@ class DashboardController extends Controller
         $activeCompany = (clone $activeCustomers)->whereNull('reseller_id')->count();
         $activeReseller = (clone $activeCustomers)->whereNotNull('reseller_id')->count();
         $activeCustomerTotal = $activeCompany + $activeReseller;
-        // Match the existing Online Customers page: an active billing customer linked to an enabled PPP secret.
-        // This is account readiness, not a live MikroTik active-session measurement.
+        // Keep account readiness separate from real live-session customer counts.
         $onlineCompany = (clone $activeCustomers)->whereNull('reseller_id')->whereHas('pppUser', fn ($query) => $query->where('status', 'active'))->count();
         $onlineReseller = (clone $activeCustomers)->whereNotNull('reseller_id')->whereHas('pppUser', fn ($query) => $query->where('status', 'active'))->count();
-        $onlineNow = $onlineCompany + $onlineReseller;
         // Live MikroTik telemetry is read-only and independent of RouterList 'connected' UI state.
         $livePppTelemetry = [
             'status' => 'unavailable', 'total' => null, 'successful_routers' => 0,
@@ -193,6 +191,16 @@ class DashboardController extends Controller
         }
         $livePppSessionsByRouter = $livePppTelemetry['routers'] ?? [];
         $livePppSessions = $livePppTelemetry['total'] ?? null;
+
+        // Match the Online Customers page using active billing + active PPP records
+        // that also appear in the successful live router-session snapshot.
+        $onlineSessionFilter = app(\App\Services\OnlineCustomerSessionFilter::class);
+        $onlineSessionSnapshot = $onlineSessionFilter->fromTelemetry($livePppTelemetry);
+        $onlineNow = $onlineSessionFilter->apply(
+            CustomersInfo::query(),
+            $onlineSessionSnapshot['users_by_router'],
+            $onlineSessionSnapshot['successful_routers']
+        )->count();
 
         // Expired means active accounts whose billing disable/expiry date has passed.
         $expired = BillingInfo::join('customers_infos', 'billing_infos.customer_bill_unique_id', '=', 'customers_infos.customer_unique_id')
