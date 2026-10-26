@@ -60,7 +60,7 @@ class MikrotikPendingActionTest extends TestCase
         $controller = Mockery::mock(MikrotikController::class);
         $controller->shouldReceive('disablePPPSecret')
             ->once()
-            ->with('JOB-DISABLE', 'connected-router', 'queued-user', false)
+            ->with('JOB-DISABLE', 'connected-router', 'queued-user', false, true)
             ->andReturn('soft');
         $this->app->instance(MikrotikController::class, $controller);
 
