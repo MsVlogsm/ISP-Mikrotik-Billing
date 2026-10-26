@@ -343,6 +343,9 @@
                     <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('high-usage-monitor') }}"><span class="nav-link-text ps-1">{{ __('High Usage Monitor') }}</span></a>
                     <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('device-watcher') }}"><span class="nav-link-text ps-1">{{ __('Device Watcher') }}</span></a>
                     <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-login-messages') }}"><span class="nav-link-text ps-1">{{ __('Logs & Alerts') }}</span></a>
+                    @if(auth()->user()->hasRole('Super Admin'))
+                        <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('system.sync-health') }}"><span class="nav-link-text ps-1">{{ __('Automation & Sync Health') }}</span></a>
+                    @endif
                 </div>
             </li>
             <li class="nav-item">
