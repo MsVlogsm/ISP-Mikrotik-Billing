@@ -178,6 +178,19 @@ class MikrotikSync extends Component
                 $users = [];
             }
 
+            // A successful connection with an unexpectedly empty/partial response must never
+            // mark every known PPP secret as removed. Require explicit operator review instead.
+            if ($users === []) {
+                $existingCount = PPPSecrets::where('router_name', $routerName)
+                    ->where('status', '!=', 'removed')
+                    ->count();
+                if ($existingCount > 0) {
+                    \Log::warning("Skipped empty PPP secret sync for {$routerName}; preserved {$existingCount} existing records.");
+                    flash()->warning("Skipped empty PPP secret sync for {$routerName}; existing records were preserved.");
+                    continue;
+                }
+            }
+
             $createdCount = 0;
             $updatedCount = 0;
             $unchangedCount = 0;

@@ -206,6 +206,7 @@ Route::middleware([
         Route::get('/device-manager', DeviceManager::class)->name('device-manager');
         Route::get('/device-manager/{kind}/{device}', \App\Livewire\DeviceDetail::class)->name('device-manager.detail');
         Route::get('/network-events', NetworkEvents::class)->name('network-events');
+        Route::get('/system/sync-health', [\App\Http\Controllers\SystemSyncHealthController::class, 'index'])->name('system.sync-health');
         Route::get('/network-map', NetworkMap::class)->name('network-map');
         Route::get('/network-topology/designer', NetworkTopology::class)->name('network-topology.designer');
         Route::get('/network-topology/live', NetworkTopology::class)->defaults('mode', 'live')->name('network-topology.live');
