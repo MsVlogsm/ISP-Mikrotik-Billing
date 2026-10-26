@@ -24,6 +24,82 @@ class OnuCustomerMappingWorkflowTest extends TestCase
         $this->actingAs($user);
     }
 
+    public function test_ai_engineer_maps_only_a_unique_exact_onu_to_pppoe_mac_match(): void
+    {
+        $olt = $this->olt('AI Exact MAC OLT');
+        $ppp = $this->ppp('ai-exact-router', 'ai-exact-user');
+        $ppp->forceFill(['caller_id' => 'AA:BB:CC:DD:EE:61'])->save();
+        $customer = $this->customer('AI-EXACT-MAC', $ppp->id);
+        $mapping = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => 'ONU-AI-61',
+            'onu_mac' => 'aa-bb-cc-dd-ee-61',
+            'pon_port' => '1',
+            'status' => 'online',
+        ]);
+
+        $result = app(\App\Services\AiEngineerDiagnosticService::class)
+            ->mapExactCandidate($mapping->id, $customer->id, auth()->id());
+
+        $this->assertTrue($result['ok'], $result['message'] ?? 'mapping failed');
+        $this->assertDatabaseHas('olt_onu_customer_mappings', [
+            'id' => $mapping->id,
+            'customer_id' => $customer->id,
+            'ppp_user_id' => $ppp->id,
+        ]);
+    }
+
+    public function test_ai_engineer_refuses_to_map_when_onu_mac_does_not_match_pppoe_caller_id(): void
+    {
+        $olt = $this->olt('AI MAC Mismatch OLT');
+        $ppp = $this->ppp('ai-mismatch-router', 'ai-mismatch-user');
+        $ppp->forceFill(['caller_id' => 'AA:BB:CC:DD:EE:62'])->save();
+        $customer = $this->customer('AI-MAC-MISMATCH', $ppp->id);
+        $mapping = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => 'ONU-AI-63',
+            'onu_mac' => 'AA:BB:CC:DD:EE:63',
+            'pon_port' => '1',
+            'status' => 'online',
+        ]);
+
+        $result = app(\App\Services\AiEngineerDiagnosticService::class)
+            ->mapExactCandidate($mapping->id, $customer->id, auth()->id());
+
+        $this->assertFalse($result['ok']);
+        $this->assertDatabaseHas('olt_onu_customer_mappings', [
+            'id' => $mapping->id,
+            'customer_id' => null,
+        ]);
+    }
+
+    public function test_ai_engineer_refuses_ambiguous_exact_mac_matches(): void
+    {
+        $olt = $this->olt('AI Ambiguous MAC OLT');
+        $firstPpp = $this->ppp('ai-ambiguous-router-1', 'ai-ambiguous-user-1');
+        $firstPpp->forceFill(['caller_id' => 'AA:BB:CC:DD:EE:64'])->save();
+        $first = $this->customer('AI-AMBIGUOUS-1', $firstPpp->id);
+        $secondPpp = $this->ppp('ai-ambiguous-router-2', 'ai-ambiguous-user-2');
+        $secondPpp->forceFill(['caller_id' => 'aa-bb-cc-dd-ee-64'])->save();
+        $this->customer('AI-AMBIGUOUS-2', $secondPpp->id);
+        $mapping = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => 'ONU-AI-64',
+            'onu_mac' => 'AA:BB:CC:DD:EE:64',
+            'pon_port' => '1',
+            'status' => 'online',
+        ]);
+
+        $result = app(\App\Services\AiEngineerDiagnosticService::class)
+            ->mapExactCandidate($mapping->id, $first->id, auth()->id());
+
+        $this->assertFalse($result['ok']);
+        $this->assertDatabaseHas('olt_onu_customer_mappings', [
+            'id' => $mapping->id,
+            'customer_id' => null,
+        ]);
+    }
+
     private function olt(string $name = 'Mapping Workflow OLT'): NetworkInventoryDevice
     {
         return NetworkInventoryDevice::create([

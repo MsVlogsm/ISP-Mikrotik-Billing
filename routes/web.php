@@ -172,6 +172,7 @@ Route::middleware([
         Route::post('/ai-engineer/diagnose', [\App\Http\Controllers\AiEngineerController::class, 'diagnose'])->name('ai-engineer.diagnose');
         Route::post('/ai-engineer/chat', [\App\Http\Controllers\AiEngineerController::class, 'chat'])->name('ai-engineer.chat');
         Route::get('/ai-engineer/search', [\App\Http\Controllers\AiEngineerController::class, 'search'])->name('ai-engineer.search');
+        Route::post('/ai-engineer/map-onu', [\App\Http\Controllers\AiEngineerController::class, 'mapOnu'])->name('ai-engineer.map-onu');
         Route::post('/ai-engineer/feedback', [\App\Http\Controllers\AiEngineerController::class, 'feedback'])->name('ai-engineer.feedback');
         Route::resources([
             'collection-report' => CollectionReportController::class,

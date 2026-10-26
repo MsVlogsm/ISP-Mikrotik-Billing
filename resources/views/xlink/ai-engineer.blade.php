@@ -3,7 +3,7 @@
 .ai-engineer{max-width:1180px;margin:0 auto}.ai-hero{background:linear-gradient(135deg,#172b4d,#276ef1);color:#fff;border-radius:18px;padding:28px;box-shadow:0 12px 30px rgba(31,58,99,.15)}.ai-card{background:#fff;border:1px solid #e5eaf2;border-radius:16px;box-shadow:0 8px 24px rgba(31,58,99,.07)}.ai-chat{min-height:260px}.ai-bubble{background:#f5f8fc;border-radius:14px;padding:16px}.ai-chip{border:1px solid #dbe4f0;background:#fff;border-radius:999px;padding:7px 12px;font-size:13px}.ai-result{border-left:4px solid #276ef1}.ai-result.critical{border-left-color:#dc3545}.ai-result.warning{border-left-color:#f0ad4e}.ai-muted{color:#718096}.ai-actions button{min-width:105px}.ai-readonly{font-size:12px;color:#617083}
 </style>
 <div class="container-fluid py-4 ai-engineer">
- <div class="ai-hero mb-4"><div class="d-flex align-items-start justify-content-between gap-3"><div><div class="small opacity-75 mb-1">BengalStack</div><h1 class="h3 mb-2">এআই ইঞ্জিনিয়ার</h1><p class="mb-0 opacity-90">গ্রাহক, ডিভাইস, বিলিং বা সংযোগ সমস্যার বিষয়ে প্রশ্ন করুন। এআই সম্ভাব্য কারণ ও যাচাইয়ের ধাপ জানাবে—কোনো তথ্য বা নেটওয়ার্ক পরিবর্তন করবে না।</p></div><span class="badge bg-light text-primary rounded-pill px-3 py-2">শুধু-পাঠযোগ্য</span></div></div>
+ <div class="ai-hero mb-4"><div class="d-flex align-items-start justify-content-between gap-3"><div><div class="small opacity-75 mb-1">BengalStack</div><h1 class="h3 mb-2">এআই ইঞ্জিনিয়ার</h1><p class="mb-0 opacity-90">গ্রাহক, ডিভাইস, বিলিং ও ONU mapping যাচাই করুন। শুধু অনন্য exact ONU MAC ↔ PPPoE caller MAC মিল থাকলে ম্যাপিং সেভ করা যাবে; OLT configuration পরিবর্তন হবে না।</p></div><span class="badge bg-light text-primary rounded-pill px-3 py-2">সীমিত mapping permission</span></div></div>
  <div class="row g-3 mb-4">
  @foreach([['label'=>'গ্রাহকs','value'=>$overview['customers']['total'],'sub'=>$overview['customers']['active'].' active'],['label'=>'Pending / Disabled','value'=>$overview['customers']['pending']+$overview['customers']['disabled'],'sub'=>$overview['customers']['pending'].' pending · '.$overview['customers']['disabled'].' disabled'],['label'=>'Routers','value'=>$overview['routers']['total'],'sub'=>$overview['routers']['connected'].' connected'],['label'=>'OLT/ONU mappings','value'=>$overview['olt_onu']['mapped'],'sub'=>$overview['olt_onu']['mapped'] ? 'mapped customers' : 'no mapping data'],['label'=>'Support tickets','value'=>$overview['support']['tickets'],'sub'=>'recorded tickets']] as $card)
  <div class="col-md-6 col-xl"><div class="ai-card p-3 h-100"><div class="small ai-muted">{{ $card['label'] }}</div><div class="h3 mb-1 mt-1">{{ $card['value'] }}</div><div class="small ai-muted">{{ $card['sub'] }}</div></div></div>
@@ -88,22 +88,34 @@
   </div></div>
   <div class="col-xl-5"><div class="ai-card p-4 h-100">
    <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h5 mb-0"><i class="bi bi-person-check me-1"></i> ONU ↔ গ্রাহক সম্ভাব্য মিল</h2><span class="badge text-bg-warning">{{ count($matchingCandidates['matches'] ?? []) }}</span></div>
+   @if(session('ai_mapping_message'))<div class="alert alert-success py-2">{{ session('ai_mapping_message') }}</div>@endif
+   @if($errors->has('ai_mapping'))<div class="alert alert-warning py-2">{{ $errors->first('ai_mapping') }}</div>@endif
    @forelse(($matchingCandidates['matches'] ?? []) as $m)
     <div class="border rounded p-2 mb-2 small">
       <div class="fw-semibold">{{ $m['candidate']['customer_id'] ?? '—' }} · {{ $m['candidate']['customer_name'] ?? '—' }}</div>
       <div class="ai-muted">ONU {{ $m['onu_id'] ?? '—' }} · PON {{ $m['pon'] ?? '—' }} · score {{ $m['candidate']['score'] ?? 0 }}/100</div>
       <div class="mt-1">{{ implode(' · ', $m['candidate']['reasons'] ?? []) }}</div>
+      @if((int)($m['candidate']['score'] ?? 0) >= 60 && !empty($m['candidate']['customer_db_id']))
+       <form method="POST" action="{{ route('ai-engineer.map-onu') }}" class="mt-2" onsubmit="return confirm('Exact MAC মিলটি যাচাই করে এই ONU-কে গ্রাহকের সঙ্গে ম্যাপ করবেন?');">
+        @csrf
+        <input type="hidden" name="mapping_id" value="{{ (int)($m['mapping_id'] ?? 0) }}">
+        <input type="hidden" name="customer_id" value="{{ (int)($m['candidate']['customer_db_id'] ?? 0) }}">
+        <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-link-45deg me-1"></i> exact match ম্যাপ করুন</button>
+       </form>
+      @else
+       <div class="ai-readonly mt-2">সরাসরি ম্যাপ করার আগে exact MAC মিল প্রয়োজন।</div>
+      @endif
     </div>
    @empty <div class="ai-muted small">কোনো সম্ভাব্য মিল পাওয়া যায়নি।</div>@endforelse
-   <div class="ai-readonly mt-2">শুধু সুপারিশ — স্বয়ংক্রিয় ম্যাপিং বা অ্যাসাইনমেন্ট করা হবে না।</div>
+   <div class="ai-readonly mt-2">Score 60+ exact MAC match হলে ম্যাপিং বাটন চালু হবে; কম স্কোর, অস্পষ্ট মিল বা conflict হলে manual review প্রয়োজন।</div>
   </div></div>
  </div>
 
- <div class="ai-card p-3 mb-4"><div class="d-flex flex-wrap justify-content-between gap-2"><span><i class="bi bi-database-check me-1"></i> স্থানীয় ডায়াগনস্টিক তথ্য এখন পাওয়া যাচ্ছে।</span><span class="ai-readonly">Conversational AI: {{ ($overview['ai_configured'] ?? $overview['openai_configured']) ? strtoupper($overview['ai_provider'] ?? 'external') . ' কনফিগার করা' : 'স্থানীয় শুধু-পাঠযোগ্য মোড' }} · শুধু-পাঠযোগ্য</span></div></div>
+ <div class="ai-card p-3 mb-4"><div class="d-flex flex-wrap justify-content-between gap-2"><span><i class="bi bi-database-check me-1"></i> স্থানীয় ডায়াগনস্টিক তথ্য এখন পাওয়া যাচ্ছে।</span><span class="ai-readonly">Conversational AI: {{ ($overview['ai_configured'] ?? $overview['openai_configured']) ? strtoupper($overview['ai_provider'] ?? 'external') . ' কনফিগার করা' : 'স্থানীয় ডায়াগনস্টিক মোড' }} · ডায়াগনস্টিক read-only · exact MAC mapping only</span></div></div>
 <div class="ai-card p-4 mb-4"><div class="row g-3 align-items-end"><div class="col-lg-9"><label class="form-label fw-semibold">গ্রাহক</label><input id="aiগ্রাহক" class="form-control form-control-lg" value="{{ $customerId }}" placeholder="গ্রাহক ID, name, mobile or PPPoE username" autocomplete="off"><div id="aiSuggestions" class="mt-2 d-flex flex-wrap gap-2"></div></div><div class="col-lg-3"><button id="aiডায়াগনসিস" class="btn btn-primary btn-lg w-100"><i class="bi bi-stars me-1"></i> ডায়াগনসিস</button></div></div><div class="mt-3 d-flex flex-wrap gap-2"><button class="ai-chip js-question" data-q="এই গ্রাহক অফলাইনে কেন?">এই গ্রাহক অফলাইনে কেন?</button><button class="ai-chip js-question" data-q="What is wrong with this customer's service path?">সেবা পথ পরীক্ষা করুন</button><button class="ai-chip js-question" data-q="What billing issue should I check?">বিলিং পরীক্ষা করুন</button></div></div>
  <div class="ai-card p-4 mb-4"><div id="aiChatLog" class="ai-chat mb-3"><div class="ai-bubble"><strong>এআই ইঞ্জিনিয়ার:</strong> এই গ্রাহক, ডিভাইস, বিলিং বা নেটওয়ার্ক বিভ্রাট সম্পর্কে প্রশ্ন করুন।</div></div><div class="input-group"><input id="aiQuestion" class="form-control" placeholder="এই গ্রাহক অফলাইনে কেন?"><button id="aiAsk" class="btn btn-primary">এআই ইঞ্জিনিয়ারকে জিজ্ঞেস করুন</button></div></div>
  <div id="aiResult" class="ai-card p-4 ai-chat">@if($diagnosis && ($diagnosis['ok'] ?? false)) @include('xlink.partials.ai-engineer-result',['diagnosis'=>$diagnosis]) @else <div class="text-center py-5 ai-muted"><i class="bi bi-chat-square-text fs-1"></i><h2 class="h5 mt-3">এআই ইঞ্জিনিয়ারকে জিজ্ঞেস করুন</h2><p class="mb-0">Open a customer and ask a question. No network configuration or customer status will be changed.</p></div>@endif</div>
- <div class="text-center mt-3 ai-readonly"><i class="bi bi-shield-check me-1"></i> শুধু-পাঠযোগ্য ডায়াগনস্টিক। এআই ইঞ্জিনিয়ার নেটওয়ার্ক/গ্রাহক ডেটা প্রভিশন, রিবুট, সক্রিয়, নিষ্ক্রিয়, মুছে বা পরিবর্তন করে না।</div>
+ <div class="text-center mt-3 ai-readonly"><i class="bi bi-shield-check me-1"></i> ডায়াগনস্টিক read-only। শুধু unique exact ONU MAC ↔ PPPoE caller MAC মিল হলে mapping record সেভ হয়; OLT provisioning, reboot, customer status change ও delete permission দেওয়া হয়নি।</div>
 </div>
 <script>
 (() => { const input=document.getElementById('aiগ্রাহক'), btn=document.getElementById('aiডায়াগনসিস'), result=document.getElementById('aiResult'), suggestions=document.getElementById('aiSuggestions');

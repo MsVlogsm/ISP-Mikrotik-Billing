@@ -264,7 +264,7 @@ class AiEngineerDiagnosticService
         $matches = [];
         foreach ($maps as $map) {
             $candidates = [];
-            $mapMac = $this->normalizeIdentifier($map->onu_mac);
+            $mapMac = $this->normalizeMac($map->onu_mac);
             $mapIp = $this->normalizeIdentifier($map->onu_ip);
             $mapSerial = $this->normalizeIdentifier($map->onu_serial);
             foreach ($customers as $customer) {
@@ -273,7 +273,10 @@ class AiEngineerDiagnosticService
                 $pppMacs = $ppp ? [$ppp->caller_id ?? null, $ppp->last_caller_id ?? null] : [];
                 foreach ([['mac',$mapMac,$pppMacs,60],['ip',$mapIp,[$ppp->ppp_remote_ip ?? null],25],['serial',$mapSerial,[],30]] as $item) {
                     [$field,$a,$b,$weight] = $item;
-                    $matched = $a !== '' && collect((array) $b)->contains(fn($candidate) => $this->normalizeIdentifier($candidate) !== '' && $a === $this->normalizeIdentifier($candidate));
+                    $normalizer = $field === 'mac'
+                        ? fn($value) => $this->normalizeMac($value)
+                        : fn($value) => $this->normalizeIdentifier($value);
+                    $matched = $a !== '' && collect((array) $b)->contains(fn($candidate) => $normalizer($candidate) !== '' && $a === $normalizer($candidate));
                     if ($matched) { $score += $weight; $reasons[] = strtoupper($field).' exact match'; }
                 }
                 if ($ppp && $mapIp !== '' && $this->normalizeIdentifier($ppp->ppp_remote_ip ?? null) === $mapIp) { $score += 20; $reasons[] = 'PPPoE remote IP match'; }
@@ -293,9 +296,118 @@ class AiEngineerDiagnosticService
         return ['matches'=>array_slice($matches,0,50),'read_only'=>true];
     }
 
+
+    /**
+     * Save only a unique, exact ONU MAC ↔ PPPoE caller-ID match.
+     * This writes the mapping record only; no OLT provisioning command is sent.
+     */
+    public function mapExactCandidate(int $mappingId, int $customerDbId, ?int $actorId = null): array
+    {
+        if (! Schema::hasTable('olt_onu_customer_mappings')) {
+            return ['ok' => false, 'message' => 'ONU mapping storage is not available.'];
+        }
+
+        return DB::transaction(function () use ($mappingId, $customerDbId, $actorId): array {
+            $mapping = OltOnuCustomerMapping::query()->lockForUpdate()->find($mappingId);
+            $customer = CustomersInfo::query()->with('pppUser')->lockForUpdate()->find($customerDbId);
+
+            if (! $mapping || ! $customer) {
+                return ['ok' => false, 'message' => 'ONU or customer record was not found. Refresh the AI Engineer page and try again.'];
+            }
+
+            if ($mapping->customer_id !== null) {
+                return ['ok' => false, 'message' => 'This ONU is already mapped. No existing mapping was changed.'];
+            }
+
+            if (! $customer->ppp_user_id || ! $customer->pppUser) {
+                return ['ok' => false, 'message' => 'The selected customer has no linked PPPoE source record.'];
+            }
+
+            $onuMac = $this->normalizeMac($mapping->onu_mac);
+            if ($onuMac === '') {
+                return ['ok' => false, 'message' => 'A valid ONU MAC address is required for exact-match mapping.'];
+            }
+
+            $exactMatches = CustomersInfo::query()
+                ->with('pppUser')
+                ->whereNotNull('ppp_user_id')
+                ->get(['id', 'customer_unique_id', 'customer_name', 'ppp_user_id'])
+                ->filter(function ($candidate) use ($onuMac): bool {
+                    $ppp = $candidate->pppUser;
+                    if (! $ppp) {
+                        return false;
+                    }
+
+                    return $onuMac === $this->normalizeMac($ppp->caller_id)
+                        || $onuMac === $this->normalizeMac($ppp->last_caller_id);
+                })
+                ->values();
+
+            if ($exactMatches->count() !== 1) {
+                return ['ok' => false, 'message' => 'The ONU MAC does not identify exactly one PPPoE customer. No mapping was saved.'];
+            }
+
+            $exactCustomer = $exactMatches->first();
+            if ((int) $exactCustomer->id !== $customerDbId) {
+                return ['ok' => false, 'message' => 'The suggested customer no longer matches the exact ONU MAC evidence. Refresh suggestions before mapping.'];
+            }
+
+            $pppId = (int) $customer->ppp_user_id;
+            if ($mapping->ppp_user_id !== null && (int) $mapping->ppp_user_id !== $pppId) {
+                return ['ok' => false, 'message' => 'This ONU record already contains a different PPPoE assignment. Manual review is required.'];
+            }
+
+            $reuseExists = OltOnuCustomerMapping::query()
+                ->where('olt_device_id', $mapping->olt_device_id)
+                ->where('id', '<>', $mapping->id)
+                ->where(function ($query) use ($customerDbId, $pppId): void {
+                    $query->where('customer_id', $customerDbId)
+                        ->orWhere('ppp_user_id', $pppId);
+                })
+                ->exists();
+
+            if ($reuseExists) {
+                return ['ok' => false, 'message' => 'This customer or PPPoE record is already assigned to another ONU on the same OLT. Manual review is required.'];
+            }
+
+            $mapping->forceFill([
+                'customer_id' => $customerDbId,
+                'ppp_user_id' => $pppId,
+            ])->save();
+
+            \Log::info('AI Engineer saved exact ONU/PPPoE MAC customer mapping', [
+                'actor_user_id' => $actorId,
+                'mapping_id' => $mapping->id,
+                'olt_device_id' => $mapping->olt_device_id,
+                'customer_id' => $customerDbId,
+                'ppp_user_id' => $pppId,
+                'onu_mac' => $mapping->onu_mac,
+                'evidence' => 'normalized exact ONU MAC equals PPPoE caller_id or last_caller_id',
+            ]);
+
+            return [
+                'ok' => true,
+                'message' => 'Exact ONU MAC and PPPoE caller MAC matched. Customer ↔ ONU mapping was saved.',
+                'mapping_id' => $mapping->id,
+            ];
+        });
+    }
+
     private function normalizeIdentifier($value): string
     {
         return strtolower(preg_replace('/[^a-z0-9:.@_-]/i', '', trim((string) $value)));
+    }
+
+    private function normalizeMac($value): string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '' || preg_match('/[^a-f0-9:.\- ]/i', $raw)) {
+            return '';
+        }
+
+        $mac = strtolower((string) preg_replace('/[^a-f0-9]/i', '', $raw));
+
+        return preg_match('/^[a-f0-9]{12}$/', $mac) ? $mac : '';
     }
 
     public function chat(string $question, ?string $customerId=null, array $history=[]): array
