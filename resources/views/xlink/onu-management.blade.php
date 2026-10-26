@@ -44,6 +44,7 @@
     <div class="onu-actions">
       <form method="POST" action="{{ route('network-inventory.olt.sync') }}" onsubmit="const b=this.querySelector('button');b.disabled=true;b.innerText='Syncing…';">@csrf<button class="btn btn-dark" type="submit"><i class="bi bi-arrow-repeat me-1"></i>Sync ONU Inventory</button></form>
       <a class="btn btn-outline-secondary" href="{{ route('network-inventory.olt') }}"><i class="bi bi-hdd-network me-1"></i>OLT Devices</a>
+      @if(auth()->user()?->hasRole('Super Admin'))<a class="btn btn-outline-info" href="{{ route('network-inventory.onu-mac-ledger') }}"><i class="bi bi-journal-text me-1"></i>MAC Ledger</a>@endif
       <a class="btn btn-outline-primary" href="{{ route('network-inventory.onu-management.export') }}"><i class="bi bi-download me-1"></i>Export CSV</a>
     </div>
   </div>

@@ -669,6 +669,7 @@ Route::middleware([
             } else {
                 $mapping=\App\Models\OltOnuCustomerMapping::create($payload+['olt_device_id'=>$device->id,'onu_id'=>$data['onu_id']]);
             }
+            app(\App\Services\OnuMacLedgerService::class)->recordMapping($mapping);
             return back()->with('inventory_message','ONU/customer mapping saved successfully.')->with('onu_sync_success',true);
         })->name('network-inventory.olt.customers.mapping');
         Route::get('/network-inventory/olt/{device}/provisioning', [\App\Http\Controllers\OltProvisioningController::class, 'index'])->name('network-inventory.olt.provisioning');
@@ -818,6 +819,9 @@ Route::middleware([
             rewind($stream); $csv=stream_get_contents($stream); fclose($stream);
             return response($csv,200,['Content-Type'=>'text/csv; charset=UTF-8','Content-Disposition'=>'attachment; filename="xlink-network-monitoring.csv"']);
         })->name('network-monitoring.export');
+
+        Route::get('/network-inventory/onu-mac-ledger', [\App\Http\Controllers\OnuMacLedgerController::class, 'index'])
+            ->name('network-inventory.onu-mac-ledger');
 
         // FTTH ONU Management: database-backed subscriber/ONU ledger. This page
         // never invents live telemetry and does not issue disruptive OLT commands.

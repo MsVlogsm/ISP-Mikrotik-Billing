@@ -7,6 +7,7 @@ use App\Models\NetworkInventoryDevice;
 use App\Models\OltOnuCustomerMapping;
 use App\Models\PPPSecrets;
 use App\Services\Olt\OltReadOnlyAdapterManager;
+use App\Services\OnuMacLedgerService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 
@@ -15,7 +16,7 @@ class SyncOltOnuMappings extends Command
     protected $signature = 'olt:sync-onu-mappings {--device= : OLT device ID} {--dry-run : Read and resolve mappings without writing the local database}';
     protected $description = 'Read-only sync of ONU/customer mappings from OLT read-only adapters or configured telemetry';
 
-    public function handle(OltReadOnlyAdapterManager $manager): int
+    public function handle(OltReadOnlyAdapterManager $manager, OnuMacLedgerService $ledgerService): int
     {
         $query = NetworkInventoryDevice::where('type', 'olt');
         if ($this->option('device')) $query->whereKey((int) $this->option('device'));
@@ -33,6 +34,10 @@ class SyncOltOnuMappings extends Command
             // BDCOM/EPON discovery order can change between SNMP polls, so using only
             // onu_id can attach an old customer to a different physical ONU.
             $existingMappings = OltOnuCustomerMapping::where('olt_device_id', $olt->id)->get();
+            // A dry-run must remain entirely read-only, including auxiliary history tables.
+            if (! $this->option('dry-run')) {
+                $ledgerService->bootstrapMissingMappings($existingMappings);
+            }
             $seenMappingIds = [];
             $byId = $existingMappings->keyBy(fn ($m) => (string) $m->onu_id);
             $byMac = $existingMappings->filter(fn ($m) => trim((string) $m->onu_mac) !== '')
@@ -177,6 +182,21 @@ class SyncOltOnuMappings extends Command
                         $candidates = $availableCandidates($ipKey !== '' ? ($byRemoteIp[$ipKey] ?? []) : []);
                     }
 
+                    // Use the MAC ledger only as a last exact-identity source. If the live
+                    // OLT supplies a PPPoE username, that stronger source must be resolved first.
+                    if (!$candidates && $onuUsername === '') {
+                        $ledgerCustomer = $ledgerService->findExactCustomerMatch(
+                            (int) $olt->id,
+                            $onuMac === null ? null : (string) $onuMac,
+                            $onuSerial === null ? null : (string) $onuSerial,
+                            $usedCustomerIds,
+                            $usedPppIds,
+                        );
+                        if ($ledgerCustomer) {
+                            $candidates = [$ledgerCustomer];
+                        }
+                    }
+
                     if (count($candidates) === 1) {
                         $customerId = $candidates[0]->id;
                         $pppId = $candidates[0]->ppp_user_id;
@@ -253,11 +273,13 @@ class SyncOltOnuMappings extends Command
                     if (! $idConflict) $existingMapping->onu_id = $onuId;
                     $existingMapping->fill($mappingData);
                     $existingMapping->save();
+                    $ledgerService->recordMapping($existingMapping);
                 } else {
-                    OltOnuCustomerMapping::create($mappingData + [
+                    $savedMapping = OltOnuCustomerMapping::create($mappingData + [
                         'olt_device_id' => $olt->id,
                         'onu_id' => (string) $onuId,
                     ]);
+                    $ledgerService->recordMapping($savedMapping);
                 }
                 $count++;
             }
