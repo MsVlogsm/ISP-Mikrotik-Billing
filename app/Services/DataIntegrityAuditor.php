@@ -115,9 +115,9 @@ class DataIntegrityAuditor
         ];
 
         $checks['online_onu_telemetry_over_5m'] = [
-            'label' => 'ONUs marked online without fresh telemetry',
+            'label' => 'ONUs with stale telemetry (online/unknown status)',
             'severity' => 'warning',
-            'count' => OltOnuCustomerMapping::query()->where('status', 'online')
+            'count' => OltOnuCustomerMapping::query()->whereIn('status', ['online', 'unknown'])
                 ->where(function ($query) {
                     $query->whereNull('last_seen_at')
                         ->orWhere('last_seen_at', '<', now()->subMinutes(5));

@@ -33,6 +33,7 @@ class SyncOltOnuMappings extends Command
             // BDCOM/EPON discovery order can change between SNMP polls, so using only
             // onu_id can attach an old customer to a different physical ONU.
             $existingMappings = OltOnuCustomerMapping::where('olt_device_id', $olt->id)->get();
+            $seenMappingIds = [];
             $byId = $existingMappings->keyBy(fn ($m) => (string) $m->onu_id);
             $byMac = $existingMappings->filter(fn ($m) => trim((string) $m->onu_mac) !== '')
                 ->groupBy(fn ($m) => $this->normalizeMac($m->onu_mac));
@@ -65,7 +66,11 @@ class SyncOltOnuMappings extends Command
             }
 
             foreach ($rows as $row) {
-                if (!is_array($row)) continue;
+                if (!is_array($row)) {
+                    $skipped++;
+                    $issues[] = 'invalid ONU row was not an array';
+                    continue;
+                }
                 $onuId = $row['onu_id'] ?? $row['onuId'] ?? $row['id'] ?? $row['snmp_index'] ?? null;
                 if ($onuId === null || trim((string) $onuId) === '') { $skipped++; $issues[] = 'missing ONU id'; continue; }
                 $onuId = trim((string) $onuId);
@@ -120,6 +125,12 @@ class SyncOltOnuMappings extends Command
                         $existingMapping = $sameIdMapping;
                         $allowAutoMatch = true;
                     }
+                }
+
+                // Track the persisted mapping resolved by stable MAC/serial identity,
+                // or by the existing ID after the conflict checks above.
+                if ($existingMapping) {
+                    $seenMappingIds[(string) $existingMapping->id] = true;
                 }
 
                 if ($allowAutoMatch && ! $customerId) {
@@ -250,8 +261,41 @@ class SyncOltOnuMappings extends Command
                 }
                 $count++;
             }
-            $this->info("OLT {$olt->id}: normalized {$count} ONU rows synced; auto-mapped {$autoMapped} unambiguous customer matches; skipped {$skipped} invalid rows.");
+            // Only make absence claims after a complete, healthy, explicitly read-only
+            // poll. Do not infer offline status or overwrite any customer/PPPoE mapping.
+            $completeReadOnlyPoll = ($result['status'] ?? null) === 'ok'
+                && is_array($result['meta'] ?? null)
+                && (($result['meta']['read_only'] ?? false) === true)
+                && array_key_exists('writes_performed', $result['meta'])
+                && ($result['meta']['writes_performed'] === false)
+                && $count === count($rows)
+                && $skipped === 0;
+
+            $staleCandidates = $existingMappings->filter(
+                fn ($mapping) => strtolower(trim((string) $mapping->status)) === 'online'
+                    && ! isset($seenMappingIds[(string) $mapping->id])
+            );
+
+            if ($completeReadOnlyPoll) {
+                foreach ($staleCandidates as $staleMapping) {
+                    $this->warn("OLT {$olt->id}: ONU {$staleMapping->onu_id} / ".($staleMapping->onu_mac ?: 'MAC unknown')
+                        ." is stored as online but absent from this complete read-only poll; status and mapping were left unchanged pending review.");
+                }
+            } elseif ($staleCandidates->isNotEmpty()) {
+                $issues[] = 'Some stored online ONU rows were absent, but no absence warning was trusted because the poll was partial, invalid, or not explicitly verified as read-only.';
+            }
+
+            $this->info("OLT {$olt->id}: normalized {$count} ONU rows synced; auto-mapped {$autoMapped} unambiguous customer matches; stale online rows not observed: ".($completeReadOnlyPoll ? $staleCandidates->count() : 'not assessed')."; skipped {$skipped} invalid rows.");
             foreach (array_slice($issues, 0, 10) as $issue) $this->warn($issue);
+
+            if (!empty($result['meta']['model_profile_mismatch'])) {
+                $inventoryModel = (string) ($result['meta']['inventory_model'] ?? $olt->model ?? 'unknown');
+                $liveModel = (string) ($result['meta']['snmp_sys_descr'] ?? 'unknown');
+                $this->warn("OLT {$olt->id}: inventory model {$inventoryModel} differs from live sysDescr {$liveModel}; the adapter selected its live-verified read profile.");
+            }
+            if (($result['meta']['opm_status'] ?? null) === 'not_ready') {
+                $this->warn("OLT {$olt->id}: optical TX/RX readings are unavailable in this poll; historical OPM values and timestamps were preserved.");
+            }
             if (count($issues) > 10) $this->warn('Additional mapping validation issues: '.(count($issues)-10));
         }
         return self::SUCCESS;
