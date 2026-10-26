@@ -49,13 +49,22 @@ class SyncOltOnuMappingsTest extends TestCase
         return [$customer, $ppp];
     }
 
-    private function fakeAdapter(NetworkInventoryDevice $olt, string $mac, array $clientMacs = [], array $extraOnuFields = []): void
-    {
+    private function fakeAdapter(
+        NetworkInventoryDevice $olt,
+        string $mac,
+        array $clientMacs = [],
+        array $extraOnuFields = [],
+        string $resultStatus = 'ok',
+        bool $includeReadOnlyMetadata = true,
+    ): void {
         $manager = \Mockery::mock(OltReadOnlyAdapterManager::class);
         $manager->shouldReceive('read')->once()->with(\Mockery::on(
             fn ($device) => $device instanceof NetworkInventoryDevice && $device->id === $olt->id
         ))->andReturn([
-            'ok' => true, 'status' => 'ok', 'message' => 'test response',
+            'ok' => true, 'status' => $resultStatus, 'message' => 'test response',
+            'meta' => $includeReadOnlyMetadata
+                ? ['read_only' => true, 'writes_performed' => false]
+                : ['read_only' => false, 'writes_performed' => false],
             'onus' => [array_merge([
                 'onu_id' => '25', 'pon_port' => '1', 'onu_mac' => $mac,
                 'client_macs' => $clientMacs,
@@ -226,6 +235,49 @@ class SyncOltOnuMappingsTest extends TestCase
         $this->assertEquals(-26.4, (float) $mapping->rx_power);
         $this->assertEquals(1.7, (float) $mapping->tx_power);
         $this->assertEquals($measuredAt->toDateTimeString(), $mapping->opm_last_seen_at->toDateTimeString());
+    }
+
+    public function test_complete_read_only_poll_warns_about_absent_online_onu_without_changing_mapping(): void
+    {
+        $olt = $this->olt();
+        $lastSeen = now()->subHours(8);
+        $stale = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => '62',
+            'pon_port' => '1',
+            'onu_mac' => '00:d5:9e:9d:34:74',
+            'status' => 'online',
+            'last_seen_at' => $lastSeen,
+            'notes' => 'Keep historical note.',
+        ]);
+
+        $this->fakeAdapter($olt, '00:11:46:95:1c:c5');
+        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])
+            ->expectsOutputToContain('ONU 62 / 00:d5:9e:9d:34:74 is stored as online but absent from this complete read-only poll')
+            ->assertExitCode(0);
+
+        $stale->refresh();
+        $this->assertSame('online', $stale->status);
+        $this->assertSame($lastSeen->toDateTimeString(), $stale->last_seen_at->toDateTimeString());
+        $this->assertSame('Keep historical note.', $stale->notes);
+    }
+
+    public function test_partial_or_unverified_poll_does_not_claim_an_absent_onu_is_stale(): void
+    {
+        $olt = $this->olt();
+        OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => '62',
+            'pon_port' => '1',
+            'onu_mac' => '00:d5:9e:9d:34:74',
+            'status' => 'online',
+            'last_seen_at' => now()->subHours(8),
+        ]);
+
+        $this->fakeAdapter($olt, '00:11:46:95:1c:c5', [], [], 'partial');
+        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])
+            ->doesntExpectOutputToContain('ONU 62 / 00:d5:9e:9d:34:74 is stored as online')
+            ->assertExitCode(0);
     }
 
 }
