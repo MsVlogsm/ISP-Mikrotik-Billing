@@ -10,42 +10,58 @@
         </div>
 
         <div class="row g-3 mb-4">
-            <div class="col-6 col-xl-3"><div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Tracked Tasks</div><div class="fs-2 fw-bold">{{ $taskCount }}</div><div class="small text-muted">Scheduler executions captured</div></div></div></div>
-            <div class="col-6 col-xl-3"><div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Healthy</div><div class="fs-2 fw-bold text-success">{{ $healthyCount }}</div><div class="small text-muted">Last successful run is fresh</div></div></div></div>
-            <div class="col-6 col-xl-3"><div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Failed / Stale</div><div class="fs-2 fw-bold {{ ($failedCount + $staleCount) ? 'text-danger' : 'text-success' }}">{{ $failedCount + $staleCount }}</div><div class="small text-muted">{{ $failedCount }} failed · {{ $staleCount }} stale/stalled</div></div></div></div>
-            <div class="col-6 col-xl-3"><div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Integrity Findings</div><div class="fs-2 fw-bold {{ $openFindings ? 'text-warning' : 'text-success' }}">{{ $openFindings }}</div><div class="small text-muted">Read-only checks; no automatic data repair</div></div></div></div>
+            <div class="col-6 col-xl-2"><div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Expected Tasks</div><div class="fs-2 fw-bold">{{ $expectedTaskCount }}</div><div class="small text-muted">{{ $taskCount }} rows shown · {{ $unregisteredCount }} unregistered</div></div></div></div>
+            <div class="col-6 col-xl-2"><div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Healthy</div><div class="fs-2 fw-bold text-success">{{ $healthyCount }}</div><div class="small text-muted">Last successful run is fresh</div></div></div></div>
+            <div class="col-6 col-xl-2"><div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Running</div><div class="fs-2 fw-bold text-info">{{ $runningCount }}</div><div class="small text-muted">Active runs, not assumed healthy</div></div></div></div>
+            <div class="col-6 col-xl-2"><div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Failed / Stale</div><div class="fs-2 fw-bold {{ ($failedCount + $staleCount) ? 'text-danger' : 'text-success' }}">{{ $failedCount + $staleCount }}</div><div class="small text-muted">{{ $failedCount }} failed · {{ $staleCount }} stale/stalled</div></div></div></div>
+            <div class="col-6 col-xl-2"><div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Waiting / Unverified</div><div class="fs-2 fw-bold text-secondary">{{ $waitingCount + $unverifiedCount }}</div><div class="small text-muted">{{ $waitingCount }} waiting · {{ $unverifiedCount }} unverified</div></div></div></div>
+            <div class="col-6 col-xl-2"><div class="card h-100 border-0 shadow-sm"><div class="card-body"><div class="small text-muted">Integrity Findings</div><div class="fs-2 fw-bold {{ $openFindings ? 'text-warning' : 'text-success' }}">{{ $openFindings }}</div><div class="small text-muted">Read-only checks; no automatic data repair</div></div></div></div>
         </div>
+
+        @if($queueConnection === 'sync')
+            <div class="alert alert-warning">
+                <strong>Queue worker status is not independently verifiable.</strong>
+                The configured <code>sync</code> driver runs jobs inline. The heartbeat is therefore marked Unverified rather than Healthy; it does not prove that a separate background worker is running.
+            </div>
+        @else
+            <div class="alert alert-info">
+                Queue connection: <strong>{{ $queueConnection }}</strong>. The queue heartbeat is tracked separately from the scheduler dispatch; a fresh worker heartbeat indicates that a job was processed on this configured queue connection.
+            </div>
+        @endif
 
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white">
                 <div class="fw-semibold">Scheduled Background Tasks</div>
-                <div class="small text-muted">A task appears after its first tracked execution. Staleness is judged against the configured cadence.</div>
+                <div class="small text-muted">Expected schedules are shown even before their first run. A stale scheduler heartbeat means the scheduler/cron path may not be executing; unregistered rows remain visible for review.</div>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light"><tr><th>Task</th><th>Schedule</th><th>Status</th><th>Last started</th><th>Last success</th><th>Last duration</th><th>Latest result</th></tr></thead>
+                    <thead class="table-light"><tr><th>Task</th><th>Registry</th><th>Schedule</th><th>Status</th><th>Last started</th><th>Last success</th><th>Success age</th><th>Last duration</th><th>Latest result</th></tr></thead>
                     <tbody>
                     @forelse($tasks as $row)
                         @php
                             $badge = match($row['health']) {
                                 'healthy' => 'success',
+                                'running' => 'info',
                                 'failed', 'stalled' => 'danger',
                                 'stale' => 'warning',
-                                'waiting' => 'secondary',
+                                'waiting', 'unverified' => 'secondary',
                                 default => 'secondary',
                             };
                         @endphp
                         <tr>
                             <td class="fw-semibold">{{ $row['task']->label }}</td>
+                            <td><span class="badge bg-{{ $row['expected'] ? 'info' : 'secondary' }}-subtle text-{{ $row['expected'] ? 'info' : 'secondary' }}">{{ $row['expected'] ? 'Expected' : 'Unregistered' }}</span></td>
                             <td class="small text-muted">{{ $row['task']->cadence ?: '—' }}</td>
                             <td><span class="badge bg-{{ $badge }}-subtle text-{{ $badge }}">{{ ucfirst($row['health']) }}</span></td>
                             <td class="small">{{ $row['task']->last_started_at?->format('d M Y H:i:s') ?? 'Never' }}</td>
                             <td class="small">{{ $row['task']->last_success_at?->format('d M Y H:i:s') ?? 'Never' }}</td>
+                            <td class="small">{{ $row['last_success_age'] }}</td>
                             <td class="small">{{ $row['task']->last_duration_ms !== null ? number_format($row['task']->last_duration_ms).' ms' : '—' }}</td>
                             <td class="small" style="min-width:240px;max-width:420px;white-space:normal;overflow-wrap:anywhere">{{ $row['task']->last_message ?: 'Waiting for first run' }}@if($row['task']->failures_count)<div class="text-danger mt-1">Failures: {{ number_format($row['task']->failures_count) }}</div>@endif</td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-muted py-4">No tracked runs yet. The scheduler must execute each task after this feature is deployed.</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted py-4">No scheduled-task definitions are available.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
