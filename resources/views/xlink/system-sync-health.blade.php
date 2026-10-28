@@ -100,6 +100,39 @@
             </div>
         </div>
 
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <div class="fw-semibold">Stale ONU Telemetry Details</div>
+                    <div class="small text-muted">Read-only evidence for ONUs still recorded as online/unknown but not seen in the last 5 minutes.</div>
+                </div>
+                <span class="badge bg-{{ $staleOnuTotal ? 'warning' : 'success' }}-subtle text-{{ $staleOnuTotal ? 'warning' : 'success' }}">{{ number_format($staleOnuTotal) }} finding(s)</span>
+            </div>
+            <div class="card-body">
+                <div class="small text-muted mb-3">A missed ONU can mean stale inventory, a partial poll, or a real status change. This panel does not automatically mark ONUs offline or alter customer mappings. @if($staleOnuTotal > $staleOnuMappings->count()) Showing {{ $staleOnuMappings->count() }} of {{ number_format($staleOnuTotal) }} records. @endif</div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light"><tr><th>OLT</th><th>ONU ID</th><th>MAC / Serial</th><th>Recorded status</th><th>Last seen</th><th>Optical reading</th><th>RX / TX (dBm)</th></tr></thead>
+                        <tbody>
+                        @forelse($staleOnuMappings as $mapping)
+                            <tr>
+                                <td>{{ $mapping->olt?->name ?? ('OLT #'.$mapping->olt_device_id) }}<div class="small text-muted">{{ $mapping->olt?->vendor }} {{ $mapping->olt?->model }}</div></td>
+                                <td>{{ $mapping->onu_id ?: '—' }}</td>
+                                <td class="small">{{ $mapping->onu_mac ?: 'No MAC' }}@if($mapping->onu_serial)<div class="text-muted">{{ $mapping->onu_serial }}</div>@endif</td>
+                                <td><span class="badge bg-warning-subtle text-warning">{{ ucfirst($mapping->status ?: 'unknown') }}</span></td>
+                                <td class="small">{{ $mapping->last_seen_at?->format('d M Y H:i:s') ?? 'Never recorded' }}</td>
+                                <td class="small">{{ $mapping->opm_last_seen_at?->format('d M Y H:i:s') ?? 'No optical timestamp' }}@if($mapping->opm_source)<div class="text-muted">{{ $mapping->opm_source }}</div>@endif</td>
+                                <td class="small">RX: {{ $mapping->rx_power ?? '—' }}<br>TX: {{ $mapping->tx_power ?? '—' }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="7" class="text-center text-muted py-3">No stale online/unknown ONU records detected.</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <div class="alert alert-info">
             <strong>Live telemetry is separate:</strong> Dashboard PPP session telemetry is fetched on demand and cached for 30 seconds; the Online Customers page polls sessions on its own request. This page tracks scheduled jobs and data quality, not a forced router refresh.
         </div>
