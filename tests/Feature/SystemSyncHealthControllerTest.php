@@ -33,7 +33,7 @@ class SystemSyncHealthControllerTest extends TestCase
         $response->assertOk()
             ->assertSee('Scheduler Heartbeat')
             ->assertSee('Waiting')
-            ->assertSee('Database Queue Worker Heartbeat')
+            ->assertSee('Queue Worker Heartbeat')
             ->assertSee('Expected Tasks');
 
         $response->assertViewHas('tasks', function ($tasks): bool {
