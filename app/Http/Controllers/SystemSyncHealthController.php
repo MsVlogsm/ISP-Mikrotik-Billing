@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AutomationSyncStatus;
+use App\Models\OltOnuCustomerMapping;
 use Illuminate\Http\Request;
 
 class SystemSyncHealthController extends Controller
@@ -107,6 +108,24 @@ class SystemSyncHealthController extends Controller
         $checks = collect($integrity['checks'] ?? []);
         $openFindings = $checks->sum(fn ($check) => (int) ($check['count'] ?? 0));
 
+        // Show actionable stale ONU evidence without changing status or mappings.
+        $staleOnuQuery = OltOnuCustomerMapping::query()
+            ->whereIn('status', ['online', 'unknown'])
+            ->where(function ($query) use ($now) {
+                $query->whereNull('last_seen_at')
+                    ->orWhere('last_seen_at', '<', $now->copy()->subMinutes(5));
+            });
+        $staleOnuTotal = (clone $staleOnuQuery)->count();
+        $staleOnuMappings = (clone $staleOnuQuery)
+            ->with(['olt:id,name,vendor,model'])
+            ->orderByRaw('last_seen_at IS NULL DESC')
+            ->orderBy('last_seen_at')
+            ->limit(25)
+            ->get([
+                'id', 'olt_device_id', 'onu_id', 'onu_mac', 'onu_serial', 'status',
+                'last_seen_at', 'opm_last_seen_at', 'opm_source', 'rx_power', 'tx_power',
+            ]);
+
         return view('xlink.system-sync-health', [
             'tasks' => $tasks,
             'taskCount' => $tasks->count(),
@@ -123,6 +142,8 @@ class SystemSyncHealthController extends Controller
             'integrityTask' => $integrityTask,
             'integrityChecks' => $checks,
             'openFindings' => $openFindings,
+            'staleOnuMappings' => $staleOnuMappings,
+            'staleOnuTotal' => $staleOnuTotal,
         ]);
     }
 
