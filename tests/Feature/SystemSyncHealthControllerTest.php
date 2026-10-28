@@ -124,4 +124,57 @@ class SystemSyncHealthControllerTest extends TestCase
             return $task !== null && $task['expected'] === false;
         });
     }
+
+    public function test_scheduler_heartbeat_is_stale_after_multiple_expected_intervals_are_missed(): void
+    {
+        config(['queue.default' => 'database']);
+        AutomationSyncStatus::create([
+            'task_key' => 'scheduler-heartbeat',
+            'label' => 'Scheduler Heartbeat',
+            'cadence' => 'Every minute',
+            'status' => 'success',
+            'last_started_at' => now()->subMinutes(4),
+            'last_success_at' => now()->subMinutes(4),
+            'runs_count' => 12,
+            'failures_count' => 0,
+        ]);
+
+        $response = $this->get(route('system.sync-health'));
+
+        $response->assertOk()->assertViewHas('tasks', function ($tasks): bool {
+            $scheduler = collect($tasks)->first(
+                fn (array $row) => $row['task']->task_key === 'scheduler-heartbeat'
+            );
+
+            return $scheduler !== null
+                && $scheduler['health'] === 'stale'
+                && $scheduler['threshold_seconds'] === 180;
+        });
+    }
+
+    public function test_long_running_schedule_is_marked_stalled(): void
+    {
+        config(['queue.default' => 'database']);
+        AutomationSyncStatus::create([
+            'task_key' => 'scheduler-heartbeat',
+            'label' => 'Scheduler Heartbeat',
+            'cadence' => 'Every minute',
+            'status' => 'running',
+            'last_started_at' => now()->subMinutes(20),
+            'last_success_at' => now()->subMinutes(22),
+            'runs_count' => 12,
+            'failures_count' => 0,
+        ]);
+
+        $response = $this->get(route('system.sync-health'));
+
+        $response->assertOk()->assertViewHas('tasks', function ($tasks): bool {
+            $scheduler = collect($tasks)->first(
+                fn (array $row) => $row['task']->task_key === 'scheduler-heartbeat'
+            );
+
+            return $scheduler !== null && $scheduler['health'] === 'stalled';
+        });
+    }
+
 }
