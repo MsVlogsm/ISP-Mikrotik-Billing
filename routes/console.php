@@ -42,7 +42,7 @@ Schedule::call(fn () => $track(
         'message' => 'Laravel scheduler invoked this heartbeat.',
         'metadata' => [
             'checked_at' => now()->toIso8601String(),
-            'timezone' => $timezone,
+            'timezone' => (string) config('app.timezone', 'Asia/Dhaka'),
         ],
     ]
 ))->everyMinute()->timezone($timezone)->name('scheduler-heartbeat')->withoutOverlapping();
