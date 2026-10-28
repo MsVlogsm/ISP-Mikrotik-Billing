@@ -21,13 +21,22 @@ class QueueWorkerHeartbeatJob implements ShouldQueue
 
     public function handle(AutomationSyncMonitor $monitor): void
     {
+        $queueConnection = (string) config('queue.default', 'sync');
+        $message = $queueConnection === 'sync'
+            ? 'Heartbeat job ran inline using the sync queue; this does not verify an independent queue worker.'
+            : 'Heartbeat job was processed using the configured '.$queueConnection.' queue connection.';
+
         $monitor->run(
             'queue-worker-heartbeat',
-            'Database Queue Worker Heartbeat',
+            'Queue Worker Heartbeat',
             'Every 5 minutes',
             fn () => [
-                'message' => 'A database queue worker successfully processed the heartbeat job.',
-                'metadata' => ['checked_at' => now()->toIso8601String()],
+                'message' => $message,
+                'metadata' => [
+                    'checked_at' => now()->toIso8601String(),
+                    'queue_connection' => $queueConnection,
+                    'queue_name' => $this->queue,
+                ],
             ]
         );
     }
