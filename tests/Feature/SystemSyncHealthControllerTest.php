@@ -177,4 +177,17 @@ class SystemSyncHealthControllerTest extends TestCase
         });
     }
 
+
+    public function test_sync_health_page_includes_read_only_stale_onu_evidence_panel(): void
+    {
+        config(['queue.default' => 'database']);
+
+        $response = $this->get(route('system.sync-health'));
+
+        $response->assertOk()
+            ->assertSee('Stale ONU Telemetry Details')
+            ->assertSee('No stale online/unknown ONU records detected.');
+    }
+
+
 }
