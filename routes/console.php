@@ -32,6 +32,21 @@ $runCommand = static function (string $key, string $label, string $cadence, stri
     });
 };
 
+// This row goes stale if cron stops invoking Laravel's scheduler. It does not
+// launch or re-run any network/payment task.
+Schedule::call(fn () => $track(
+    'scheduler-heartbeat',
+    'Scheduler Heartbeat',
+    'Every minute',
+    fn () => [
+        'message' => 'Laravel scheduler invoked this heartbeat.',
+        'metadata' => [
+            'checked_at' => now()->toIso8601String(),
+            'timezone' => $timezone,
+        ],
+    ]
+))->everyMinute()->timezone($timezone)->name('scheduler-heartbeat')->withoutOverlapping();
+
 Schedule::call(fn () => $track(
     'monthly-bill-generation',
     'Monthly Bill Generation',
