@@ -10,6 +10,7 @@ use App\Models\CollectionSummary;
 use App\Models\CustomersInfo;
 use App\Models\PaymentSummary;
 use App\Models\PPPSecrets;
+use App\Services\PrepaidExpiryGuard;
 use App\Services\PrepaidBillingCycle;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -160,13 +161,12 @@ class PaymentService
                 'bill_month' => Carbon::now()->format('F Y'),
             ]);
 
-            // 3. Update BillingInfo
-            $billing->update([
-                'paid_amount' => $billing->paid_amount + $amount,
-                'paid_date' => Carbon::now(),
-                'auto_disable_date' => $expireDate,
-                'due_amount' => $newDue,
-            ]);
+            // 3. Update BillingInfo only after the paid collection row exists.
+            $billing->paid_amount = $billing->paid_amount + $amount;
+            $billing->paid_date = Carbon::now();
+            $billing->auto_disable_date = $expireDate;
+            $billing->due_amount = $newDue;
+            app(PrepaidExpiryGuard::class)->saveAfterPaidCollection($billing);
 
             // 4. Create Monthly Payment Summary if not exists for the current month
             $summaryExists = PaymentSummary::where('customer_payment_unique_id', $customer->customer_unique_id)
