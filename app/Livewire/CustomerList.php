@@ -691,19 +691,21 @@ class CustomerList extends Component
         }
 
         try {
-            BillingInfo::where('customer_bill_unique_id', decrypt($this->editingBillId))->update([
-                'monthly_rent' => $this->monthly_rent ?: 0,
-                'additional_charge' => $this->additional_charge ?: 0,
-                'discount' => $this->discount ?: 0,
-                'advance' => $this->advance ?: 0,
-                'vat' => $this->vat ?: 0,
-                'total_amount' => $this->total_amount ?: 0,
-                'due_amount' => $this->bill_due_amount ?: 0,
-                'auto_disable' => $this->auto_disable ? 1 : 0,
-            ]);
+            $billing = BillingInfo::where('customer_bill_unique_id', decrypt($this->editingBillId))->firstOrFail();
+            $billing->monthly_rent = $this->monthly_rent ?: 0;
+            $billing->additional_charge = $this->additional_charge ?: 0;
+            $billing->discount = $this->discount ?: 0;
+            $billing->advance = $this->advance ?: 0;
+            $billing->vat = $this->vat ?: 0;
+            $billing->total_amount = $this->total_amount ?: 0;
+            $billing->due_amount = $this->bill_due_amount ?: 0;
+            $billing->auto_disable = $this->auto_disable ? 1 : 0;
+            $billing->save();
 
             flash()->success('Billing information updated successfully.');
             $this->closeBillModal();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            flash()->addError($e->validator->errors()->first());
         } catch (\Exception $e) {
             report($e);
             flash()->addError('Operation failed. Please try again.');
