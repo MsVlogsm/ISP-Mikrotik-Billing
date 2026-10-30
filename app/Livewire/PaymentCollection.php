@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Http\Controllers\CustomersController;
 use App\Http\Controllers\SMSController;
 use App\Models\BillingInfo;
+use App\Services\PrepaidExpiryGuard;
 use App\Models\CollectionSummary;
 use App\Models\CustomersInfo;
 use App\Services\PrepaidBillingCycle;
@@ -270,13 +271,14 @@ class PaymentCollection extends Component
                 'payment_status' => 'paid',
             ]);
 
-            BillingInfo::where('customer_bill_unique_id', $this->info_data->customer_unique_id)
-                ->update([
-                    'paid_amount' => $this->paid_amount + $this->info_data->billing->paid_amount,
-                    'paid_date' => Carbon::now(),
-                    'auto_disable_date' => $this->expire_date,
-                    'due_amount' => $this->due_amount,
-                ]);
+            $billing = BillingInfo::where('customer_bill_unique_id', $this->info_data->customer_unique_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $billing->paid_amount = $this->paid_amount + $billing->paid_amount;
+            $billing->paid_date = Carbon::now();
+            $billing->auto_disable_date = $this->expire_date;
+            $billing->due_amount = $this->due_amount;
+            app(PrepaidExpiryGuard::class)->saveAfterPaidCollection($billing);
             DB::commit();
         } catch (\Throwable $th) {
             DB::rollBack();
