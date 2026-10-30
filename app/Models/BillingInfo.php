@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Services\PrepaidExpiryGuard;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -71,6 +72,10 @@ class BillingInfo extends Model
 
     protected static function booted()
     {
+        static::saving(function (BillingInfo $billingInfo): void {
+            app(PrepaidExpiryGuard::class)->assertCanSave($billingInfo);
+        });
+
         // static::created(function ($billingInfo) {
         //     \Log::info('BillingInfo created: ' . $billingInfo->customer_bill_unique_id);
         //     // other code...

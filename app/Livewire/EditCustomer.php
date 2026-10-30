@@ -771,6 +771,15 @@ class EditCustomer extends Component
                         $cmd = "/ppp secret add name={$this->mtValue($this->username)} password={$this->mtValue($this->password)} service={$this->mtValue($this->service)} profile={$this->mtValue($this->profile)} comment={$this->mtValue($this->comment)} caller-id={$this->mtValue($this->caller_id)}";
                     }
 
+                    // Validate the prepaid expiry before creating anything on the router.
+                    // This prevents an unpaid renewal attempt from leaving an orphan PPP secret.
+                    $customerId = decrypt($this->customerId);
+                    $billingPreflight = BillingInfo::where('customer_bill_unique_id', $customerId)->firstOrFail();
+                    $billingPreflight->auto_disable_date = $this->auto_disable_date
+                        ? Carbon::parse($this->auto_disable_date)->toDateString()
+                        : Carbon::now()->addDays(30)->toDateString();
+                    app(\App\Services\PrepaidExpiryGuard::class)->assertCanSave($billingPreflight);
+
                     app(MikrotikController::class)->singleWrite($this->router_name, $cmd);
 
                     // Router write succeeded — persist to database
@@ -796,10 +805,12 @@ class EditCustomer extends Component
                         ]
                     );
 
-                    // Update Billing Info
-                    BillingInfo::where('customer_bill_unique_id', $customerId)->update([
-                        'auto_disable_date' => $this->auto_disable_date ? Carbon::parse($this->auto_disable_date) : Carbon::now()->addDays(30),
-                    ]);
+                    // Update Billing Info through Eloquent so the prepaid expiry guard applies.
+                    $billing = BillingInfo::where('customer_bill_unique_id', $customerId)->firstOrFail();
+                    $billing->auto_disable_date = $this->auto_disable_date
+                        ? Carbon::parse($this->auto_disable_date)->toDateString()
+                        : Carbon::now()->addDays(30)->toDateString();
+                    $billing->save();
 
                     // Update Customer Info if PPP user is created successfully
                     if ($pppUser->exists) {
@@ -815,6 +826,9 @@ class EditCustomer extends Component
                     $this->loadCustomerData($this->customerId);
                     $this->resetPPPUser();
 
+                } catch (ValidationException $e) {
+                    flash()->error($e->validator->errors()->first());
+                    return;
                 } catch (\Exception $e) {
                     // Handle any connection or execution errors
                     report($e);
@@ -959,8 +973,9 @@ class EditCustomer extends Component
         abort_unless(in_array($field, $allowed[$group] ?? [], true), 403, 'Unsupported checkbox field.');
 
         if ($group === 'pppUser') {
-            $updated = BillingInfo::where('customer_bill_unique_id', $customer->customer_unique_id)
-                ->update([$field => data_get($this->fields, $propertyName)]);
+            $billing = BillingInfo::where('customer_bill_unique_id', $customer->customer_unique_id)->firstOrFail();
+            $billing->{$field} = data_get($this->fields, $propertyName);
+            $updated = $billing->save();
         } else {
             $updated = OfficialInfo::where('customer_office_unique_id', $customer->customer_unique_id)
                 ->update([$field => data_get($this->fields, $propertyName)]);

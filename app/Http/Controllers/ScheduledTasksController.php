@@ -305,6 +305,48 @@ class ScheduledTasksController extends Controller
         }
     }
 
+    /**
+     * A failed SMS provider call must never turn a successful MikroTik disable
+     * into a failed network action or enqueue a duplicate hard-disable retry.
+     */
+    private function sendDisableAlertSms(CustomersInfo $customer, string $message): string
+    {
+        try {
+            $response = SmsBridge::to($customer->mobile)
+                ->message($message)
+                ->send();
+
+            if ($response && $response->isSuccessful()) {
+                return '->{sms sent}';
+            }
+
+            $error = $response ? $response->getMessage() : 'Unknown SMS provider response';
+        } catch (\Throwable $exception) {
+            $error = $exception->getMessage();
+        }
+
+        try {
+            NotificationLogs::create([
+                'title' => 'Disconnection SMS Error',
+                'message' => $customer->customer_unique_id.' SMS notification failed after network disable: '.$error,
+                'status' => 'Network user disabled; SMS notification failed',
+                'type' => 'By SMS',
+            ]);
+        } catch (\Throwable $logException) {
+            \Log::warning('Could not persist scheduled customer disable SMS failure.', [
+                'customer_unique_id' => $customer->customer_unique_id,
+                'error' => $logException->getMessage(),
+            ]);
+        }
+
+        \Log::warning('Scheduled customer was disabled on MikroTik but the SMS notification failed.', [
+            'customer_unique_id' => $customer->customer_unique_id,
+            'error' => $error,
+        ]);
+
+        return '->{sms error: '.$error.'}';
+    }
+
     public function userDisable()
     {
         $tz = config('app.timezone') ?: 'Asia/Dhaka';
@@ -345,15 +387,29 @@ class ScheduledTasksController extends Controller
                     }
 
                     if ($billing->auto_disable_date) {
-                        $autoDisableDate = PrepaidBillingCycle::alignToConnectionDay($cycleAnchor, $billing->auto_disable_date);
-                        if (Carbon::parse($billing->auto_disable_date, $tz)->toDateString() !== $autoDisableDate->toDateString()) {
-                            $billing->auto_disable_date = $autoDisableDate->toDateString();
-                            $billing->save();
+                        $storedExpiry = Carbon::parse($billing->auto_disable_date, $tz)->startOfDay();
+                        $alignedExpiry = PrepaidBillingCycle::alignToConnectionDay($cycleAnchor, $billing->auto_disable_date)->startOfDay();
+
+                        // Correct drift only in the conservative direction. A scheduler
+                        // run must never grant an extra prepaid cycle without payment.
+                        if ($alignedExpiry->gt($storedExpiry)) {
+                            $autoDisableDate = $storedExpiry;
+                        } else {
+                            $autoDisableDate = $alignedExpiry;
+                            if ($storedExpiry->toDateString() !== $alignedExpiry->toDateString()) {
+                                $billing->auto_disable_date = $alignedExpiry->toDateString();
+                                $billing->save();
+                            }
                         }
                     } else {
-                        $autoDisableDate = PrepaidBillingCycle::nextExpiryDate($cycleAnchor, $today);
-                        $billing->auto_disable_date = $autoDisableDate->toDateString();
-                        $billing->save();
+                        // Missing expiry: evaluate against the first connection-day cycle.
+                        // Do not persist a fresh future date without a paid collection.
+                        $autoDisableDate = PrepaidBillingCycle::nextExpiryDate($cycleAnchor, $cycleAnchor)->startOfDay();
+                        Log::warning('Prepaid billing expiry is missing; scheduler is evaluating the first connection-day cycle without granting a new cycle.', [
+                            'customer_unique_id' => $customer->customer_unique_id,
+                            'connection_date' => $cycleAnchor,
+                            'inferred_first_expiry' => $autoDisableDate->toDateString(),
+                        ]);
                     }
 
                     $shouldDisable = (float) $monthlyRent > 0 && $today->gte($autoDisableDate->copy()->startOfDay());
@@ -448,38 +504,18 @@ class ScheduledTasksController extends Controller
                                         $template->template
                                     );
 
-                                    // Send SMS
-                                    $responseSms = SmsBridge::to($customer->mobile)
-                                        ->message($message)
-                                        ->send();
-
-                                    if ($responseSms && $responseSms->isSuccessful()) {
-                                        $successfulSMS = '->{sms sent}';
-                                    } else {
-                                        $errorMsg = $responseSms ? $responseSms->getMessage() : 'Unknown error';
-                                        $errorSMS = '->{sms error: '.$errorMsg.'}';
-                                    }
+                                    $smsStatus = $this->sendDisableAlertSms($customer, $message);
                                 } else {
-                                    $successfulSMS = '->{sms disabled}';
+                                    $smsStatus = '->{sms disabled}';
                                 }
                             } else {
                                 $message = 'Dear '.$customer->customer_name.', Your ID '.$customer->customer_unique_id.'('.($customer->pppUser->username ?? '').') is temporarily disconnected, Your Due amount: '.$due.'TK. Regards, '.siteUrlSettings('site_name').', Mobile: '.siteUrlSettings('site_phone');
 
-                                // Send SMS
-                                $responseSms = SmsBridge::to($customer->mobile)
-                                    ->message($message)
-                                    ->send();
-
-                                if ($responseSms && $responseSms->isSuccessful()) {
-                                    $successfulSMS = '->{sms sent}';
-                                } else {
-                                    $errorMsg = $responseSms ? $responseSms->getMessage() : 'Unknown error';
-                                    $errorSMS = '->{sms error: '.$errorMsg.'}';
-                                }
+                                $smsStatus = $this->sendDisableAlertSms($customer, $message);
                             }
 
                             if (isset($successfulID)) {
-                                $successfulIDs[] = $successfulID.' '.($successfulSMS ?? $errorSMS ?? '').' - ('.$disableFor.')';
+                                $successfulIDs[] = $successfulID.' '.($smsStatus ?? '->{sms disabled}').' - ('.$disableFor.')';
                             }
                         } catch (\Throwable $e) {
                             try {

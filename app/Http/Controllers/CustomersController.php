@@ -310,18 +310,20 @@ class CustomersController extends Controller
 
         // return response()->json(\decrypt($id));
         try {
-            BillingInfo::where('customer_bill_unique_id', decrypt($id))->update([
-                'monthly_rent' => $request->monthly_rent,
-                'additional_charge' => $request->additional_charge,
-                'discount' => $request->discount,
-                'advance' => $request->advance,
-                'vat' => $request->vat,
-                'total_amount' => $request->total_amount,
-                'due_amount' => $request->due_amount,
-                'auto_disable' => $request->auto_disable === 'on' ? 1 : 0,
-            ]);
+            $billing = BillingInfo::where('customer_bill_unique_id', decrypt($id))->firstOrFail();
+            $billing->monthly_rent = $request->monthly_rent;
+            $billing->additional_charge = $request->additional_charge;
+            $billing->discount = $request->discount;
+            $billing->advance = $request->advance;
+            $billing->vat = $request->vat;
+            $billing->total_amount = $request->total_amount;
+            $billing->due_amount = $request->due_amount;
+            $billing->auto_disable = $request->auto_disable === 'on' ? 1 : 0;
+            $billing->save(); // Existing prepaid auto-disable cannot be switched off without the protected policy.
 
             return response()->json(['success' => true, 'message' => 'Billing Information updated successfully']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->validator->errors()->first(), 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
             report($e);
             return response()->json(['success' => false, 'message' => 'Operation failed. Please try again.'], 500);

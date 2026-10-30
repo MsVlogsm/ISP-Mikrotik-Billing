@@ -13,6 +13,7 @@ use App\Models\SupportTicket;
 use App\Models\SupportTicketTemplate;
 use App\Models\SmsTemplate;
 use App\Models\User;
+use App\Services\PrepaidExpiryGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -128,7 +129,11 @@ class CustomerActionsController extends Controller
                 if (!empty($data['package_id'])) $customer->package_id=$data['package_id'];
                 $customer->save();
                 if (array_key_exists('pop_area',$data)) OfficialInfo::updateOrCreate(['customer_office_unique_id'=>$uid],['distribution_location'=>$data['pop_area'] ?: null]);
-                if ($request->filled('billing_date')) BillingInfo::where('customer_bill_unique_id',$uid)->update(['auto_disable_date'=>$request->validate(['billing_date'=>['date']])['billing_date']]);
+                if ($request->filled('billing_date')) {
+                    $bill = BillingInfo::where('customer_bill_unique_id',$uid)->lockForUpdate()->firstOrFail();
+                    $bill->auto_disable_date = $request->validate(['billing_date'=>['date']])['billing_date'];
+                    $bill->save(); // Model guard rejects a payment-free prepaid extension.
+                }
                 activity()->causedBy(auth()->user())->withProperties(['customer_unique_id'=>$uid,'reason'=>$data['reason'] ?? null])->log('Customer owner/package changed');
             });
         } elseif ($action==='class') {
@@ -166,7 +171,11 @@ class CustomerActionsController extends Controller
                     $bill->due_amount=(float)$bill->total_amount-(float)$bill->paid_amount;
                     $bill->paid_date=now();
                 }
-                $bill->save();
+                if ($charge > 0) {
+                    app(PrepaidExpiryGuard::class)->saveAfterPaidCollection($bill);
+                } else {
+                    $bill->save(); // Earlier/same dates remain editable; forward prepaid dates are blocked.
+                }
             });
             if ($request->boolean('send_sms')) $this->sendSms($customer,'Billing date/expiry updated. New expiry: '.$data['expiry_date']);
         } elseif ($action==='password') {
@@ -198,6 +207,11 @@ class CustomerActionsController extends Controller
             if ($request->boolean('send_sms')) $this->sendSms($customer,'Payment transaction '.$data['type'].' recorded: '.$data['amount'].'. Current due: '.($customer->billing?->due_amount ?? 0));
         } elseif ($action==='recharge') {
             $data=$request->validate(['months'=>['required','integer','min:1','max:24'],'payment_mode'=>['required','in:receive_payment,extend_only'],'payment_method'=>['nullable','in:cash,bkash,nagad,rocket,bank,other'],'receipt_no'=>['nullable','string','max:100'],'send_sms'=>['nullable','boolean']]);
+            if ($customer->billing?->billing_type === 'prepaid' && $data['payment_mode'] === 'extend_only') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'payment_mode' => 'Prepaid validity cannot be extended without recording a payment. Use Receive Payment.'
+                ]);
+            }
             DB::transaction(function() use($data,$customer,$uid) {
                 $bill=BillingInfo::where('customer_bill_unique_id',$uid)->lockForUpdate()->firstOrFail();
                 $base=$bill->auto_disable_date ? \Carbon\Carbon::parse($bill->auto_disable_date) : today();
@@ -208,7 +222,11 @@ class CustomerActionsController extends Controller
                     CollectionSummary::create(['customer_collection_unique_id'=>$uid,'collection_date'=>now(),'collection_amount'=>$amount,'collected_by'=>auth()->user()->email,'payment_type'=>'monthly_recharge','payment_method'=>$data['payment_method']??'cash','transaction_id'=>$data['receipt_no']??null,'payment_status'=>'paid']);
                     $bill->paid_amount=(float)$bill->paid_amount+$amount; $bill->due_amount=(float)$bill->total_amount-(float)$bill->paid_amount; $bill->paid_date=now();
                 }
-                $bill->save();
+                if ($data['payment_mode'] === 'receive_payment') {
+                    app(PrepaidExpiryGuard::class)->saveAfterPaidCollection($bill);
+                } else {
+                    $bill->save();
+                }
             });
             if ($request->boolean('send_sms')) $this->sendSms($customer,'Monthly recharge completed for '.$data['months'].' month(s).');
         } elseif ($action==='grace') {
