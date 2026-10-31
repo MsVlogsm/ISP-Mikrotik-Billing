@@ -5,6 +5,8 @@ use App\Models\CustomersInfo;
 use App\Models\RouterList;
 use App\Models\NetworkInventoryDevice;
 use App\Models\NetworkTopologyLink;
+use App\Models\NetworkTopologyNode;
+use App\Models\MainSiteData;
 use Livewire\Component;
 class NetworkMap extends Component
 {
@@ -67,6 +69,25 @@ class NetworkMap extends Component
             ];
         })->filter()->values()->toArray();
 
+        $publishedCustomNodes = NetworkTopologyNode::query()
+            ->where('is_published', true)
+            ->get();
+        $topologyLocations = $publishedCustomNodes->filter(
+            fn ($node) => $node->latitude !== null && $node->longitude !== null
+        )->map(fn ($node) => [
+            'lat' => (float) $node->latitude,
+            'lng' => (float) $node->longitude,
+            'id' => $node->id,
+            'map_key' => 'topology:'.$node->id,
+            'label' => $node->name,
+            'status' => 'unknown',
+            'health_status' => 'manual topology asset; live status not connected',
+            'kind' => $node->type,
+            'asset_type' => $node->type,
+            'location' => $node->location,
+            'notes' => $node->notes,
+        ])->values()->toArray();
+
         $customers = CustomersInfo::active()->count();
         $nodes = CustomersAddress::query()
             ->leftJoin('customers_infos as ci', 'ci.customer_unique_id', '=', 'customers_addresses.customer_address_unique_id')
@@ -102,8 +123,8 @@ class NetworkMap extends Component
         $unmappedRouters = max(0, $routers->count() - count($routerNodes));
         $unmappedDevices = max(0, $inventoryDevices->count() - count($deviceLocations));
 
-        $nodes = collect(array_merge($nodes, $routerNodes, $deviceLocations));
-        $coordinates = $nodes->keyBy(fn ($node) => ($node['kind'] === 'router' ? 'router:' : 'device:') . $node['id']);
+        $nodes = collect(array_merge($nodes, $routerNodes, $deviceLocations, $topologyLocations));
+        $coordinates = $nodes->keyBy(fn ($node) => $node['map_key'] ?? (($node['kind'] === 'router' ? 'router:' : 'device:') . $node['id']));
         $publishedConnections = NetworkTopologyLink::query()->where('is_published', true)->get();
         $mapEdges = $publishedConnections->map(function ($link) use ($coordinates) {
             if (! $coordinates->has($link->source_key) || ! $coordinates->has($link->target_key)) {
@@ -144,6 +165,8 @@ class NetworkMap extends Component
             'unlocated_routers' => $unmappedRouters,
             'located_devices' => count($deviceLocations),
             'unlocated_devices' => $unmappedDevices,
+            'published_custom_nodes' => $publishedCustomNodes->count(),
+            'unlocated_custom_nodes' => max(0, $publishedCustomNodes->count() - count($topologyLocations)),
             'published_connections' => $publishedConnections->count(),
             'mapped_connections' => count($mapEdges),
             'unmapped_connections' => max(0, $publishedConnections->count() - count($mapEdges)),
@@ -151,9 +174,25 @@ class NetworkMap extends Component
         ];
         $mapKindCounts = $nodes->groupBy('kind')->map(fn ($items) => $items->count())->toArray();
 
+        $configuredLatitude = MainSiteData::getValue('ipilot_gis_default_latitude', '');
+        $configuredLongitude = MainSiteData::getValue('ipilot_gis_default_longitude', '');
+        $hasConfiguredCenter = is_numeric($configuredLatitude) && is_numeric($configuredLongitude)
+            && (float) $configuredLatitude >= -90 && (float) $configuredLatitude <= 90
+            && (float) $configuredLongitude >= -180 && (float) $configuredLongitude <= 180;
+        $configuredZoom = (int) MainSiteData::getValue('ipilot_gis_default_zoom', 13);
+        $mapConfig = [
+            'center' => $hasConfiguredCenter
+                ? [(float) $configuredLongitude, (float) $configuredLatitude]
+                : [90.4125, 23.8103],
+            'zoom' => min(20, max(1, $configuredZoom ?: 10)),
+            'basemap' => in_array(MainSiteData::getValue('ipilot_gis_default_basemap', 'auto'), ['auto', 'street', 'satellite', 'dark'], true)
+                ? MainSiteData::getValue('ipilot_gis_default_basemap', 'auto')
+                : 'auto',
+        ];
+
         return view('livewire.network-map', compact(
             'routers', 'nodes', 'customers', 'mappedCustomers', 'unmappedCustomers',
-            'routerNodes', 'deviceLocations', 'mapEdges', 'mapStats', 'mapKindCounts'
+            'routerNodes', 'deviceLocations', 'mapEdges', 'mapStats', 'mapKindCounts', 'mapConfig'
         ))->layout('layouts.app');
     }
 

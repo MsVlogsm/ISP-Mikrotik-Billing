@@ -42,6 +42,8 @@ class NetworkTopology extends Component
     public string $newNodeName = '';
     public string $newNodeLocation = '';
     public string $newNodeNotes = '';
+    public string $newNodeLatitude = '';
+    public string $newNodeLongitude = '';
 
     public function mount(string $mode = 'designer'): void
     {
@@ -255,10 +257,12 @@ class NetworkTopology extends Component
     {
         if ($this->mode !== 'designer') abort(403);
         $data = $this->validate([
-            'newNodeType' => ['required', Rule::in(['splitter', 'olt_pon', 'odf', 'rack', 'pop', 'fiber_segment'])],
+            'newNodeType' => ['required', Rule::in(['splitter', 'olt_pon', 'odf', 'rack', 'pop', 'fiber_segment', 'cabinet', 'pole', 'splice', 'server'])],
             'newNodeName' => ['required', 'string', 'max:120'],
             'newNodeLocation' => ['nullable', 'string', 'max:160'],
             'newNodeNotes' => ['nullable', 'string', 'max:1000'],
+            'newNodeLatitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'newNodeLongitude' => ['nullable', 'numeric', 'between:-180,180'],
             'splitter_ratio' => ['nullable', 'integer', 'min:2', 'max:64'],
             'port_reference' => ['nullable', 'string', 'max:80'],
             'input_ports' => ['nullable', 'integer', 'min:1', 'max:64'],
@@ -271,9 +275,11 @@ class NetworkTopology extends Component
             'input_ports' => $data['newNodeType'] === 'splitter' ? (int) ($this->input_ports ?: 1) : null,
             'output_ports' => $data['newNodeType'] === 'splitter' ? (int) ($this->output_ports ?: ($this->splitter_ratio ?: 1)) : null,
             'notes' => $data['newNodeNotes'] ?: null,
+            'latitude' => $data['newNodeLatitude'] !== '' ? (float) $data['newNodeLatitude'] : null,
+            'longitude' => $data['newNodeLongitude'] !== '' ? (float) $data['newNodeLongitude'] : null,
             'is_published' => false, 'created_by' => auth()->id(),
         ]);
-        $this->reset(['newNodeName', 'newNodeLocation', 'newNodeNotes']);
+        $this->reset(['newNodeName', 'newNodeLocation', 'newNodeNotes', 'newNodeLatitude', 'newNodeLongitude']);
         $this->newNodeType = 'splitter';
         $this->splitter_ratio = '';
         $this->port_reference = '';

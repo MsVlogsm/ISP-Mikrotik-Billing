@@ -58,7 +58,7 @@
         </div>
         <div class="card-body">
             <div class="row g-2 mb-3 network-map-filters">
-                <div class="col-lg-3 col-md-6"><label class="form-label" for="map-type-filter">Device / network type</label><select id="map-type-filter" class="form-select"><option value="">All types</option><option value="router">MikroTik Router</option><option value="olt">OLT</option><option value="onu">ONU</option><option value="wifi-router">WiFi Router</option><option value="access-point">Access Point</option><option value="switch">Switch</option><option value="customer">Customer</option></select></div>
+                <div class="col-lg-3 col-md-6"><label class="form-label" for="map-type-filter">Device / network type</label><select id="map-type-filter" class="form-select"><option value="">All types</option><option value="router">MikroTik Router</option><option value="olt">OLT</option><option value="onu">ONU</option><option value="wifi-router">WiFi Router</option><option value="access-point">Access Point</option><option value="switch">Switch</option><option value="customer">Customer</option><option value="splitter">Fiber Splitter</option><option value="olt_pon">OLT PON Port</option><option value="odf">ODF</option><option value="rack">Rack</option><option value="pop">POP</option><option value="fiber_segment">Fiber Segment</option><option value="cabinet">Street Cabinet</option><option value="pole">Utility Pole</option><option value="splice">Splice Closure</option><option value="server">Server / Headend</option></select></div>
                 <div class="col-lg-3 col-md-6"><label class="form-label" for="map-router-filter">Router</label><select id="map-router-filter" class="form-select"><option value="">All routers</option>@foreach($routers as $r)<option value="{{ $r->router_name }}">{{ $r->router_name }}</option>@endforeach</select></div>
                 <div class="col-lg-2 col-md-6"><label class="form-label" for="map-status-filter">Status</label><select id="map-status-filter" class="form-select"><option value="">All status</option><option value="online">Online</option><option value="offline">Offline</option><option value="unknown">Unknown</option></select></div>
                 <div class="col-lg-4 col-md-6"><label class="form-label" for="map-customer-search">Find a node</label><div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span><input id="map-customer-search" class="form-control" placeholder="Name, IP, ID or location" autocomplete="off"><button id="map-reset" class="btn btn-outline-secondary" type="button" title="Reset filters"><i class="bi bi-arrow-counterclockwise"></i></button></div></div>
@@ -118,6 +118,7 @@ window.XLINK_NETWORK_MAP_DATA = {
     nodes: @json($nodes),
     edges: @json($mapEdges),
     stats: @json($mapStats),
+    config: @json($mapConfig),
 };
 </script>
 @vite('resources/js/network-map.js')

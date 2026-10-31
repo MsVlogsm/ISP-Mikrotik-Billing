@@ -315,6 +315,24 @@ class PaymentService
 
             DB::commit();
 
+            // Deliver the successful payment event only after the billing transaction commits.
+            try {
+                app(\App\Services\IntegrationWebhookDispatcher::class)->dispatch('payment.received', [
+                    'customer_id' => $customer->customer_unique_id,
+                    'amount' => $amount,
+                    'method' => $gateway,
+                    'transaction_id' => $trxId,
+                    'invoice_no' => $invoiceNo,
+                    'paid_at' => now()->toIso8601String(),
+                ]);
+            } catch (\Throwable $webhookError) {
+                Log::warning('Payment committed but webhook event could not be queued.', [
+                    'customer_id' => $customer->customer_unique_id,
+                    'transaction_id' => $trxId,
+                    'error' => $webhookError->getMessage(),
+                ]);
+            }
+
             // Fire reseller commission event
             event(new PackagePurchased($customer, $amount));
 

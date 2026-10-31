@@ -277,4 +277,41 @@ class CustomersInfo extends Model
     {
         return $this->belongsTo(Reseller::class, 'reseller_id');
     }
+
+    protected static function booted(): void
+    {
+        static::created(function (self $customer): void {
+            app(\App\Services\IntegrationWebhookDispatcher::class)->dispatch('customer.created', [
+                'customer_id' => $customer->customer_unique_id,
+                'name' => $customer->customer_name,
+                'status' => $customer->status,
+                'created_at' => $customer->created_at?->toIso8601String(),
+            ]);
+        });
+
+        static::updated(function (self $customer): void {
+            if (! $customer->wasChanged(['customer_name', 'mobile', 'status', 'package_id', 'connection_date', 'address'])) return;
+
+            $previous = strtolower((string) $customer->getOriginal('status'));
+            $current = strtolower((string) $customer->status);
+            $event = in_array($current, ['disable', 'disabled', 'inactive'], true)
+                && in_array($previous, ['active', 'free'], true)
+                ? 'customer.suspended'
+                : 'customer.updated';
+
+            app(\App\Services\IntegrationWebhookDispatcher::class)->dispatch($event, [
+                'customer_id' => $customer->customer_unique_id,
+                'name' => $customer->customer_name,
+                'status' => $customer->status,
+                'updated_at' => $customer->updated_at?->toIso8601String(),
+            ]);
+        });
+
+        static::deleted(function (self $customer): void {
+            app(\App\Services\IntegrationWebhookDispatcher::class)->dispatch('customer.deleted', [
+                'customer_id' => $customer->customer_unique_id,
+                'deleted_at' => now()->toIso8601String(),
+            ]);
+        });
+    }
 }

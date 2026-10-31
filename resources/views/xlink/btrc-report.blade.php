@@ -1,0 +1,18 @@
+<x-app-layout>
+<div class="container-fluid py-3">
+ <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4"><div><h2 class="mb-1">BTRC Report — Draft Export</h2><p class="text-muted mb-0">Customer connection records from X-Link production data.</p></div><a href="{{ route('ipilot.reports') }}" class="btn btn-outline-secondary">Reports Hub</a></div>
+ <div class="alert alert-warning"><strong>Important:</strong> The ZIP does not include BTRC’s official workbook, column specification or operator mapping. This export is a reviewable data draft only and must not be submitted as an official regulatory return until the approved template is supplied and mapped.</div>
+ <div class="card mb-4"><div class="card-body"><form method="get" action="{{ route('ipilot.btrc') }}" class="row g-3">
+  <div class="col-md-3"><label class="form-label">Operator Code</label><input name="operator_code" class="form-control" maxlength="40" value="{{ $operatorCode }}" placeholder="Enter operator code (header only)"></div>
+  <div class="col-md-3"><label class="form-label">Connection From</label><input type="date" name="from" class="form-control" value="{{ $from }}" required></div>
+  <div class="col-md-3"><label class="form-label">Connection To</label><input type="date" name="to" class="form-control" value="{{ $to }}" required></div>
+  <div class="col-md-2"><label class="form-label">Account Status</label><select name="status" class="form-select">@foreach(['all'=>'All','active'=>'Active','inactive'=>'Inactive','disable'=>'Disabled','pending'=>'Pending'] as $value=>$label)<option value="{{ $value }}" @selected($status===$value)>{{ $label }}</option>@endforeach</select></div>
+  <div class="col-md-1 d-flex align-items-end"><button class="btn btn-primary w-100">Filter</button></div>
+ </form></div></div>
+ <div class="row g-3 mb-3"><div class="col-md-3"><div class="card"><div class="card-body"><div class="small text-muted">Matching Records</div><div class="fs-3 fw-semibold">{{ number_format($total) }}</div></div></div></div><div class="col-md-3"><div class="card"><div class="card-body"><div class="small text-muted">Preview Limit</div><div class="fs-3 fw-semibold">{{ number_format($preview->count()) }}</div></div></div></div><div class="col-md-6 d-flex align-items-center justify-content-end"><form method="get" action="{{ route('ipilot.btrc.export') }}"><input type="hidden" name="operator_code" value="{{ $operatorCode }}"><input type="hidden" name="from" value="{{ $from }}"><input type="hidden" name="to" value="{{ $to }}"><input type="hidden" name="status" value="{{ $status }}"><button class="btn btn-success" @disabled($operatorCode==='')><i class="bi bi-download me-1"></i>Export CSV Draft</button></form></div></div>
+ <div class="card"><div class="card-header fw-semibold">Data Preview (first 100 rows)</div><div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr><th>Customer ID</th><th>Name</th><th>Mobile</th><th>Package</th><th>Rent</th><th>Status</th><th>Connection</th><th>Expiry</th><th>Zone</th></tr></thead><tbody>
+ @forelse($preview as $customer)<tr><td>{{ $customer->customer_unique_id }}</td><td>{{ $customer->customer_name }}</td><td>{{ $customer->mobile }}</td><td>{{ $customer->package?->package ?? '—' }}</td><td>{{ $customer->billing?->monthly_rent ?? '—' }}</td><td>{{ ucfirst($customer->status) }}</td><td>{{ $customer->connection_date ?? '—' }}</td><td>{{ $customer->billing?->auto_disable_date ?? '—' }}</td><td>{{ $customer->zone_name ?? '—' }}</td></tr>
+ @empty<tr><td colspan="9" class="text-center text-muted py-4">No customers matched the selected date and status.</td></tr>@endforelse
+ </tbody></table></div></div>
+</div>
+</x-app-layout>

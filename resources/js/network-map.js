@@ -28,6 +28,16 @@ const COLORS = {
     'access-point': '#ea580c',
     switch: '#64748b',
     customer: '#64748b',
+    splitter: '#d97706',
+    olt_pon: '#7c3aed',
+    odf: '#0f766e',
+    rack: '#475569',
+    pop: '#0e7490',
+    fiber_segment: '#a16207',
+    cabinet: '#b45309',
+    pole: '#ca8a04',
+    splice: '#c2410c',
+    server: '#4f46e5',
 };
 const KINDS = {
     router: 'MikroTik Router',
@@ -37,6 +47,16 @@ const KINDS = {
     'access-point': 'Access Point',
     switch: 'Switch',
     customer: 'Customer',
+    splitter: 'Fiber Splitter',
+    olt_pon: 'OLT PON Port',
+    odf: 'ODF',
+    rack: 'Rack',
+    pop: 'POP',
+    fiber_segment: 'Fiber Segment',
+    cabinet: 'Street Cabinet',
+    pole: 'Utility Pole',
+    splice: 'Splice Closure',
+    server: 'Server / Headend',
 };
 
 const escapeHtml = (value) =>
@@ -54,13 +74,15 @@ const asFeatureCollection = (features) => ({
 });
 
 const pointFeature = (node) => {
-    const key = `${node.kind === 'router' ? 'router:' : 'device:'}${node.id}`;
+    const key = node.map_key || `${node.kind === 'router' ? 'router:' : 'device:'}${node.id}`;
     return {
         type: 'Feature',
         id: key,
         properties: {
             key,
             kind: node.kind || 'device',
+            asset_type: node.asset_type || node.kind || 'device',
+            notes: node.notes || '',
             label: node.label || node.id || 'Device',
             short_label: node.label || node.id || 'Device',
             status: node.status || 'unknown',
@@ -268,9 +290,9 @@ function popupContent(node) {
     `;
 }
 
-function fitCoordinates(map, coordinates) {
+function fitCoordinates(map, coordinates, defaultCenter = DEFAULT_CENTER, defaultZoom = 10) {
     if (!coordinates.length) {
-        map.easeTo({ center: DEFAULT_CENTER, zoom: 10, pitch: 0, bearing: 0, duration: 450 });
+        map.easeTo({ center: defaultCenter, zoom: defaultZoom, pitch: 0, bearing: 0, duration: 450 });
         return;
     }
 
@@ -313,10 +335,17 @@ function bootNetworkMap() {
         : [];
     const allEdges = Array.isArray(data.edges) ? data.edges : [];
 
-    let activeMode =
-        document.documentElement.getAttribute('data-bs-theme') === 'dark'
-            ? 'dark'
-            : 'street';
+    const configuredBasemap = data.config?.basemap;
+    let activeMode = ['street', 'satellite', 'dark'].includes(configuredBasemap)
+        ? configuredBasemap
+        : (document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'street');
+    const configuredCenter = Array.isArray(data.config?.center) && data.config.center.length === 2
+        && Number.isFinite(Number(data.config.center[0])) && Number.isFinite(Number(data.config.center[1]))
+        ? [Number(data.config.center[0]), Number(data.config.center[1])]
+        : DEFAULT_CENTER;
+    const configuredZoom = Number.isFinite(Number(data.config?.zoom))
+        ? Math.min(20, Math.max(1, Number(data.config.zoom)))
+        : 10;
     let map = null;
     let styleVersion = 0;
     let initialized = false;
@@ -332,7 +361,7 @@ function bootNetworkMap() {
     });
 
     const toKey = (node) =>
-        `${node.kind === 'router' ? 'router:' : 'device:'}${node.id}`;
+        node.map_key || `${node.kind === 'router' ? 'router:' : 'device:'}${node.id}`;
 
     const currentFilters = () => ({
         kind: document.getElementById('map-type-filter')?.value || '',
@@ -376,8 +405,8 @@ function bootNetworkMap() {
             String(a.label || a.id || '').localeCompare(String(b.label || b.id || '')),
         );
         const displayed = priorityNodes.slice(0, 10);
-        const icons = { router: 'bi-router', olt: 'bi-hdd-network', onu: 'bi-diagram-2', 'wifi-router': 'bi-wifi', 'access-point': 'bi-broadcast', switch: 'bi-ethernet', customer: 'bi-person-vcard' };
-        const tones = { router: '#2563eb', olt: '#7c3aed', onu: '#0891b2', 'wifi-router': '#16a34a', 'access-point': '#ea580c', switch: '#64748b', customer: '#64748b' };
+        const icons = { router: 'bi-router', olt: 'bi-hdd-network', onu: 'bi-diagram-2', 'wifi-router': 'bi-wifi', 'access-point': 'bi-broadcast', switch: 'bi-ethernet', customer: 'bi-person-vcard', splitter: 'bi-diagram-3', olt_pon: 'bi-diagram-3', odf: 'bi-hdd', rack: 'bi-server', pop: 'bi-building', fiber_segment: 'bi-bezier2', cabinet: 'bi-box', pole: 'bi-signpost', splice: 'bi-link-45deg', server: 'bi-server' };
+        const tones = { router: '#2563eb', olt: '#7c3aed', onu: '#0891b2', 'wifi-router': '#16a34a', 'access-point': '#ea580c', switch: '#64748b', customer: '#64748b', splitter: '#d97706', olt_pon: '#7c3aed', odf: '#0f766e', rack: '#475569', pop: '#0e7490', fiber_segment: '#a16207', cabinet: '#b45309', pole: '#ca8a04', splice: '#c2410c', server: '#4f46e5' };
 
         container.innerHTML = displayed.length ? displayed.map((node) => {
             const key = toKey(node);
@@ -444,6 +473,8 @@ function bootNetworkMap() {
             fitCoordinates(
                 map,
                 filteredNodes.map((node) => [Number(node.lng), Number(node.lat)]),
+                configuredCenter,
+                configuredZoom,
             );
         }
     };
@@ -557,6 +588,16 @@ function bootNetworkMap() {
                         'access-point', COLORS['access-point'],
                         'switch', COLORS.switch,
                         'customer', COLORS.customer,
+                        'splitter', COLORS.splitter,
+                        'olt_pon', COLORS.olt_pon,
+                        'odf', COLORS.odf,
+                        'rack', COLORS.rack,
+                        'pop', COLORS.pop,
+                        'fiber_segment', COLORS.fiber_segment,
+                        'cabinet', COLORS.cabinet,
+                        'pole', COLORS.pole,
+                        'splice', COLORS.splice,
+                        'server', COLORS.server,
                         '#64748b',
                     ],
                     'circle-radius': [
@@ -739,7 +780,7 @@ function bootNetworkMap() {
         options.forEach((select) => select?.addEventListener('change', () => updateSources(true)));
         document.getElementById('map-customer-search')?.addEventListener('input', () => updateSources(true));
         document.getElementById('map-fit')?.addEventListener('click', () => {
-            fitCoordinates(map, filteredNodes.map((node) => [Number(node.lng), Number(node.lat)]));
+            fitCoordinates(map, filteredNodes.map((node) => [Number(node.lng), Number(node.lat)]), configuredCenter, configuredZoom);
         });
         document.getElementById('map-reset')?.addEventListener('click', () => {
             options.forEach((select) => { if (select) select.value = ''; });
@@ -799,8 +840,8 @@ function bootNetworkMap() {
             map = new MapLibreMap({
                 container: element,
                 style,
-                center: DEFAULT_CENTER,
-                zoom: 10,
+                center: configuredCenter,
+                zoom: configuredZoom,
                 minZoom: 3,
                 maxZoom: 20,
                 maxPitch: 65,

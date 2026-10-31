@@ -27,4 +27,21 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     });
 });
 
+// iPilot API v2: client-credential token exchange and scoped read-only resources.
+Route::prefix('v2')->name('api.v2.')->group(function () {
+    Route::post('/auth/token', [\App\Http\Controllers\ApiV2AuthController::class, 'token'])
+        ->middleware('throttle:6,1')->name('auth.token');
 
+    Route::middleware([
+        'auth:sanctum',
+        \App\Http\Middleware\ApplyApiClientRateLimit::class,
+        'throttle:600,1',
+    ])->group(function () {
+        Route::post('/auth/revoke', [\App\Http\Controllers\ApiV2AuthController::class, 'revoke'])->name('auth.revoke');
+        Route::get('/customers', [\App\Http\Controllers\ApiV2Controller::class, 'customers'])->name('customers.index');
+        Route::get('/network/routers', [\App\Http\Controllers\ApiV2Controller::class, 'routers'])->name('network.routers');
+        Route::get('/network/olts', [\App\Http\Controllers\ApiV2Controller::class, 'olts'])->name('network.olts');
+        Route::get('/network/onus', [\App\Http\Controllers\ApiV2Controller::class, 'onus'])->name('network.onus');
+        Route::get('/reports/summary', [\App\Http\Controllers\ApiV2Controller::class, 'summary'])->name('reports.summary');
+    });
+});

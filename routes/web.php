@@ -170,6 +170,37 @@ Route::middleware([
         Route::post('/due-call-reminders/test-connection', [\App\Http\Controllers\DueCallReminderController::class, 'testConnection'])->name('due-call-reminders.test-connection');
         Route::post('/due-call-reminders/test-call', [\App\Http\Controllers\DueCallReminderController::class, 'testCall'])->name('due-call-reminders.test-call');
 
+        // iPilot workspace — native X-Link pages for the supplied iPilot reference bundle.
+        Route::get('/ipilot', [\App\Http\Controllers\IpilotWorkspaceController::class, 'dashboard'])->name('ipilot');
+        Route::get('/ipilot/app-settings', [\App\Http\Controllers\IpilotApplicationSettingsController::class, 'index'])->name('ipilot.app-settings');
+        Route::post('/ipilot/app-settings', [\App\Http\Controllers\IpilotApplicationSettingsController::class, 'update'])->name('ipilot.app-settings.update');
+        Route::get('/ipilot/gis/outside-plant', [\App\Http\Controllers\IpilotGisWorkspaceController::class, 'outsidePlant'])->name('ipilot.gis.outside-plant');
+        Route::get('/ipilot/gis/operations', [\App\Http\Controllers\IpilotGisWorkspaceController::class, 'operations'])->name('ipilot.gis.operations');
+        Route::get('/ipilot/gis/planning', [\App\Http\Controllers\IpilotGisWorkspaceController::class, 'planning'])->name('ipilot.gis.planning');
+        Route::get('/ipilot/reports', [\App\Http\Controllers\IpilotWorkspaceController::class, 'reports'])->name('ipilot.reports');
+        Route::get('/ipilot/btrc', [\App\Http\Controllers\IpilotWorkspaceController::class, 'btrc'])->name('ipilot.btrc');
+        Route::get('/ipilot/btrc/export', [\App\Http\Controllers\IpilotWorkspaceController::class, 'exportBtrc'])->name('ipilot.btrc.export');
+        Route::get('/ipilot/terminal', [\App\Http\Controllers\IpilotWorkspaceController::class, 'terminal'])->name('ipilot.terminal');
+        Route::post('/ipilot/terminal/chat', [\App\Http\Controllers\IpilotWorkspaceController::class, 'terminalChat'])->middleware('throttle:20,1')->name('ipilot.terminal.chat');
+
+        Route::get('/ipilot/integrations', [\App\Http\Controllers\IntegrationCenterController::class, 'index'])->name('ipilot.integrations');
+        Route::post('/ipilot/integrations/clients', [\App\Http\Controllers\IntegrationCenterController::class, 'storeClient'])->name('ipilot.integrations.clients.store');
+        Route::put('/ipilot/integrations/clients/{client}', [\App\Http\Controllers\IntegrationCenterController::class, 'updateClient'])->name('ipilot.integrations.clients.update');
+        Route::delete('/ipilot/integrations/clients/{client}', [\App\Http\Controllers\IntegrationCenterController::class, 'deleteClient'])->name('ipilot.integrations.clients.delete');
+        Route::post('/ipilot/integrations/webhooks', [\App\Http\Controllers\IntegrationCenterController::class, 'storeWebhook'])->name('ipilot.integrations.webhooks.store');
+        Route::post('/ipilot/integrations/webhooks/{endpoint}/test', [\App\Http\Controllers\IntegrationCenterController::class, 'testWebhook'])->name('ipilot.integrations.webhooks.test');
+        Route::patch('/ipilot/integrations/webhooks/{endpoint}/toggle', [\App\Http\Controllers\IntegrationCenterController::class, 'toggleWebhook'])->name('ipilot.integrations.webhooks.toggle');
+        Route::delete('/ipilot/integrations/webhooks/{endpoint}', [\App\Http\Controllers\IntegrationCenterController::class, 'deleteWebhook'])->name('ipilot.integrations.webhooks.delete');
+        Route::get('/ipilot/api-v2-docs', [\App\Http\Controllers\IntegrationCenterController::class, 'documentation'])->name('ipilot.api-docs');
+
+        Route::get('/ipilot/zabbix', [\App\Http\Controllers\ZabbixServerController::class, 'index'])->name('ipilot.zabbix');
+        Route::post('/ipilot/zabbix', [\App\Http\Controllers\ZabbixServerController::class, 'store'])->name('ipilot.zabbix.store');
+        Route::post('/ipilot/zabbix/{server}/test', [\App\Http\Controllers\ZabbixServerController::class, 'test'])->name('ipilot.zabbix.test');
+        Route::get('/ipilot/zabbix/{server}/hosts', [\App\Http\Controllers\ZabbixServerController::class, 'hosts'])->name('ipilot.zabbix.hosts');
+        Route::get('/ipilot/zabbix/{server}/problems', [\App\Http\Controllers\ZabbixServerController::class, 'problems'])->name('ipilot.zabbix.problems');
+        Route::patch('/ipilot/zabbix/{server}/toggle', [\App\Http\Controllers\ZabbixServerController::class, 'toggle'])->name('ipilot.zabbix.toggle');
+        Route::delete('/ipilot/zabbix/{server}', [\App\Http\Controllers\ZabbixServerController::class, 'destroy'])->name('ipilot.zabbix.delete');
+
         // AI Engineer
         Route::get('/ai-engineer', [\App\Http\Controllers\AiEngineerController::class, 'index'])->name('ai-engineer');
         Route::post('/ai-engineer/diagnose', [\App\Http\Controllers\AiEngineerController::class, 'diagnose'])->name('ai-engineer.diagnose');

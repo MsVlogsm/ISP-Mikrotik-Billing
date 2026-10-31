@@ -327,6 +327,28 @@
             </li>
             <li class="nav-item">
                 <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
+                    <div class="col-auto navbar-vertical-label">{{ __('iPilot Workspace') }}</div>
+                    <div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div>
+                </div>
+                <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot') }}"><span class="nav-link-icon"><i class="bi bi-cpu"></i></span><span class="nav-link-text ps-1">{{ __('iPilot Overview') }}</span></a>
+                <div class="collapse show ps-4" id="ipilotWorkspaceMenu">
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.integrations') }}">{{ __('API & Webhooks') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.api-docs') }}">{{ __('API v2 Docs') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.app-settings') }}">{{ __('App Settings') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.zabbix') }}">{{ __('Zabbix Monitoring') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.reports') }}">{{ __('Reports Hub') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.btrc') }}">{{ __('BTRC Report Draft') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.terminal') }}">{{ __('Read-only Terminal') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-topology.live') }}">{{ __('Auto Network Map / Live Topology') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-map') }}">{{ __('Geographic Network Map') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-topology.designer') }}">{{ __('Custom Map Editor') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.gis.outside-plant') }}">{{ __('Network & Outside Plant') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.gis.operations') }}">{{ __('Network Operations') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.gis.planning') }}">{{ __('Planning & Serviceability') }}</a>
+                </div>
+            </li>
+            <li class="nav-item">
+                <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
                     <div class="col-auto navbar-vertical-label">{{ __('Network Monitoring') }}</div>
                     <div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div>
                 </div>

@@ -1,0 +1,21 @@
+<x-app-layout>
+<div class="container-fluid py-3">
+ <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3"><div><h2 class="mb-1">iPilot Read-only Terminal</h2><p class="text-muted mb-0">Conversational diagnostics using X-Link’s existing read-only network intelligence.</p></div><span class="badge bg-success">READ ONLY</span></div>
+ <div class="alert alert-info">This terminal does not provide shell access or arbitrary MikroTik commands. It cannot change VLANs, reboot devices, alter billing, restore backups or provision ONUs. Configuration changes stay in the existing approval-controlled workflows.</div>
+ <div class="row g-3">
+  <div class="col-xl-3"><div class="card"><div class="card-header fw-semibold">Quick Commands</div><div class="card-body d-grid gap-2">@foreach(['/status','/connect','/online','/offline','/alarms','/onu','/optical','/pppoe','/bills','/vlan','/backup','/hotspot','/suggest','/help'] as $command)<button type="button" class="btn btn-outline-secondary text-start btn-sm" data-command="{{ $command }}"><code>{{ $command }}</code></button>@endforeach</div></div></div>
+  <div class="col-xl-9"><div class="card"><div class="card-header d-flex justify-content-between"><strong>Operations Console</strong><button type="button" class="btn btn-sm btn-outline-secondary" id="terminal-clear">Clear</button></div><div class="card-body"><div id="terminal-output" class="rounded bg-dark text-light p-3 mb-3" style="min-height:340px;max-height:560px;overflow:auto;font-family:ui-monospace,monospace"><div class="text-success">X-Link iPilot connected to read-only diagnostics.</div><div class="text-secondary">Type /help to list the supported commands.</div></div><form id="terminal-form" class="d-flex gap-2"><input id="terminal-command" class="form-control" maxlength="4000" placeholder="Ask about network health, ONU, PPPoE, customer billing..." autocomplete="off"><button class="btn btn-primary" type="submit"><i class="bi bi-send"></i> Run</button></form><div id="terminal-status" class="small text-muted mt-2">Waiting for command.</div></div></div></div>
+ </div>
+</div>
+<script>
+(() => {
+ const output=document.getElementById('terminal-output'), form=document.getElementById('terminal-form'), input=document.getElementById('terminal-command'), status=document.getElementById('terminal-status');
+ if(!output||!form||form.dataset.ready==='1')return; form.dataset.ready='1';
+ const add=(kind,content)=>{const row=document.createElement('div');row.className='mb-2';const label=document.createElement('span');label.className=kind==='command'?'text-info':'text-success';label.textContent=kind==='command'?'operator> ':'iPilot> ';const body=document.createElement('span');body.textContent=typeof content==='string'?content:JSON.stringify(content,null,2);body.style.whiteSpace='pre-wrap';row.append(label,body);output.appendChild(row);output.scrollTop=output.scrollHeight;};
+ async function run(command){command=String(command||'').trim();if(!command)return;add('command',command);input.value='';status.textContent='Running read-only diagnostic…';try{const response=await fetch(@json(route('ipilot.terminal.chat')),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]')?.content||''},body:JSON.stringify({command})});const data=await response.json();if(!response.ok)throw new Error(data.message||'Diagnostic request failed.');add('reply',data.reply??data.message??data);status.textContent='Diagnostic completed · read-only';}catch(error){add('reply','Error: '+error.message);status.textContent='Request failed';}}
+ form.addEventListener('submit',e=>{e.preventDefault();run(input.value);});
+ document.querySelectorAll('[data-command]').forEach(button=>button.addEventListener('click',()=>{const command=button.dataset.command;const extra=['/onu','/pppoe','/bills'].includes(command)?prompt('Optional ONU ID, PPPoE username or Customer ID:'):'';run(command+(extra?' '+extra:''));}));
+ document.getElementById('terminal-clear')?.addEventListener('click',()=>{output.replaceChildren();add('reply','Console cleared. No device state was changed.');});
+})();
+</script>
+</x-app-layout>

@@ -166,6 +166,13 @@ Schedule::call(fn () => $track(
 ))->everyFiveMinutes()->timezone($timezone)->name('queue-heartbeat-dispatch')->withoutOverlapping();
 
 Schedule::call(fn () => $track(
+    'ipilot-zabbix-sync',
+    'iPilot Zabbix Monitoring Sync',
+    'Every 5 minutes',
+    fn () => app(\App\Services\ZabbixMonitoringService::class)->syncAll()
+))->everyFiveMinutes()->timezone($timezone)->name('ipilot-zabbix-sync')->withoutOverlapping()->onOneServer();
+
+Schedule::call(fn () => $track(
     'data-integrity-audit',
     'Read-only Data Integrity Audit',
     'Every 15 minutes',
