@@ -21,6 +21,7 @@
         <div class="network-map-hero__actions">
             <div class="network-map-snapshot"><span class="network-map-live-dot"></span><span>Snapshot generated</span><strong>{{ $mapStats['generated_at'] }}</strong></div>
             <a class="btn btn-sm btn-outline-primary" href="{{ route('network-map') }}"><i class="bi bi-arrow-clockwise me-1"></i>Refresh Map</a>
+            <a class="btn btn-sm btn-outline-success" href="{{ route('optical-audit') }}"><i class="bi bi-activity me-1"></i>Virtual OTDR</a>
             <a class="btn btn-sm btn-primary" href="{{ route('network-topology.live') }}"><i class="bi bi-diagram-3 me-1"></i>Live Topology</a>
         </div>
     </header>

@@ -5,6 +5,9 @@ namespace App\Livewire;
 use App\Models\NetworkInventoryDevice;
 use App\Models\NetworkOpticalAudit as Audit;
 use App\Models\OltOnuCustomerMapping;
+use App\Models\RouterList;
+use App\Models\NetworkTopologyNode;
+use App\Models\NetworkTopologyLink;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -19,9 +22,76 @@ class OpticalAudit extends Component
     public string $auditNotes = '';
     public string $message = '';
     public ?int $selectedAuditId = null;
+    public ?array $virtualTestResult = null;
 
     public function updatedSearch(): void { $this->resetPage(); }
     public function updatedOltFilter(): void { $this->resetPage(); }
+
+
+    public function runVirtualTest(string $test): void
+    {
+        if (! hasAccess(['Super Admin'], ['mikrotik-setup', 'network-inventory'])) abort(403);
+        $allowed = ['mikrotik', 'olt', 'splitter', 'user', 'fiber', 'ping', 'bandwidth', 'netflow', 'internet'];
+        abort_unless(in_array($test, $allowed, true), 404);
+
+        $result = ['test' => $test, 'checked_at' => now()->format('d M Y, h:i:s A'), 'status' => 'limited', 'summary' => '', 'details' => []];
+        switch ($test) {
+            case 'mikrotik':
+                $total = RouterList::count();
+                $connected = RouterList::where('action', 'connected')->count();
+                $result['status'] = $total && $connected === $total ? 'success' : ($connected ? 'warning' : 'failed');
+                $result['summary'] = "{$connected} of {$total} MikroTik routers are marked connected in the saved router status.";
+                $result['details'] = ['Connected' => $connected, 'Not connected' => max(0, $total - $connected)];
+                break;
+            case 'olt':
+                $total = NetworkInventoryDevice::where('type', 'olt')->count();
+                $online = NetworkInventoryDevice::where('type', 'olt')->whereIn('health_status', ['online', 'ready', 'connected'])->count();
+                $result['status'] = $online ? 'success' : 'warning';
+                $result['summary'] = "{$total} OLT inventory records; {$online} currently report a healthy stored status. This is not a new hardware probe.";
+                $result['details'] = ['OLT records' => $total, 'Healthy status' => $online, 'ONU mappings' => OltOnuCustomerMapping::count()];
+                break;
+            case 'splitter':
+                $splitters = NetworkTopologyNode::where('type', 'splitter')->count();
+                $links = NetworkTopologyLink::where('connection_type', 'splitter')->count();
+                $result['status'] = $splitters ? 'success' : 'warning';
+                $result['summary'] = $splitters ? "{$splitters} splitter records and {$links} splitter connections are configured." : 'No splitter assets are configured yet; add splitter nodes in Topology Designer.';
+                $result['details'] = ['Splitter assets' => $splitters, 'Splitter links' => $links];
+                break;
+            case 'user':
+                $mapped = OltOnuCustomerMapping::whereNotNull('customer_id')->count();
+                $total = OltOnuCustomerMapping::count();
+                $result['status'] = $mapped ? 'success' : 'warning';
+                $result['summary'] = "{$mapped} of {$total} ONU records are mapped to customer records.";
+                $result['details'] = ['Mapped ONU' => $mapped, 'Unmapped ONU' => max(0, $total - $mapped)];
+                break;
+            case 'fiber':
+                $total = OltOnuCustomerMapping::count();
+                $rx = OltOnuCustomerMapping::whereNotNull('rx_power')->count();
+                $tx = OltOnuCustomerMapping::whereNotNull('tx_power')->count();
+                $result['status'] = $rx ? 'success' : 'warning';
+                $result['summary'] = "Stored optical power readings: RX {$rx}/{$total}, TX {$tx}/{$total}. Values are displayed as reported by the OLT; no physical OTDR trace or distance is inferred.";
+                $result['details'] = ['RX readings' => $rx, 'TX readings' => $tx, 'Missing RX' => max(0, $total - $rx)];
+                break;
+            case 'ping':
+                $result['status'] = 'unavailable';
+                $result['summary'] = 'Live customer ping is unavailable until a router-side ping adapter is configured. No ping result is fabricated.';
+                break;
+            case 'bandwidth':
+                $result['status'] = 'limited';
+                $result['summary'] = 'Bandwidth test is limited to stored monitoring data. A live throughput test requires an approved MikroTik bandwidth-test endpoint and target.';
+                $result['details'] = ['Router records' => RouterList::count()];
+                break;
+            case 'netflow':
+                $result['status'] = 'unavailable';
+                $result['summary'] = 'NetFlow/sFlow collector is not configured for this test. Configure a collector before reporting traffic-flow results.';
+                break;
+            case 'internet':
+                $result['status'] = 'unavailable';
+                $result['summary'] = 'No approved external connectivity probe is configured. Internet reachability is not inferred from router status.';
+                break;
+        }
+        $this->virtualTestResult = $result;
+    }
 
     public function saveSnapshot(): void
     {

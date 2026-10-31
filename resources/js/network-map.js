@@ -105,6 +105,16 @@ const pointFeature = (node) => {
             onu_online: node.onu_online ?? null,
             rx_power: node.rx_power ?? null,
             customer_count: node.customer_count ?? null,
+            customer_name: node.customer_name || '',
+            olt_id: node.olt_id ?? null,
+            olt_name: node.olt_name || '',
+            pon_port: node.pon_port || '',
+            onu_id: node.onu_id || '',
+            onu_serial: node.onu_serial || '',
+            onu_mac: node.onu_mac || '',
+            onu_ip: node.onu_ip || '',
+            tx_power: node.tx_power ?? null,
+            last_seen_at: node.last_seen_at || '',
         },
         geometry: {
             type: 'Point',
@@ -129,6 +139,10 @@ const lineFeature = (edge) => ({
         fiber_type: edge.fiber_type || '',
         source_port: edge.source_port || '',
         target_port: edge.target_port || '',
+        rx_power: edge.rx_power ?? null,
+        tx_power: edge.tx_power ?? null,
+        onu_id: edge.onu_id || '',
+        onu_mac: edge.onu_mac || '',
     },
     geometry: {
         type: 'LineString',
@@ -230,6 +244,14 @@ function popupContent(node) {
             ${node.customer_uid
                 ? `<div class="xlink-network-popup__row"><span>Customer ID</span><strong>${escapeHtml(node.customer_uid)}</strong></div>`
                 : ''}
+            ${node.customer_name ? `<div class="xlink-network-popup__row"><span>Customer</span><strong>${escapeHtml(node.customer_name)}</strong></div>` : ''}
+            ${node.kind === 'onu' ? `<div class="xlink-network-popup__row"><span>OLT / PON</span><strong>${escapeHtml(node.olt_name || '—')} · ${escapeHtml(node.pon_port || '—')}</strong></div>` : ''}
+            ${node.kind === 'onu' && node.onu_id ? `<div class="xlink-network-popup__row"><span>ONU ID</span><strong>${escapeHtml(node.onu_id)}</strong></div>` : ''}
+            ${node.onu_serial ? `<div class="xlink-network-popup__row"><span>ONU Serial</span><strong>${escapeHtml(node.onu_serial)}</strong></div>` : ''}
+            ${node.onu_mac ? `<div class="xlink-network-popup__row"><span>ONU MAC</span><strong>${escapeHtml(node.onu_mac)}</strong></div>` : ''}
+            ${node.onu_ip ? `<div class="xlink-network-popup__row"><span>ONU IP</span><strong>${escapeHtml(node.onu_ip)}</strong></div>` : ''}
+            ${node.tx_power !== null && node.tx_power !== undefined ? `<div class="xlink-network-popup__row"><span>TX power</span><strong>${escapeHtml(Number(node.tx_power).toFixed(2))} dBm</strong></div>` : ''}
+            ${node.last_seen_at ? `<div class="xlink-network-popup__row"><span>ONU last seen</span><strong>${escapeHtml(node.last_seen_at)}</strong></div>` : ''}
             ${node.kind === 'customer' && node.account_status
                 ? `<div class="xlink-network-popup__row"><span>Billing account</span><strong>${escapeHtml(node.account_status)}</strong></div>`
                 : ''}
@@ -281,11 +303,11 @@ function popupContent(node) {
                 )}" target="_blank" rel="noopener noreferrer">
                     <span aria-hidden="true">⌖</span> Google Maps
                 </a>
-                ${node.kind === 'customer' && node.customer_url
+                ${['customer', 'onu'].includes(node.kind) && node.customer_url
                     ? `<a class="xlink-map-action" href="${escapeHtml(node.customer_url)}">View Customer</a>`
                     : ''}
             </div>
-            <p class="xlink-network-popup__note">${node.kind === 'customer' ? 'Billing account status is not a live network-session check, so connectivity is shown as unknown here.' : 'Street imagery depends on Google Maps coverage at this location.'}</p>
+            <p class="xlink-network-popup__note">${node.kind === 'customer' ? 'Billing account status is not a live network-session check, so connectivity is shown as unknown here.' : (node.kind === 'onu' ? 'ONU position uses the linked customer Network Location; optical values are the latest stored OLT readings.' : 'Street imagery depends on Google Maps coverage at this location.')}</p>
         </section>
     `;
 }
@@ -754,6 +776,10 @@ function bootNetworkMap() {
                     ${row('Utilization', utilization)}
                     ${numberRow('Latency', latency, 'ms', 1)}
                     ${numberRow('Packet loss', packetLoss, '%', 2)}
+                    ${props.rx_power !== undefined && props.rx_power !== null ? row('ONU RX power', `${props.rx_power} dBm`) : ''}
+                    ${props.tx_power !== undefined && props.tx_power !== null ? row('ONU TX power', `${props.tx_power} dBm`) : ''}
+                    ${props.onu_id ? row('ONU ID', props.onu_id) : ''}
+                    ${props.onu_mac ? row('ONU MAC', props.onu_mac) : ''}
                     ${props.fiber_type ? row('Fiber type', props.fiber_type) : ''}
                     ${props.fiber_core ? row('Fiber core', props.fiber_core) : ''}
                 </section>`;

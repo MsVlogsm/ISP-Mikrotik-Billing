@@ -4,6 +4,7 @@ use App\Models\CustomersAddress;
 use App\Models\CustomersInfo;
 use App\Models\RouterList;
 use App\Models\NetworkInventoryDevice;
+use App\Models\OltOnuCustomerMapping;
 use App\Models\NetworkTopologyLink;
 use App\Models\NetworkTopologyNode;
 use App\Models\MainSiteData;
@@ -118,12 +119,42 @@ class NetworkMap extends Component
                 'kind' => 'customer',
             ])->values()->toArray();
 
+        // Build ONU markers from the real OLT ↔ customer mapping ledger.
+        // ONU coordinates are represented by the linked customer's saved Network Location;
+        // no synthetic coordinates or optical distance are generated.
+        $customerLocations = collect($nodes)->where('kind', 'customer')->keyBy('customer_uid');
+        $onuMappings = OltOnuCustomerMapping::with(['olt', 'customer', 'pppUser'])
+            ->whereNotNull('customer_id')->latest('last_seen_at')->get();
+        $onuNodes = $onuMappings->map(function ($mapping) use ($customerLocations) {
+            $customerUid = $mapping->customer?->customer_unique_id;
+            $customerLocation = $customerUid ? $customerLocations->get($customerUid) : null;
+            if (! $customerLocation) return null;
+            $olt = $mapping->olt;
+            return [
+                'lat' => $customerLocation['lat'], 'lng' => $customerLocation['lng'],
+                'id' => $mapping->id, 'map_key' => 'onu:'.$mapping->id,
+                'label' => 'ONU '.($mapping->onu_id ?: $mapping->onu_serial ?: $mapping->id),
+                'status' => $this->normalizeStatus($mapping->status),
+                'health_status' => $mapping->status ?: 'unknown', 'kind' => 'onu',
+                'customer_uid' => $customerUid,
+                'customer_url' => route('customers.show', ['id' => $customerUid]),
+                'customer_name' => $mapping->customer?->customer_name,
+                'router' => $mapping->pppUser?->router_name,
+                'olt_id' => $mapping->olt_device_id, 'olt_name' => $olt?->name,
+                'pon_port' => $mapping->pon_port, 'onu_id' => $mapping->onu_id,
+                'onu_serial' => $mapping->onu_serial, 'onu_mac' => $mapping->onu_mac,
+                'onu_ip' => $mapping->onu_ip, 'rx_power' => $mapping->rx_power,
+                'tx_power' => $mapping->tx_power, 'last_seen_at' => $mapping->last_seen_at?->toIso8601String(),
+                'location' => $customerLocation['location'] ?? null,
+            ];
+        })->filter()->values()->all();
+
         $mappedCustomers = count($nodes);
         $unmappedCustomers = max(0, $customers - $mappedCustomers);
         $unmappedRouters = max(0, $routers->count() - count($routerNodes));
         $unmappedDevices = max(0, $inventoryDevices->count() - count($deviceLocations));
 
-        $nodes = collect(array_merge($nodes, $routerNodes, $deviceLocations, $topologyLocations));
+        $nodes = collect(array_merge($nodes, $routerNodes, $deviceLocations, $topologyLocations, $onuNodes));
         $coordinates = $nodes->keyBy(fn ($node) => $node['map_key'] ?? (($node['kind'] === 'router' ? 'router:' : 'device:') . $node['id']));
         $publishedConnections = NetworkTopologyLink::query()->where('is_published', true)->get();
         $mapEdges = $publishedConnections->map(function ($link) use ($coordinates) {
@@ -152,6 +183,24 @@ class NetworkMap extends Component
             ];
         })->filter()->values()->toArray();
 
+        // Draw only real OLT-to-ONU mappings where both endpoint coordinates exist.
+        $oltOnuEdges = collect($onuNodes)->map(function ($onu) use ($coordinates) {
+            $oltKey = 'device:'.$onu['olt_id'];
+            if (! $coordinates->has($oltKey)) return null;
+            $olt = $coordinates->get($oltKey);
+            return [
+                'fromKey' => $oltKey, 'toKey' => $onu['map_key'],
+                'from' => [(float) $olt['lat'], (float) $olt['lng']],
+                'to' => [(float) $onu['lat'], (float) $onu['lng']],
+                'type' => 'fiber_core',
+                'label' => trim(($onu['olt_name'] ?: 'OLT').' / PON '.($onu['pon_port'] ?: '—').' → '.$onu['label']),
+                'status' => $onu['status'], 'fiber_core' => null, 'fiber_type' => 'unknown',
+                'rx_power' => $onu['rx_power'], 'tx_power' => $onu['tx_power'],
+                'onu_id' => $onu['onu_id'], 'onu_mac' => $onu['onu_mac'],
+            ];
+        })->filter()->values()->all();
+        $mapEdges = array_merge($mapEdges, $oltOnuEdges);
+
         $mapStats = [
             'total_nodes' => $nodes->count(),
             'online_nodes' => $nodes->where('status', 'online')->count(),
@@ -169,6 +218,8 @@ class NetworkMap extends Component
             'unlocated_custom_nodes' => max(0, $publishedCustomNodes->count() - count($topologyLocations)),
             'published_connections' => $publishedConnections->count(),
             'mapped_connections' => count($mapEdges),
+            'mapped_onus' => count($onuNodes),
+            'olt_onu_links' => count($oltOnuEdges),
             'unmapped_connections' => max(0, $publishedConnections->count() - count($mapEdges)),
             'generated_at' => now()->format('d M Y, h:i:s A'),
         ];
