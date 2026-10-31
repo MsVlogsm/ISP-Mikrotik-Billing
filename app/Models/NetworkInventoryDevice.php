@@ -77,4 +77,9 @@ class NetworkInventoryDevice extends Model
     {
         return $this->hasMany(NetworkInventoryHealthCheck::class);
     }
+
+    public function monitoringSnapshots(): HasMany
+    {
+        return $this->hasMany(OltMonitoringSnapshot::class, 'olt_device_id');
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\CustomersInfo;
 use App\Models\NetworkInventoryDevice;
 use App\Models\OltOnuCustomerMapping;
+use App\Models\OltMonitoringSnapshot;
 use App\Models\PPPSecrets;
 use App\Services\Olt\OltReadOnlyAdapterManager;
 use App\Services\OnuMacLedgerService;
@@ -305,18 +306,65 @@ class SyncOltOnuMappings extends Command
                 $liveOnline = collect($rows)
                     ->filter(fn (array $row) => $this->normalizeStatus($row) === 'online')
                     ->count();
-                $mappedCustomerCount = OltOnuCustomerMapping::where('olt_device_id', $olt->id)
+                $liveMappings = OltOnuCustomerMapping::where('olt_device_id', $olt->id)
                     ->whereIn('onu_id', $liveOnuIds->all())
-                    ->whereNotNull('customer_id')
-                    ->distinct()
-                    ->count('customer_id');
+                    ->get(['id', 'customer_id']);
+                $mappedOnuCount = $liveMappings->whereNotNull('customer_id')->count();
+                $mappedCustomerCount = $liveMappings->whereNotNull('customer_id')->pluck('customer_id')->unique()->count();
+
+                $onlineCount = collect($rows)->filter(fn (array $row) => $this->normalizeStatus($row) === 'online')->count();
+                $offlineCount = collect($rows)->filter(fn (array $row) => $this->normalizeStatus($row) === 'offline')->count();
+                $unknownCount = max(0, $liveTotal - $onlineCount - $offlineCount);
+                $rxReadings = collect($rows)
+                    ->pluck('rx_power')
+                    ->filter(fn ($value) => is_numeric($value))
+                    ->map(fn ($value) => (float) $value)
+                    ->values();
+                $goodMinimum = (float) config('olt_dashboard.signal_good_min_dbm', -20);
+                $warningMinimum = (float) config('olt_dashboard.signal_warning_min_dbm', -27);
+                $signalGood = $rxReadings->filter(fn (float $value) => $value >= $goodMinimum)->count();
+                $signalWarning = $rxReadings->filter(fn (float $value) => $value < $goodMinimum && $value >= $warningMinimum)->count();
+                $signalCritical = $rxReadings->filter(fn (float $value) => $value < $warningMinimum)->count();
 
                 $olt->update([
                     'onu_total' => $liveTotal,
-                    'onu_online' => $liveOnline,
+                    'onu_online' => $onlineCount,
                     'customer_count' => $mappedCustomerCount,
                 ]);
-                $this->line("OLT {$olt->id}: live counters reconciled — {$liveOnline}/{$liveTotal} online; {$mappedCustomerCount} mapped customers.");
+
+                $snapshotInterval = max(1, (int) config('olt_dashboard.snapshot_interval_minutes', 5));
+                $snapshot = OltMonitoringSnapshot::where('olt_device_id', $olt->id)
+                    ->latest('sampled_at')
+                    ->first();
+
+                // Keep the first sample timestamp within a window. Moving it on
+                // every poll would create a sliding window and suppress new trend
+                // points forever when the scheduler runs more frequently than 5 min.
+                if (! $snapshot || $snapshot->sampled_at->lt(now()->subMinutes($snapshotInterval))) {
+                    $snapshot = new OltMonitoringSnapshot([
+                        'olt_device_id' => $olt->id,
+                        'sampled_at' => now(),
+                    ]);
+                }
+
+                $snapshot->fill([
+                    'onu_total' => $liveTotal,
+                    'onu_online' => $onlineCount,
+                    'onu_offline' => $offlineCount,
+                    'onu_unknown' => $unknownCount,
+                    'mapped_onus' => $mappedOnuCount,
+                    'mapped_customers' => $mappedCustomerCount,
+                    'rx_sample_count' => $rxReadings->count(),
+                    'signal_good' => $signalGood,
+                    'signal_warning' => $signalWarning,
+                    'signal_critical' => $signalCritical,
+                    'signal_no_sample' => max(0, $liveTotal - $rxReadings->count()),
+                    'avg_rx_power' => $rxReadings->isNotEmpty() ? round($rxReadings->avg(), 2) : null,
+                    'min_rx_power' => $rxReadings->isNotEmpty() ? round($rxReadings->min(), 2) : null,
+                    'avg_latency_ms' => is_numeric($olt->last_latency_ms) ? (int) $olt->last_latency_ms : null,
+                ])->save();
+
+                $this->line("OLT {$olt->id}: live counters reconciled — {$onlineCount}/{$liveTotal} online; {$mappedCustomerCount} mapped customers; RX samples {$rxReadings->count()}.");
             }
 
             $staleCandidates = $existingMappings->filter(
@@ -346,6 +394,10 @@ class SyncOltOnuMappings extends Command
             }
             if (count($issues) > 10) $this->warn('Additional mapping validation issues: '.(count($issues)-10));
         }
+
+        $retentionDays = max(7, (int) config('olt_dashboard.snapshot_retention_days', 90));
+        OltMonitoringSnapshot::where('sampled_at', '<', now()->subDays($retentionDays))->delete();
+
         return self::SUCCESS;
     }
 

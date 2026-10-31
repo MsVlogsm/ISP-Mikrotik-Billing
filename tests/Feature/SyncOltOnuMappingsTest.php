@@ -278,6 +278,68 @@ class SyncOltOnuMappingsTest extends TestCase
         $this->assertSame('Keep historical note.', $stale->notes);
     }
 
+    public function test_complete_verified_read_only_poll_records_olt_dashboard_snapshot(): void
+    {
+        $olt = $this->olt();
+        $this->fakeAdapter($olt, '00:11:46:95:1c:c5', [], [
+            'rx_power' => -28.2,
+            'tx_power' => 1.65,
+            'opm_source' => 'test-opm',
+        ]);
+
+        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])->assertExitCode(0);
+
+        $this->assertDatabaseCount('olt_monitoring_snapshots', 1);
+        $snapshot = \App\Models\OltMonitoringSnapshot::where('olt_device_id', $olt->id)->firstOrFail();
+
+        $this->assertSame(1, (int) $snapshot->onu_total);
+        $this->assertSame(1, (int) $snapshot->onu_online);
+        $this->assertSame(0, (int) $snapshot->onu_offline);
+        $this->assertSame(1, (int) $snapshot->rx_sample_count);
+        $this->assertSame(1, (int) $snapshot->signal_critical);
+        $this->assertSame(0, (int) $snapshot->signal_good);
+        $this->assertEquals(-28.2, (float) $snapshot->avg_rx_power);
+    }
+
+    public function test_repeated_polls_update_a_snapshot_window_without_sliding_its_timestamp(): void
+    {
+        $olt = $this->olt();
+        $this->fakeAdapter($olt, '00:11:46:95:1c:c5', [], [
+            'rx_power' => -18.5,
+            'tx_power' => 1.7,
+            'opm_source' => 'test-opm',
+        ]);
+
+        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])->assertExitCode(0);
+        $first = \App\Models\OltMonitoringSnapshot::where('olt_device_id', $olt->id)->firstOrFail();
+        $firstSampledAt = $first->sampled_at->toDateTimeString();
+
+        // A second poll inside the configured 5-minute bucket must refresh metrics
+        // but retain the first sample timestamp rather than sliding the bucket.
+        $this->travel(2)->minutes();
+        $this->fakeAdapter($olt, '00:11:46:95:1c:c5', [], [
+            'rx_power' => -19.0,
+            'tx_power' => 1.8,
+            'opm_source' => 'test-opm',
+        ]);
+        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])->assertExitCode(0);
+
+        $this->assertDatabaseCount('olt_monitoring_snapshots', 1);
+        $this->assertSame($firstSampledAt, $first->fresh()->sampled_at->toDateTimeString());
+        $this->assertEquals(-19.0, (float) $first->fresh()->avg_rx_power);
+
+        // Once the window has elapsed, the next verified poll creates a new point.
+        $this->travel(4)->minutes();
+        $this->fakeAdapter($olt, '00:11:46:95:1c:c5', [], [
+            'rx_power' => -20.0,
+            'tx_power' => 1.9,
+            'opm_source' => 'test-opm',
+        ]);
+        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])->assertExitCode(0);
+
+        $this->assertDatabaseCount('olt_monitoring_snapshots', 2);
+    }
+
     public function test_partial_or_unverified_poll_does_not_claim_an_absent_onu_is_stale(): void
     {
         $olt = $this->olt();
@@ -294,6 +356,8 @@ class SyncOltOnuMappingsTest extends TestCase
         $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])
             ->doesntExpectOutputToContain('ONU 62 / 00:d5:9e:9d:34:74 is stored as online')
             ->assertExitCode(0);
+
+        $this->assertDatabaseCount('olt_monitoring_snapshots', 0);
     }
 
 }

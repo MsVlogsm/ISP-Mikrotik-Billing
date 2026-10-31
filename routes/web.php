@@ -571,6 +571,11 @@ Route::middleware([
             return view('xlink.olts',['devices'=>$devices,'oltStats'=>$oltStats,'onuCountsByOlt'=>$onuCountsByOlt,'vendors'=>$vendors,'ponTypes'=>$ponTypes]);
         })->name('network-inventory.olt');
 
+        Route::get('/network-inventory/olt/{device}/dashboard', [\App\Http\Controllers\OltDashboardController::class, 'show'])
+            ->name('network-inventory.olt.dashboard');
+        Route::post('/network-inventory/olt/{device}/dashboard/sync', [\App\Http\Controllers\OltDashboardController::class, 'sync'])
+            ->name('network-inventory.olt.dashboard.sync');
+
         Route::get('/olts', fn () => redirect()->route('network-inventory.olt'))->name('olts');
         Route::get('/network-inventory/olt/add', fn () => view('xlink.olt-form',['device'=>new \App\Models\NetworkInventoryDevice(['type'=>'olt','status'=>'unknown','is_active'=>true]),'edit'=>false]))->name('network-inventory.olt.add');
         Route::post('/network-inventory/olt', function(\Illuminate\Http\Request $request){
