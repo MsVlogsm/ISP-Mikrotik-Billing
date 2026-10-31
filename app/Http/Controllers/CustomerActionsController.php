@@ -15,6 +15,9 @@ use App\Models\SmsTemplate;
 use App\Models\User;
 use App\Services\PrepaidExpiryGuard;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -199,18 +202,43 @@ class CustomerActionsController extends Controller
                 return redirect($back)->with('warning','Password saved in billing, but the MikroTik router is offline. Synchronize it when the router is available.');
             }
         } elseif ($action==='cash-credit') {
-            $data=$request->validate(['type'=>['required','in:cash_received,credit,return'],'amount'=>['required','numeric','min:0.01'],'payment_method'=>['required','in:cash,bkash,nagad,rocket,bank,other'],'receipt_no'=>['nullable','string','max:100'],'details'=>['nullable','string','max:1000'],'send_sms'=>['nullable','boolean']]);
+            $data=$request->validate([
+                'type'=>['required','in:cash_received,credit,return'],
+                'amount'=>['required','numeric','min:0.01'],
+                'payment_method'=>['required','in:cash,bkash,nagad,rocket,bank,other'],
+                'receipt_no'=>['nullable','string','max:100',Rule::unique('collection_summaries','transaction_id')],
+                'details'=>['nullable','string','max:1000'],
+                'send_sms'=>['nullable','boolean'],
+            ], [
+                'receipt_no.unique'=>'This receipt / transaction number has already been recorded. Enter a different number or leave it blank if no receipt number is available.',
+            ]);
+
             if ($data['type'] === 'return') {
                 abort_unless(auth()->user()?->hasRole('Super Admin') || auth()->user()?->can('payment-delete'), 403, 'Only Admin or Super Admin can reverse a recorded payment.');
             }
-            DB::transaction(function() use($data,$customer,$uid) {
-                $bill=BillingInfo::where('customer_bill_unique_id',$uid)->lockForUpdate()->firstOrFail();
-                $amount=(float)$data['amount']; $paid=(float)$bill->paid_amount;
-                if ($data['type']==='return' && $amount>$paid) throw \Illuminate\Validation\ValidationException::withMessages(['amount'=>'Return amount cannot exceed recorded paid amount.']);
-                $signed=$data['type']==='return' ? -$amount : $amount;
-                CollectionSummary::create(['customer_collection_unique_id'=>$uid,'collection_date'=>now(),'collection_amount'=>$signed,'collected_by'=>auth()->user()->email,'payment_type'=>$data['type'],'payment_method'=>$data['payment_method'],'transaction_id'=>$data['receipt_no']??null,'details'=>$data['details']??null,'payment_status'=>'paid']);
-                $bill->paid_amount=max(0,$paid+$signed); $bill->due_amount=(float)$bill->total_amount-(float)$bill->paid_amount; $bill->paid_date=now(); $bill->save();
-            });
+
+            try {
+                DB::transaction(function() use($data,$customer,$uid) {
+                    $bill=BillingInfo::where('customer_bill_unique_id',$uid)->lockForUpdate()->firstOrFail();
+                    $amount=(float)$data['amount']; $paid=(float)$bill->paid_amount;
+                    if ($data['type']==='return' && $amount>$paid) {
+                        throw ValidationException::withMessages(['amount'=>'Return amount cannot exceed recorded paid amount.']);
+                    }
+                    $signed=$data['type']==='return' ? -$amount : $amount;
+                    CollectionSummary::create(['customer_collection_unique_id'=>$uid,'collection_date'=>now(),'collection_amount'=>$signed,'collected_by'=>auth()->user()->email,'payment_type'=>$data['type'],'payment_method'=>$data['payment_method'],'transaction_id'=>$data['receipt_no']??null,'details'=>$data['details']??null,'payment_status'=>'paid']);
+                    $bill->paid_amount=max(0,$paid+$signed); $bill->due_amount=(float)$bill->total_amount-(float)$bill->paid_amount; $bill->paid_date=now(); $bill->save();
+                });
+            } catch (QueryException $e) {
+                // Normal duplicate submissions fail validation above. This fallback
+                // turns a simultaneous duplicate submit into a field error too.
+                if (str_contains(strtolower($e->getMessage()), 'collection_summaries_transaction_id_unique')) {
+                    throw ValidationException::withMessages([
+                        'receipt_no'=>'This receipt / transaction number has already been recorded. Enter a different number or leave it blank if no receipt number is available.',
+                    ]);
+                }
+                throw $e;
+            }
+
             if ($request->boolean('send_sms')) $this->sendSms($customer,'Payment transaction '.$data['type'].' recorded: '.$data['amount'].'. Current due: '.($customer->billing?->due_amount ?? 0));
         } elseif ($action==='recharge') {
             $data=$request->validate(['months'=>['required','integer','min:1','max:24'],'payment_mode'=>['required','in:receive_payment,extend_only'],'payment_method'=>['nullable','in:cash,bkash,nagad,rocket,bank,other'],'receipt_no'=>['nullable','string','max:100'],'send_sms'=>['nullable','boolean']]);

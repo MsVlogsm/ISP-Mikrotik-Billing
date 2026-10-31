@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Livewire\CustomerList;
+use App\Models\BillingInfo;
+use App\Models\CollectionSummary;
 use App\Models\CustomersInfo;
 use App\Models\PPPSecrets;
 use App\Models\RouterList;
@@ -55,6 +57,126 @@ class CustomerActionTest extends TestCase
         ]);
 
         return [$customer, $ppp];
+    }
+
+    public function test_cash_credit_action_page_renders_for_an_authorized_customer(): void
+    {
+        $customer = CustomersInfo::create([
+            'customer_unique_id' => 'ACTION-CASH-PAGE',
+            'customer_name' => 'Cash Page Test',
+            'status' => 'active',
+        ]);
+
+        BillingInfo::create([
+            'customer_bill_unique_id' => $customer->customer_unique_id,
+            'billing_type' => 'postpaid',
+            'monthly_rent' => 500,
+            'total_amount' => 500,
+            'due_amount' => 500,
+            'paid_amount' => 0,
+        ]);
+
+        $this->get(route('customer.actions', [
+            'id' => encrypt($customer->customer_unique_id),
+            'action' => 'cash-credit',
+        ]))
+            ->assertOk()
+            ->assertSee('Cash / Credit / Return')
+            ->assertSee('Transaction Type')
+            ->assertSee('Receipt No.');
+    }
+
+    public function test_cash_credit_records_a_new_receipt_and_updates_billing(): void
+    {
+        $customer = CustomersInfo::create([
+            'customer_unique_id' => 'ACTION-CASH-UNIQUE',
+            'customer_name' => 'Cash Unique Receipt Test',
+            'status' => 'active',
+        ]);
+
+        BillingInfo::create([
+            'customer_bill_unique_id' => $customer->customer_unique_id,
+            'billing_type' => 'postpaid',
+            'monthly_rent' => 500,
+            'total_amount' => 500,
+            'due_amount' => 500,
+            'paid_amount' => 0,
+        ]);
+
+        $response = $this->post(route('customer.actions.handle', [
+            'id' => encrypt($customer->customer_unique_id),
+            'action' => 'cash-credit',
+        ]), [
+            'type' => 'cash_received',
+            'amount' => 125,
+            'payment_method' => 'cash',
+            'receipt_no' => 'CASH-RECEIPT-NEW-001',
+        ]);
+
+        $response->assertRedirect();
+
+        $this->assertDatabaseHas('collection_summaries', [
+            'customer_collection_unique_id' => $customer->customer_unique_id,
+            'collection_amount' => 125,
+            'transaction_id' => 'CASH-RECEIPT-NEW-001',
+            'payment_type' => 'cash_received',
+            'payment_status' => 'paid',
+        ]);
+        $this->assertDatabaseHas('billing_infos', [
+            'customer_bill_unique_id' => $customer->customer_unique_id,
+            'paid_amount' => 125,
+            'due_amount' => 375,
+        ]);
+    }
+
+    public function test_cash_credit_rejects_a_receipt_number_already_used_by_another_payment_without_mutating_billing(): void
+    {
+        $customer = CustomersInfo::create([
+            'customer_unique_id' => 'ACTION-CASH-DUPLICATE',
+            'customer_name' => 'Cash Duplicate Receipt Test',
+            'status' => 'active',
+        ]);
+
+        BillingInfo::create([
+            'customer_bill_unique_id' => $customer->customer_unique_id,
+            'billing_type' => 'postpaid',
+            'monthly_rent' => 500,
+            'total_amount' => 500,
+            'due_amount' => 500,
+            'paid_amount' => 0,
+        ]);
+
+        CollectionSummary::create([
+            'customer_collection_unique_id' => 'OTHER-CUSTOMER',
+            'collection_date' => now(),
+            'collection_amount' => 100,
+            'collected_by' => 'Test',
+            'payment_type' => 'monthly_recharge',
+            'payment_method' => 'cash',
+            'transaction_id' => 'CASH-RECEIPT-DUP-001',
+            'payment_status' => 'paid',
+            'invoice_no' => 999994,
+        ]);
+
+        $response = $this->post(route('customer.actions.handle', [
+            'id' => encrypt($customer->customer_unique_id),
+            'action' => 'cash-credit',
+        ]), [
+            'type' => 'cash_received',
+            'amount' => 100,
+            'payment_method' => 'cash',
+            'receipt_no' => 'CASH-RECEIPT-DUP-001',
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors(['receipt_no']);
+
+        $this->assertDatabaseCount('collection_summaries', 1);
+        $this->assertDatabaseHas('billing_infos', [
+            'customer_bill_unique_id' => $customer->customer_unique_id,
+            'paid_amount' => 0,
+            'due_amount' => 500,
+        ]);
     }
 
     public function test_disconnected_router_disable_updates_local_state_and_queues_remote_action(): void
