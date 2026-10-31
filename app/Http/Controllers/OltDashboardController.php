@@ -260,7 +260,7 @@ class OltDashboardController extends Controller
         }
 
         if ((int) $stats['offline'] > 0) {
-            $alerts[] = ['level' => 'warning', 'title' => number_format($stats['onu_offline']).' ONU(s) are offline', 'detail' => 'Review offline ONU records and affected subscribers before making changes.'];
+            $alerts[] = ['level' => 'warning', 'title' => number_format($stats['offline']).' ONU(s) are offline', 'detail' => 'Review offline ONU records and affected subscribers before making changes.'];
         }
 
         if ((int) $stats['signal_critical'] > 0) {

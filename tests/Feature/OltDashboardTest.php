@@ -76,6 +76,42 @@ class OltDashboardTest extends TestCase
         $this->assertStringContainsString('Sync ONU', $html);
     }
 
+    public function test_olt_dashboard_renders_offline_onu_alert_without_missing_stats_key(): void
+    {
+        $olt = NetworkInventoryDevice::create([
+            'type' => 'olt',
+            'name' => 'OLT Offline Alert Test',
+            'vendor' => 'VSOL',
+            'status' => 'online',
+            'health_status' => 'online',
+        ]);
+
+        OltMonitoringSnapshot::create([
+            'olt_device_id' => $olt->id,
+            'sampled_at' => now(),
+            'onu_total' => 3,
+            'onu_online' => 2,
+            'onu_offline' => 1,
+            'onu_unknown' => 0,
+            'mapped_onus' => 2,
+            'mapped_customers' => 2,
+            'rx_sample_count' => 0,
+            'signal_good' => 0,
+            'signal_warning' => 0,
+            'signal_critical' => 0,
+            'signal_no_sample' => 3,
+        ]);
+
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = app(OltDashboardController::class)->show(request(), $olt);
+        $html = $response->render();
+
+        $this->assertStringContainsString('OLT Offline Alert Test', $html);
+        $this->assertStringContainsString('1 ONU(s) are offline', $html);
+    }
+
     public function test_read_only_olt_snapshot_defaults_and_signal_fields_are_persisted(): void
     {
         $olt = NetworkInventoryDevice::create([
