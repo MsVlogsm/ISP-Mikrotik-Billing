@@ -405,7 +405,7 @@ class ScheduledTasksController extends Controller
                         // Missing expiry: evaluate against the first connection-day cycle.
                         // Do not persist a fresh future date without a paid collection.
                         $autoDisableDate = PrepaidBillingCycle::nextExpiryDate($cycleAnchor, $cycleAnchor)->startOfDay();
-                        Log::warning('Prepaid billing expiry is missing; scheduler is evaluating the first connection-day cycle without granting a new cycle.', [
+                        \Log::warning('Prepaid billing expiry is missing; scheduler is evaluating the first connection-day cycle without granting a new cycle.', [
                             'customer_unique_id' => $customer->customer_unique_id,
                             'connection_date' => $cycleAnchor,
                             'inferred_first_expiry' => $autoDisableDate->toDateString(),

@@ -196,6 +196,10 @@ class DashboardController extends Controller
         // that also appear in the successful live router-session snapshot.
         $onlineSessionFilter = app(\App\Services\OnlineCustomerSessionFilter::class);
         $onlineSessionSnapshot = $onlineSessionFilter->fromTelemetry($livePppTelemetry);
+        $onlineSessionSnapshot['users_by_router'] = $onlineSessionFilter->addDisconnectedRouterAliases(
+            $onlineSessionSnapshot['users_by_router'],
+            $onlineSessionSnapshot['successful_routers']
+        );
         $onlineNow = $onlineSessionFilter->apply(
             CustomersInfo::query(),
             $onlineSessionSnapshot['users_by_router'],

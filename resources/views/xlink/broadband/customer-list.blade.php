@@ -14,6 +14,7 @@
 @php
     $title = match($mode) {
         'due' => 'Due Customers',
+        'paid' => 'Paid Customers',
         'inactive' => 'Left Customers',
         'unverified' => 'Unverified Customers',
         'online' => 'Online Customers',
@@ -298,8 +299,8 @@
                 </div>
                 <div id="trafficError" class="alert alert-warning py-2 d-none"></div>
                 <div class="row g-2">
-                    <div class="col-6"><div class="traffic-metric text-success"><small>Download / RX</small><strong id="trafficRx">0 bps</strong></div></div>
-                    <div class="col-6"><div class="traffic-metric text-primary"><small>Upload / TX</small><strong id="trafficTx">0 bps</strong></div></div>
+                    <div class="col-6"><div class="traffic-metric text-success"><small>Download</small><strong id="trafficDownload">0 bps</strong></div></div>
+                    <div class="col-6"><div class="traffic-metric text-primary"><small>Upload</small><strong id="trafficUpload">0 bps</strong></div></div>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mt-3 small text-muted">
                     <span><span class="traffic-live-dot text-success"></span> Live</span>
@@ -314,8 +315,8 @@
 <script>
 (() => {
     const trafficModal = document.getElementById('customerTrafficModal');
-    const rxEl = document.getElementById('trafficRx');
-    const txEl = document.getElementById('trafficTx');
+    const downloadEl = document.getElementById('trafficDownload');
+    const uploadEl = document.getElementById('trafficUpload');
     const updatedEl = document.getElementById('trafficUpdated');
     const errorEl = document.getElementById('trafficError');
     const customerEl = document.getElementById('trafficCustomer');
@@ -352,8 +353,8 @@
             });
             const data = await response.json();
             if (!response.ok || !data.ok) throw new Error(data.message || 'Live traffic is unavailable.');
-            rxEl.textContent = formatBits(data.rx_bps);
-            txEl.textContent = formatBits(data.tx_bps);
+            downloadEl.textContent = formatBits(data.download_bps ?? data.tx_bps);
+            uploadEl.textContent = formatBits(data.upload_bps ?? data.rx_bps);
             routerEl.textContent = data.router || '—';
             updatedEl.textContent = 'Updated ' + new Date().toLocaleTimeString();
             errorEl.classList.add('d-none');
@@ -402,8 +403,8 @@
             customerEl.textContent = button.dataset.customer || 'Customer';
             usernameEl.textContent = button.dataset.username || '—';
             routerEl.textContent = 'Loading…';
-            rxEl.textContent = '0 bps';
-            txEl.textContent = '0 bps';
+            downloadEl.textContent = '0 bps';
+            uploadEl.textContent = '0 bps';
             updatedEl.textContent = 'Waiting for data…';
             errorEl.classList.add('d-none');
 

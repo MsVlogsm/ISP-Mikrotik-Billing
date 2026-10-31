@@ -92,6 +92,13 @@ class CustomerActionsController extends Controller
         $traffic = app(\App\Http\Controllers\MikrotikController::class)
             ->getLiveCustomerTraffic((string) $ppp->router_name, (string) $ppp->username);
 
+        // RouterOS counters are from the router's side of the PPPoE interface:
+        // TX = bytes/rate sent to the customer (download); RX = received from customer (upload).
+        $traffic['download-bits-per-second'] = (int) ($traffic['tx-bits-per-second'] ?? 0);
+        $traffic['upload-bits-per-second'] = (int) ($traffic['rx-bits-per-second'] ?? 0);
+        $traffic['download-mb'] = (float) ($traffic['tx-mb'] ?? 0);
+        $traffic['upload-mb'] = (float) ($traffic['rx-mb'] ?? 0);
+
         return response()->json([
             'ok' => true,
             'customer' => $customer->customer_unique_id,

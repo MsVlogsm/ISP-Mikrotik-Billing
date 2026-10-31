@@ -52,4 +52,17 @@ class AutomationSyncMonitorTest extends TestCase
         $this->assertSame(1, $status->failures_count);
         $this->assertNotNull($status->last_failed_at);
     }
+    public function test_sync_queue_heartbeat_message_does_not_claim_an_independent_worker_is_healthy(): void
+    {
+        config(['queue.default' => 'sync']);
+
+        app(\App\Jobs\QueueWorkerHeartbeatJob::class)->handle(app(AutomationSyncMonitor::class));
+
+        $status = AutomationSyncStatus::query()->where('task_key', 'queue-worker-heartbeat')->firstOrFail();
+
+        $this->assertSame('success', $status->status);
+        $this->assertSame('sync', $status->last_metadata['queue_connection']);
+        $this->assertStringContainsString('does not verify an independent queue worker', $status->last_message);
+    }
+
 }

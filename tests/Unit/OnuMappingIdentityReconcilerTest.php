@@ -36,7 +36,8 @@ class OnuMappingIdentityReconcilerTest extends TestCase
         ]);
         $this->assertCount(2, $plan['stale']);
         $this->assertTrue($plan['stale'][1]['linked']);
-        $this->assertSame([], $plan['blockers']);
+        $this->assertCount(1, $plan['blockers']);
+        $this->assertStringContainsString('row 3', $plan['blockers'][0]);
         $this->assertCount(1, $plan['new']);
     }
 

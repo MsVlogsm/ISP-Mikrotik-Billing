@@ -32,7 +32,14 @@ class CheckSiteStatus
             // Keep management/portal services reachable while the public site is closed.
             // Billing and Portal are explicitly isolated on 8081/8082 and must not be blocked
             // by the public-site maintenance/disabled switch.
-            if (str_starts_with($host, 'billing.') || in_array((int) $request->getPort(), [8081, 8082], true)) {
+            $port = (int) $request->getPort();
+            $canonicalBillingHttps = $host === 'bill.xlinkbd.net'
+                && $port === 443
+                && $request->isSecure();
+
+            if (str_starts_with($host, 'billing.')
+                || in_array($port, [8081, 8082], true)
+                || $canonicalBillingHttps) {
                 return $next($request);
             }
 

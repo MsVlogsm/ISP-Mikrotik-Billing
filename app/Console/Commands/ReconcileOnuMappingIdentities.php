@@ -33,7 +33,7 @@ class ReconcileOnuMappingIdentities extends Command
                 $this->error('Read-only SNMP discovery did not return safe data: '.($result['message'] ?? 'unknown error'));
                 return self::FAILURE;
             }
-            if (($result['meta']['mib_profile'] ?? null) !== 'v1600d4_legacy_onu_table') {
+            if (($result['meta']['mib_profile'] ?? null) !== 'v1600d4_auth_info_table') {
                 $this->error('Expected live-verified V1600D4 legacy MIB profile; selected '.($result['meta']['mib_profile'] ?? 'unknown').'.');
                 return self::FAILURE;
             }

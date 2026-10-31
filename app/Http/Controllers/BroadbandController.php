@@ -69,9 +69,11 @@ class BroadbandController extends Controller
             // username list, because stale sessions can make disconnected customers appear online.
             $usersByRouter = [];
             $successCount = 0;
-            $routerCount = RouterList::query()->count();
+            // Disconnected routers are not successful zero-session reads.
+            $connectedRouters = RouterList::query()->where('action', 'connected')->get();
+            $routerCount = $connectedRouters->count();
             $controller = app(\App\Http\Controllers\MikrotikController::class);
-            foreach (RouterList::query()->get() as $router) {
+            foreach ($connectedRouters as $router) {
                 try {
                     $sessions = $controller->getActivePppSessions((string) $router->router_name);
                     // An empty response is a valid zero-session result; exceptions are not.
@@ -85,9 +87,14 @@ class BroadbandController extends Controller
                 }
             }
             $liveSessions = ['users' => $usersByRouter, 'successful_routers' => $successCount, 'router_count' => $routerCount];
+            $onlineSessionFilter = app(\App\Services\OnlineCustomerSessionFilter::class);
+            $liveSessions['users'] = $onlineSessionFilter->addDisconnectedRouterAliases(
+                $liveSessions['users'],
+                (int) $liveSessions['successful_routers']
+            );
             $onlineSessionStatus = ($liveSessions['successful_routers'] ?? 0) > 0 ? 'ok' : 'unavailable';
             // Shared predicate keeps this list and the Dashboard's Online Customers KPI consistent.
-            app(\App\Services\OnlineCustomerSessionFilter::class)->apply(
+            $onlineSessionFilter->apply(
                 $query,
                 $liveSessions['users'],
                 (int) $liveSessions['successful_routers']
@@ -126,6 +133,13 @@ class BroadbandController extends Controller
 
         if ($status === 'unverified') $query->where(function ($q) { $q->whereNull('mobile')->orWhereNull('identification_no'); });
         if ($status === 'due') $query->whereHas('billing', fn ($q) => $q->where('due_amount', '>', 0));
+        if ($status === 'paid') {
+            // Paid means a payment was recorded and the current balance is settled.
+            // A zero balance alone is not proof of payment (new/free customers can be zero).
+            $query->whereHas('billing', fn ($q) => $q
+                ->where('paid_amount', '>', 0)
+                ->where('due_amount', '<=', 0));
+        }
         if ($status === 'disabled') $query->whereIn('status', ['disable', 'temporary_disable']);
 
         if ($status === 'inactive') {
@@ -174,53 +188,78 @@ class BroadbandController extends Controller
         try {
             $uniqueId = decrypt($id);
             $customer = CustomersInfo::where('customer_unique_id', $uniqueId)->with('pppUser')->firstOrFail();
-            $ip = $customer->pppUser?->ppp_remote_ip ?: $customer->pppUser?->ip_address;
-
-            if (! $ip || ! filter_var($ip, FILTER_VALIDATE_IP)) {
+            // PPPoE addresses are dynamic: always resolve the current address from
+            // the matching MikroTik active session. Never ping a stored/stale IP.
+            $ppp = $customer->pppUser;
+            $username = trim((string) ($ppp?->username ?? ''));
+            $routerName = trim((string) ($ppp?->router_name ?? ''));
+            if ($username === '' || $routerName === '') {
                 return response()->json([
                     'ok' => false,
-                    'message' => 'No valid customer IP is available for ping.',
-                    'ip' => $ip,
+                    'message' => 'Customer PPPoE username or router is not configured.',
                 ], 422);
             }
 
-            $isIpv6 = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
-            $binary = $isIpv6 ? 'ping6' : 'ping';
-            $command = $binary.' -c 1 -W 2 '.escapeshellarg($ip);
-            $startedAt = microtime(true);
+            $sessions = app(MikrotikController::class)->singleRead(
+                $routerName,
+                '/ppp/active/print',
+                '/ppp active print without-paging terse',
+                [],
+                false,
+                true
+            );
+            $ip = null;
+            foreach ($sessions as $session) {
+                if (! is_array($session)) {
+                    continue;
+                }
+                $activeUsername = trim((string) ($session['name'] ?? $session['user'] ?? $session['username'] ?? ''));
+                if ($activeUsername !== $username) {
+                    continue;
+                }
+                $candidate = $session['address'] ?? $session['remote-address'] ?? null;
+                if (is_string($candidate) && filter_var($candidate, FILTER_VALIDATE_IP)) {
+                    $ip = $candidate;
+                    break;
+                }
+            }
 
-            $descriptorSpec = [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ];
-            $process = proc_open($command, $descriptorSpec, $pipes);
-
-            if (! is_resource($process)) {
+            if (! $ip) {
                 return response()->json([
                     'ok' => false,
-                    'message' => 'Ping service could not be started.',
-                    'ip' => $ip,
-                ], 503);
+                    'message' => 'Customer has no active PPPoE session on the assigned MikroTik router. Reconnect the customer or check router connectivity.',
+                    'username' => $username,
+                    'router' => $routerName,
+                ], 422);
             }
 
-            fclose($pipes[0]);
-            $stdout = stream_get_contents($pipes[1]);
-            $stderr = stream_get_contents($pipes[2]);
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-
-            $exitCode = proc_close($process);
+            // PPPoE pool IPs may be private and unreachable from the billing host.
+            // Run the ICMP probe from the customer's assigned MikroTik router instead.
+            $startedAt = microtime(true);
+            $pingRows = app(MikrotikController::class)->singleRead(
+                $routerName,
+                '/ping',
+                '/ping address='.$ip.' count=1',
+                ['address' => $ip, 'count' => 1],
+                false,
+                true
+            );
+            $pingResult = is_array($pingRows[0] ?? null) ? $pingRows[0] : $pingRows;
+            $received = (int) ($pingResult['received'] ?? 0);
             $latency = null;
+            $rtt = $pingResult['avg-rtt'] ?? $pingResult['time'] ?? null;
 
-            if (preg_match('/time[=<]([0-9.]+)\s*ms/i', (string) $stdout, $match)) {
-                $latency = round((float) $match[1], 2);
+            if (is_numeric($rtt)) {
+                $latency = round((float) $rtt, 2);
+            } elseif (is_string($rtt) && preg_match('/^(?:(\d+(?:\.\d+)?)ms)?(?:(\d+(?:\.\d+)?)us)?$/i', trim($rtt), $match)
+                && (($match[1] ?? '') !== '' || ($match[2] ?? '') !== '')) {
+                $latency = round((float) ($match[1] ?? 0) + ((float) ($match[2] ?? 0) / 1000), 2);
             }
 
-            if ($exitCode === 0) {
+            if ($received > 0) {
                 return response()->json([
                     'ok' => true,
-                    'message' => 'Host is reachable.',
+                    'message' => 'Host is reachable from the assigned MikroTik router.',
                     'ip' => $ip,
                     'latency_ms' => $latency ?? round((microtime(true) - $startedAt) * 1000, 2),
                 ]);
@@ -228,11 +267,12 @@ class BroadbandController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => 'Host did not reply to ping.',
+                'message' => 'Host did not reply to ping from the assigned MikroTik router.',
                 'ip' => $ip,
                 'latency_ms' => $latency,
-                'detail' => trim((string) $stderr),
+                'detail' => (string) ($pingResult['status'] ?? 'No ICMP reply received.'),
             ]);
+
         } catch (\Throwable $e) {
             report($e);
 
@@ -278,8 +318,12 @@ class BroadbandController extends Controller
                 'username' => $ppp->username,
                 'router' => $ppp->router_name,
                 'interface' => $interface,
+                // RouterOS RX/TX is from the router's interface perspective:
+                // PPPoE TX is customer download; PPPoE RX is customer upload.
                 'rx_bps' => (int) ($data['rx-bits-per-second'] ?? 0),
                 'tx_bps' => (int) ($data['tx-bits-per-second'] ?? 0),
+                'download_bps' => (int) ($data['tx-bits-per-second'] ?? 0),
+                'upload_bps' => (int) ($data['rx-bits-per-second'] ?? 0),
                 'timestamp' => now()->toIso8601String(),
             ]);
         } catch (\Throwable $e) {

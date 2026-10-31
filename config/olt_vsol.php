@@ -24,27 +24,32 @@ return [
     // (inventory model V1601E04-DP, live sysDescr V1600D4, 2026-10-12/13).
     // No SET/write OIDs are configured here.
     'snmp_profiles' => [
-        'v1600d4_legacy_onu_table' => [
-            'label' => 'V-Solution V1600D4 legacy ONU authentication table (live verified)',
+        'v1600d4_auth_info_table' => [
+            'label' => 'V-Solution V1600D4 authInfoTable identity (live verified on firmware V1.0.2R)',
             'models' => ['V1600D4'],
             'enterprise_oid' => '1.3.6.1.4.1.37950',
-            'mib_table_oid' => '1.3.6.1.4.1.37950.1.1.5.12.1.9',
+            'mib_table_oid' => '1.3.6.1.4.1.37950.1.1.5.12.1.12',
             'client_mac_discovery' => false,
             'system_oids' => [
                 'sysDescr' => '1.3.6.1.2.1.1.1.0',
                 'sysUpTime' => '1.3.6.1.2.1.1.3.0',
             ],
             'onu_oids' => [
-                // These four columns were read successfully from BT-EPON-OLT on 2026-10-13.
-                // Table suffix is only the row index; .1.3 contains the actual ONU ID.
-                'pon_port' => '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.2',
-                'onu_id' => '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.3',
-                'status' => '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.4',
-                'onu_mac' => '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.5',
+                // Live V1.0.2R authInfoTable is the exact MAC↔ONU-ID source.
+                // Columns: authInfoPonNo=.2, authInfoOnuNo=.3, LLID=.4,
+                // lineStatus=.5, onuMacAddr=.6. The .9 table's .3 value is
+                // LLID-like and must not be treated as the Web UI ONU ID.
+                'pon_port' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.2',
+                'onu_id' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.3',
+                'llid' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.4',
+                'status' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.5',
+                'onu_mac' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.6',
             ],
-            // This firmware denied the authInfo2 (.25), optical (.12.2.1.8),
-            // and standard bridge FDB/ifDescr walks. Do not guess their values.
-            'opm_oids' => [],
+            // Some firmware does not enumerate the OPM walk; per-ONU GET uses PON.ONU-ID.
+            'opm_oids' => [
+                'tx_power' => '1.3.6.1.4.1.37950.1.1.5.12.2.1.8.1.6',
+                'rx_power' => '1.3.6.1.4.1.37950.1.1.5.12.2.1.8.1.7',
+            ],
         ],
         'v1601e_epon_authinfo2' => [
             'label' => 'V-Solution V1601E EPON authInfo2Table',

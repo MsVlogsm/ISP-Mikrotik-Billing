@@ -44,7 +44,11 @@ class OnuMappingIdentityReconciler
             }
             $linked = !empty($data['customer_id']) || !empty($data['ppp_user_id']);
             $stale[] = ['mapping_id' => $rowId, 'current_onu_id' => (string) ($data['onu_id'] ?? ''), 'onu_mac' => $mac, 'linked' => $linked];
-            // A linked stale row is retained under an audit ID; its customer link is never reassigned.
+            // Never archive/rekey a stale identity automatically while a customer
+            // or PPPoE account is attached; manual identity review is required.
+            if ($linked) {
+                $blockers[] = "Stale mapping row {$rowId} has a customer/PPPoE link; verify its live identity before applying reconciliation.";
+            }
         }
 
         $matched = [];

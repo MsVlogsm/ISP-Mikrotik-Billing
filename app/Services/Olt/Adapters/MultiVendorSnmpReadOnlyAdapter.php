@@ -88,15 +88,16 @@ class MultiVendorSnmpReadOnlyAdapter implements OltReadOnlyAdapter
         $model = strtoupper(trim((string) ($reportedModel ?? $device->model)));
         if ($vendor === 'VSOL' && str_contains($model, 'V1600D4')) {
             return [
-                'key' => 'vsol_v1600d4_legacy_onu_table',
+                'key' => 'vsol_v1600d4_auth_info_table',
                 'enterprise_oid' => '1.3.6.1.4.1.37950',
-                'source' => 'V-Solution V1600D4 live legacy ONU authentication table; read-only SNMP verified',
+                'source' => 'V-Solution V1600D4 authInfoTable; live SNMP verified on firmware V1.0.2R',
                 'oids' => ['sysDescr' => '1.3.6.1.2.1.1.1.0', 'sysUpTime' => '1.3.6.1.2.1.1.3.0'],
                 'onu_oids' => [
-                    'pon_port' => '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.2',
-                    'onu_id' => '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.3',
-                    'status' => '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.4',
-                    'onu_mac' => '1.3.6.1.4.1.37950.1.1.5.12.1.9.1.5',
+                    'pon_port' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.2',
+                    'onu_id' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.3',
+                    'llid' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.4',
+                    'status' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.5',
+                    'onu_mac' => '1.3.6.1.4.1.37950.1.1.5.12.1.12.1.6',
                 ],
             ];
         }

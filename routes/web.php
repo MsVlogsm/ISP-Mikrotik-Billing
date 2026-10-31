@@ -87,12 +87,15 @@ Route::domain($baseDomain)->group(function () {
             $port = (int) $forwardedPort;
         }
 
-        if ($port === 8081) {
-            return redirect()->route('login');
-        }
-
         if ($port === 8082) {
             return redirect()->to('http://'.request()->getHost().':8082/portal/login');
+        }
+
+        // The billing hostname should open the login screen directly. The
+        // public landing content is not used on bill.xlinkbd.net; the portal
+        // port remains separate and keeps its existing login redirect.
+        if ($port === 8081 || request()->getHost() === 'bill.xlinkbd.net') {
+            return redirect()->route('login');
         }
 
         return app(MainSiteController::class)->index();
@@ -254,6 +257,7 @@ Route::middleware([
             Route::get('/customer-search', [\App\Http\Controllers\BroadbandController::class, 'search'])->name('broadband-customer-search');
             Route::get('/online-customers', [\App\Http\Controllers\BroadbandController::class, 'list'])->defaults('status','online')->name('broadband-online-customers');
             Route::get('/due-customers', [\App\Http\Controllers\BroadbandController::class, 'due'])->name('broadband-due-customers');
+            Route::get('/paid-customers', [\App\Http\Controllers\BroadbandController::class, 'list'])->defaults('status', 'paid')->name('broadband-paid-customers');
             Route::get('/inactive-customers', [\App\Http\Controllers\BroadbandController::class, 'inactive'])->name('broadband-inactive-customers');
             Route::get('/new-customers', [\App\Http\Controllers\BroadbandController::class, 'newCustomers'])->name('broadband-new-customers');
             Route::get('/unverified-customers', [\App\Http\Controllers\BroadbandController::class, 'unverified'])->name('broadband-unverified-customers');
@@ -270,6 +274,7 @@ Route::middleware([
         Route::get('/customer-search', fn () => redirect()->route('broadband-customer-search'))->name('customer-search');
         Route::get('/online-customers', fn () => redirect()->route('broadband-online-customers'))->name('online-customers');
         Route::get('/due-customers', fn () => redirect()->route('broadband-due-customers'))->name('due-customers');
+        Route::get('/paid-customers', fn () => redirect()->route('broadband-paid-customers'))->name('paid-customers');
         Route::get('/inactive-customers', fn () => redirect()->route('broadband-inactive-customers'))->name('inactive-customers');
         Route::get('/new-customers', fn () => redirect()->route('broadband-new-customers'))->name('new-customers');
         Route::get('/unverified-customers', fn () => redirect()->route('broadband-unverified-customers'))->name('unverified-customers');
@@ -540,16 +545,29 @@ Route::middleware([
             $vendors = \App\Models\NetworkInventoryDevice::type('olt')->whereNotNull('vendor')->where('vendor','<>','')->distinct()->orderBy('vendor')->pluck('vendor');
             $ponTypes = \App\Models\NetworkInventoryDevice::type('olt')->whereNotNull('olt_type_id')->where('olt_type_id','<>','')->distinct()->orderBy('olt_type_id')->pluck('olt_type_id');
             $allOlts = \App\Models\NetworkInventoryDevice::type('olt');
+            $oltDeviceRows = (clone $allOlts)->get();
+            $mappedCountsByOlt = \App\Models\OltOnuCustomerMapping::query()
+                ->whereNotNull('customer_id')
+                ->selectRaw('olt_device_id, COUNT(DISTINCT customer_id) as mapped')
+                ->groupBy('olt_device_id')
+                ->get()
+                ->keyBy('olt_device_id');
             $oltStats = [
-                'total' => (clone $allOlts)->count(),
-                'online' => (clone $allOlts)->where('status','online')->count(),
-                'offline' => (clone $allOlts)->where('status','offline')->count(),
-                'onu_total' => \App\Models\OltOnuCustomerMapping::count(),
-                'onu_online' => \App\Models\OltOnuCustomerMapping::where('status','online')->count(),
-                'mapped' => \App\Models\OltOnuCustomerMapping::whereNotNull('customer_id')->count(),
+                'total' => $oltDeviceRows->count(),
+                'online' => $oltDeviceRows->where('status','online')->count(),
+                'offline' => $oltDeviceRows->where('status','offline')->count(),
+                'onu_total' => $oltDeviceRows->sum(fn ($device) => (int) ($device->onu_total ?? 0)),
+                'onu_online' => $oltDeviceRows->sum(fn ($device) => (int) ($device->onu_online ?? 0)),
+                'mapped' => (int) $mappedCountsByOlt->sum('mapped'),
             ];
-            $onuCountsByOlt = \App\Models\OltOnuCustomerMapping::selectRaw("olt_device_id, COUNT(*) as total, SUM(CASE WHEN status = 'online' THEN 1 ELSE 0 END) as online, SUM(CASE WHEN customer_id IS NOT NULL THEN 1 ELSE 0 END) as mapped")
-                ->groupBy('olt_device_id')->get()->keyBy('olt_device_id')->map(fn($row) => ['total'=>(int)$row->total,'online'=>(int)$row->online,'mapped'=>(int)$row->mapped])->all();
+            $onuCountsByOlt = $oltDeviceRows->mapWithKeys(function ($device) use ($mappedCountsByOlt) {
+                $mapped = (int) ($mappedCountsByOlt->get($device->id)->mapped ?? 0);
+                return [$device->id => [
+                    'total' => (int) ($device->onu_total ?? 0),
+                    'online' => (int) ($device->onu_online ?? 0),
+                    'mapped' => $mapped,
+                ]];
+            })->all();
             return view('xlink.olts',['devices'=>$devices,'oltStats'=>$oltStats,'onuCountsByOlt'=>$onuCountsByOlt,'vendors'=>$vendors,'ponTypes'=>$ponTypes]);
         })->name('network-inventory.olt');
 

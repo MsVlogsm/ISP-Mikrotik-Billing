@@ -64,6 +64,9 @@ class AiEngineerDiagnosticService
         $routerAge = $router?->last_checked_at ? max(0, now()->diffInSeconds($router->last_checked_at, false) * -1) : null;
         $olt = $mapping ? NetworkInventoryDevice::find($mapping->olt_device_id) : null;
         $oltHealth = $olt ? $olt->healthChecks()->latest('checked_at')->first() : null;
+        $oltCheckAt = $oltHealth?->checked_at ?? $olt?->last_checked_at;
+        $oltAge = $oltCheckAt ? max(0, now()->diffInSeconds($oltCheckAt, false) * -1) : null;
+        $mappingAge = $mapping?->updated_at ? max(0, now()->diffInSeconds($mapping->updated_at, false) * -1) : null;
         $tickets = $this->customerTickets($customer->customer_unique_id);
         $path = [
             'customer' => ['status'=>$customer->status, 'state'=>$this->stateForCustomer($customer->status)],
@@ -80,7 +83,7 @@ class AiEngineerDiagnosticService
                 'live_session'=>$livePpp,
             ] : ['state'=>'missing'],
             'router' => $router ? ['name'=>$router->router_name,'ip'=>$router->ip_address,'state'=>$router->action ?: 'অজানা','latency_ms'=>$router->last_latency_ms,'last_checked_at'=>$router->last_checked_at,'check_age_seconds'=>$routerAge,'check_freshness'=>$routerAge === null ? 'unknown' : ($routerAge <= 900 ? 'recent' : 'stale')] : ['state'=>$ppp?->router_name ? 'missing' : 'not_assigned'],
-            'onu' => $mapping ? ['olt_device_id'=>$mapping->olt_device_id,'olt_name'=>$olt?->name,'olt_ip'=>$olt?->ip_address,'olt_state'=>$olt?->health_status ?: $olt?->status ?: 'অজানা','olt_latency_ms'=>$olt?->last_latency_ms,'olt_last_checked_at'=>$olt?->last_checked_at,'health_check'=>$oltHealth ? ['status'=>$oltHealth->status,'latency_ms'=>$oltHealth->latency_ms,'checked_at'=>$oltHealth->checked_at] : null,'pon'=>$mapping->pon_port,'onu_id'=>$mapping->onu_id,'serial'=>$mapping->onu_serial,'mac'=>$mapping->onu_mac,'state'=>$mapping->status ?: 'অজানা','rx_power'=>$mapping->rx_power,'tx_power'=>$mapping->tx_power,'opm_source'=>$mapping->opm_source,'opm_last_seen_at'=>$mapping->opm_last_seen_at?->toIso8601String(),'ip'=>$mapping->onu_ip,'last_seen_at'=>$mapping->last_seen_at,'last_seen_age_seconds'=>$mapping->last_seen_at ? max(0, now()->diffInSeconds($mapping->last_seen_at, false) * -1) : null] : ['state'=>'not_mapped'],
+            'onu' => $mapping ? ['olt_device_id'=>$mapping->olt_device_id,'olt_name'=>$olt?->name,'olt_ip'=>$olt?->ip_address,'olt_state'=>$olt?->health_status ?: $olt?->status ?: 'অজানা','olt_latency_ms'=>$olt?->last_latency_ms,'olt_last_checked_at'=>$oltCheckAt,'olt_check_age_seconds'=>$oltAge,'olt_check_freshness'=>$oltAge === null ? 'unknown' : ($oltAge <= 900 ? 'recent' : 'stale'),'health_check'=>$oltHealth ? ['status'=>$oltHealth->status,'latency_ms'=>$oltHealth->latency_ms,'checked_at'=>$oltHealth->checked_at] : null,'pon'=>$mapping->pon_port,'onu_id'=>$mapping->onu_id,'serial'=>$mapping->onu_serial,'mac'=>$mapping->onu_mac,'state'=>$mapping->status ?: 'অজানা','mapping_age_seconds'=>$mappingAge,'mapping_check_freshness'=>$mappingAge === null ? 'unknown' : ($mappingAge <= 900 ? 'recent' : 'stale'),'rx_power'=>$mapping->rx_power,'tx_power'=>$mapping->tx_power,'opm_source'=>$mapping->opm_source,'opm_last_seen_at'=>$mapping->opm_last_seen_at?->toIso8601String(),'ip'=>$mapping->onu_ip,'last_seen_at'=>$mapping->last_seen_at,'last_seen_age_seconds'=>$mapping->last_seen_at ? max(0, now()->diffInSeconds($mapping->last_seen_at, false) * -1) : null] : ['state'=>'not_mapped'],
             'billing' => $billing ? ['state'=>$this->billingState($billing),'due'=>$this->billingDue($billing)] : ['state'=>'not_found'],
         ];
         $findings=[]; $causes=[]; $checks=[]; $severity='info';
@@ -116,7 +119,17 @@ class AiEngineerDiagnosticService
             if ($router->last_latency_ms !== null) $findings[]='Last recorded router latency: '.$router->last_latency_ms.' ms.';
             if ($router->last_checked_at) $findings[]='Router health last checked: '.$router->last_checked_at.' ('.(($routerAge ?? 0) > 900 ? 'পুরোনো, over 15 minutes old' : 'within 15 minutes').').';
             else $findings[]='Router health has no recorded last-চেক timestamp.';
-            if (in_array($rs,['offline','down','disabled'],true)) { $severity='critical'; $causes[]='Assigned MikroTik/router is marked '.$rs.'.'; $checks[]='রাউটারে পৌঁছানো এবং মনিটরিং অবস্থা পরীক্ষা করুন।'; }
+            if (in_array($rs,['offline','down','disabled'],true)) {
+                if ($routerAge === null || $routerAge > 900) {
+                    $severity=$severity==='critical'?'critical':'warning';
+                    $causes[]='Assigned MikroTik/router is marked '.$rs.', but its latest health sample is stale or missing; a current router outage is not confirmed.';
+                    $checks[]='রাউটারের নতুন read-only reachability ও PPPoE session check নিন; পুরোনো status দেখে service পরিবর্তন করবেন না।';
+                } else {
+                    $severity='critical';
+                    $causes[]='Recent recorded router health sample marks the assigned MikroTik/router '.$rs.'.';
+                    $checks[]='সাম্প্রতিক router health result এবং PPPoE session response পুনরায় যাচাই করুন।';
+                }
+            }
         } elseif ($ppp?->router_name) { $severity=$severity==='critical'?'critical':'warning'; $causes[]='Assigned router "'.$ppp->router_name.'" was not found in router inventory.'; $checks[]='Router List-এর সংযোগ পরীক্ষা করুন।'; }
 
         if ($mapping) {
@@ -130,13 +143,29 @@ class AiEngineerDiagnosticService
                 if ($oltHealth) $findings[]='Latest OLT health check: '.$oltHealth->status.($oltHealth->latency_ms !== null ? ' · '.$oltHealth->latency_ms.' ms' : '').' at '.$oltHealth->checked_at.'.';
                 $os = strtolower((string)($olt->health_status ?: $olt->status ?: 'অজানা'));
                 if (in_array($os, ['offline','down','critical','unreachable'], true)) {
-                    $severity = $os === 'critical' ? 'critical' : ($severity === 'critical' ? 'critical' : 'warning');
-                    $causes[] = 'Linked OLT inventory is marked '.$os.'.';
-                    $checks[] = 'OLT-তে পৌঁছানো যাচ্ছে কি না এবং সাম্প্রতিক OLT/PON অ্যালার্ম পরীক্ষা করুন; কোনো provisioning পরিবর্তন করা হয়নি।';
+                    if ($oltAge === null || $oltAge > 900) {
+                        $severity = $severity === 'critical' ? 'critical' : 'warning';
+                        $causes[] = 'Linked OLT inventory is marked '.$os.', but its latest health sample is stale or missing; a current OLT outage is not confirmed.';
+                        $checks[] = 'সাম্প্রতিক OLT reachability/health check ও PON alarm যাচাই করুন; stale status দেখে provisioning পরিবর্তন করবেন না।';
+                    } else {
+                        $severity = $os === 'critical' ? 'critical' : ($severity === 'critical' ? 'critical' : 'warning');
+                        $causes[] = 'Recent OLT health data marks the linked OLT '.$os.'.';
+                        $checks[] = 'OLT-তে পৌঁছানো যাচ্ছে কি না এবং সাম্প্রতিক OLT/PON অ্যালার্ম পরীক্ষা করুন; কোনো provisioning পরিবর্তন করা হয়নি।';
+                    }
                 }
             }
             $ms=strtolower((string)$mapping->status);
-            if (in_array($ms,['los','offline','down'],true)) { $severity=$ms==='los'?'critical':($severity==='critical'?'critical':'warning'); $causes[]='ONU is reported as '.strtoupper($ms).'.'; $checks[]='ফাইবার/ONU পাওয়ার এবং OLT PON অ্যালার্ম পরীক্ষা করুন।'; }
+            if (in_array($ms,['los','offline','down'],true)) {
+                if ($mappingAge === null || $mappingAge > 900) {
+                    $severity = $severity === 'critical' ? 'critical' : 'warning';
+                    $causes[] = 'ONU is recorded as '.strtoupper($ms).', but the mapping/status snapshot is stale or missing its update time; the current ONU state is not confirmed.';
+                    $checks[] = 'সাম্প্রতিক read-only ONU/OLT poll নিন এবং নতুন status timestamp যাচাই করুন।';
+                } else {
+                    $severity=$ms==='los'?'critical':($severity==='critical'?'critical':'warning');
+                    $causes[]='Recent ONU mapping data reports '.strtoupper($ms).'.';
+                    $checks[]='ফাইবার/ONU পাওয়ার এবং OLT PON অ্যালার্ম পরীক্ষা করুন।';
+                }
+            }
         } else $findings[]='No discovered OLT/ONU mapping is currently linked to this customer.';
 
         if ($billing) {
@@ -173,7 +202,23 @@ class AiEngineerDiagnosticService
             }
         }
 
-        return ['ok'=>true,'customer'=>['id'=>$customer->customer_unique_id,'name'=>$customer->customer_name,'status'=>$customer->status,'mobile'=>$customer->mobile,'package'=>$customer->package?->package], 'severity'=>$severity,'summary'=>$this->summary($severity,$customer,$causes),'likely_causes'=>array_values(array_unique($causes)),'evidence'=>array_values(array_unique($findings)),'support'=>$tickets,'recommended_checks'=>array_values(array_unique($checks)),'service_path'=>$path,'upstream_impact'=>$upstreamImpact,'read_only'=>true,'generated_at'=>now()->toIso8601String()];
+        $liveSessionState = $livePpp['state'] ?? 'not_checked';
+        $routerOfflineFresh = $router && $routerAge !== null && $routerAge <= 900
+            && in_array(strtolower((string) $router->action), ['offline','down','disabled'], true);
+        $oltOfflineFresh = $olt && $oltAge !== null && $oltAge <= 900
+            && in_array(strtolower((string) ($olt->health_status ?: $olt->status ?: '')), ['offline','down','critical','unreachable'], true);
+        $mappingOfflineFresh = $mapping && $mappingAge !== null && $mappingAge <= 900
+            && in_array(strtolower((string) $mapping->status), ['los','offline','down'], true);
+        $diagnosticConfidence = ($liveSessionState === 'offline' && ($oltOfflineFresh || $mappingOfflineFresh))
+            ? 'high'
+            : (in_array($liveSessionState, ['online','offline'], true) || $routerOfflineFresh || $oltOfflineFresh || $mappingOfflineFresh ? 'medium' : 'low');
+        $confidenceReason = match ($diagnosticConfidence) {
+            'high' => 'লাইভ PPPoE session check এবং সাম্প্রতিক OLT/ONU fault signal একে অপরকে সমর্থন করছে; root cause তবু যাচাই প্রয়োজন।',
+            'medium' => 'কিছু সাম্প্রতিক বা live evidence আছে, তবে নির্দিষ্ট root cause নিশ্চিত করার জন্য আরও যাচাই প্রয়োজন।',
+            default => 'লাইভ বা সাম্প্রতিক যথেষ্ট evidence নেই; পুরোনো status-কে নিশ্চিত root cause ধরা হয়নি।',
+        };
+
+        return ['ok'=>true,'customer'=>['id'=>$customer->customer_unique_id,'name'=>$customer->customer_name,'status'=>$customer->status,'mobile'=>$customer->mobile,'package'=>$customer->package?->package], 'severity'=>$severity,'diagnostic_confidence'=>$diagnosticConfidence,'confidence_reason'=>$confidenceReason,'summary'=>$this->summary($severity,$customer,$causes),'likely_causes'=>array_values(array_unique($causes)),'evidence'=>array_values(array_unique($findings)),'support'=>$tickets,'recommended_checks'=>array_values(array_unique($checks)),'service_path'=>$path,'upstream_impact'=>$upstreamImpact,'read_only'=>true,'generated_at'=>now()->toIso8601String()];
     }
 
     private function stateForCustomer(?string $status): string
@@ -197,6 +242,220 @@ class AiEngineerDiagnosticService
     {
         $due=$this->billingDue($billing);
         return $due>0?'due':'clear';
+    }
+
+    /**
+     * Read-only billing/payment consistency audit for the AI Engineer dashboard.
+     *
+     * BillingInfo.paid_amount is reset during monthly billing, so it is compared
+     * only with successful collection records from the current calendar month.
+     * This intentionally reports mismatches for human review and never repairs
+     * financial records automatically.
+     */
+    public function billingAudit(int $limit = 25): array
+    {
+        $now = now();
+        $hasCustomers = Schema::hasTable('customers_infos');
+        $hasBilling = Schema::hasTable('billing_infos');
+        $hasCollections = Schema::hasTable('collection_summaries');
+
+        if (! $hasCustomers || ! $hasBilling) {
+            return [
+                'available' => false,
+                'read_only' => true,
+                'generated_at' => $now->toIso8601String(),
+                'message' => 'Billing audit unavailable: required customer or billing table is missing.',
+                'summary' => [],
+                'findings' => [],
+                'findings_total' => 0,
+            ];
+        }
+
+        $findings = [];
+        $summary = [
+            'billing_records' => (int) DB::table('billing_infos')->count(),
+            'collection_records' => $hasCollections ? (int) DB::table('collection_summaries')->count() : 0,
+            'missing_active_billing' => 0,
+            'orphan_billing' => 0,
+            'orphan_collections' => 0,
+            'duplicate_billing_customers' => 0,
+            'payment_mismatches' => 0,
+            'pending_collections_current_month' => 0,
+        ];
+
+        $missingBillingQuery = DB::table('customers_infos as c')
+            ->leftJoin('billing_infos as b', 'b.customer_bill_unique_id', '=', 'c.customer_unique_id')
+            ->whereNull('b.id')
+            ->whereRaw("LOWER(COALESCE(c.status, '')) = ?", ['active']);
+        if (Schema::hasColumn('customers_infos', 'deleted_at')) {
+            $missingBillingQuery->whereNull('c.deleted_at');
+        }
+        $missingBillingRows = (clone $missingBillingQuery)
+            ->select('c.customer_unique_id', 'c.customer_name')
+            ->orderBy('c.customer_unique_id')
+            ->limit(max(1, min($limit, 100)))
+            ->get();
+        $summary['missing_active_billing'] = (int) (clone $missingBillingQuery)->count();
+        foreach ($missingBillingRows as $row) {
+            $findings[] = [
+                'type' => 'missing_billing',
+                'severity' => 'warning',
+                'customer_id' => (string) $row->customer_unique_id,
+                'customer_name' => (string) ($row->customer_name ?? ''),
+                'details' => 'Active customer has no billing record.',
+                'evidence' => 'No matching billing_infos row was found.',
+            ];
+        }
+
+        $orphanBillingQuery = DB::table('billing_infos as b')
+            ->leftJoin('customers_infos as c', 'c.customer_unique_id', '=', 'b.customer_bill_unique_id')
+            ->whereNull('c.id');
+        $orphanBillingRows = (clone $orphanBillingQuery)
+            ->select('b.customer_bill_unique_id')
+            ->orderBy('b.customer_bill_unique_id')
+            ->limit(max(1, min($limit, 100)))
+            ->get();
+        $summary['orphan_billing'] = (int) (clone $orphanBillingQuery)->count();
+        foreach ($orphanBillingRows as $row) {
+            $findings[] = [
+                'type' => 'orphan_billing',
+                'severity' => 'critical',
+                'customer_id' => (string) ($row->customer_bill_unique_id ?? ''),
+                'customer_name' => '',
+                'details' => 'Billing record has no matching customer.',
+                'evidence' => 'Billing/customer identifiers do not join.',
+            ];
+        }
+
+        $duplicateBillingRows = DB::table('billing_infos')
+            ->select('customer_bill_unique_id')
+            ->whereNotNull('customer_bill_unique_id')
+            ->groupBy('customer_bill_unique_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->orderBy('customer_bill_unique_id')
+            ->limit(max(1, min($limit, 100)))
+            ->get();
+        $summary['duplicate_billing_customers'] = (int) DB::query()
+            ->fromSub(
+                DB::table('billing_infos')
+                    ->select('customer_bill_unique_id')
+                    ->whereNotNull('customer_bill_unique_id')
+                    ->groupBy('customer_bill_unique_id')
+                    ->havingRaw('COUNT(*) > 1'),
+                'duplicate_billing_ids'
+            )->count();
+        foreach ($duplicateBillingRows as $row) {
+            $findings[] = [
+                'type' => 'duplicate_billing',
+                'severity' => 'warning',
+                'customer_id' => (string) $row->customer_bill_unique_id,
+                'customer_name' => '',
+                'details' => 'Multiple billing records are linked to one customer identifier.',
+                'evidence' => 'More than one billing_infos row has this customer ID.',
+            ];
+        }
+
+        if ($hasCollections) {
+            $orphanCollectionQuery = DB::table('collection_summaries as cs')
+                ->leftJoin('customers_infos as c', 'c.customer_unique_id', '=', 'cs.customer_collection_unique_id')
+                ->whereNull('c.id');
+            $orphanCollectionRows = (clone $orphanCollectionQuery)
+                ->select('cs.customer_collection_unique_id')
+                ->distinct()
+                ->orderBy('cs.customer_collection_unique_id')
+                ->limit(max(1, min($limit, 100)))
+                ->get();
+            $summary['orphan_collections'] = (int) (clone $orphanCollectionQuery)->count();
+            foreach ($orphanCollectionRows as $row) {
+                $findings[] = [
+                    'type' => 'orphan_collection',
+                    'severity' => 'critical',
+                    'customer_id' => (string) ($row->customer_collection_unique_id ?? ''),
+                    'customer_name' => '',
+                    'details' => 'Payment/collection record has no matching customer.',
+                    'evidence' => 'Collection/customer identifiers do not join.',
+                ];
+            }
+
+            $monthStart = $now->copy()->startOfMonth();
+            $monthEnd = $now->copy()->endOfMonth();
+            $paidCollections = DB::table('collection_summaries')
+                ->whereBetween('collection_date', [$monthStart, $monthEnd])
+                ->whereRaw('LOWER(COALESCE(payment_status, ?)) = ?', ['', 'paid'])
+                ->select('customer_collection_unique_id')
+                ->selectRaw('SUM(collection_amount) as collected_amount')
+                ->groupBy('customer_collection_unique_id')
+                ->get()
+                ->keyBy(fn ($row) => (string) $row->customer_collection_unique_id);
+
+            $pendingQuery = DB::table('collection_summaries')
+                ->whereBetween('collection_date', [$monthStart, $monthEnd])
+                ->whereRaw('LOWER(COALESCE(payment_status, ?)) IN (?, ?, ?)', ['', 'pending', 'processing', 'initiated']);
+            $summary['pending_collections_current_month'] = (int) $pendingQuery->count();
+
+            $billingSelect = ['b.customer_bill_unique_id'];
+            if (Schema::hasColumn('billing_infos', 'paid_amount')) {
+                $billingSelect[] = 'b.paid_amount';
+            }
+            if (Schema::hasColumn('billing_infos', 'due_amount')) {
+                $billingSelect[] = 'b.due_amount';
+            }
+            if (Schema::hasColumn('customers_infos', 'customer_name')) {
+                $billingSelect[] = 'c.customer_name';
+            }
+            $billingRows = DB::table('billing_infos as b')
+                ->leftJoin('customers_infos as c', 'c.customer_unique_id', '=', 'b.customer_bill_unique_id')
+                ->select($billingSelect)
+                ->orderBy('b.customer_bill_unique_id')
+                ->get();
+
+            $mismatchFindings = [];
+            foreach ($billingRows as $row) {
+                $customerId = (string) ($row->customer_bill_unique_id ?? '');
+                $billingPaid = (float) ($row->paid_amount ?? 0);
+                $collectionPaid = (float) ($paidCollections->get($customerId)->collected_amount ?? 0);
+                if (abs($billingPaid - $collectionPaid) <= 0.01) {
+                    continue;
+                }
+                $mismatchFindings[] = [
+                    'type' => 'payment_mismatch',
+                    'severity' => 'warning',
+                    'customer_id' => $customerId,
+                    'customer_name' => (string) ($row->customer_name ?? ''),
+                    'details' => 'Current-month billing paid amount differs from successful collection records.',
+                    'evidence' => 'Billing paid: '.number_format($billingPaid, 2, '.', '').'; successful collections this month: '.number_format($collectionPaid, 2, '.', '').'; difference: '.number_format($collectionPaid - $billingPaid, 2, '.', '').'.',
+                    'billing_paid' => $billingPaid,
+                    'collected_paid' => $collectionPaid,
+                    'difference' => round($collectionPaid - $billingPaid, 2),
+                ];
+            }
+            $summary['payment_mismatches'] = count($mismatchFindings);
+            $findings = array_merge($findings, $mismatchFindings);
+        }
+
+        $severityRank = ['critical' => 0, 'warning' => 1, 'info' => 2];
+        usort($findings, function ($a, $b) use ($severityRank) {
+            return ($severityRank[$a['severity'] ?? 'info'] ?? 3) <=> ($severityRank[$b['severity'] ?? 'info'] ?? 3);
+        });
+
+        $findingsTotal = count($findings);
+        $issuesTotal = $summary['missing_active_billing']
+            + $summary['orphan_billing']
+            + $summary['orphan_collections']
+            + $summary['duplicate_billing_customers']
+            + $summary['payment_mismatches'];
+
+        return [
+            'available' => true,
+            'read_only' => true,
+            'generated_at' => $now->toIso8601String(),
+            'month' => $now->format('F Y'),
+            'issues_total' => $issuesTotal,
+            'findings_total' => $findingsTotal,
+            'summary' => $summary,
+            'findings' => array_slice($findings, 0, max(1, min($limit, 100))),
+            'note' => 'Potential mismatches only; no billing, collection, customer, or payment data was changed.',
+        ];
     }
 
     /**
@@ -610,6 +869,238 @@ class AiEngineerDiagnosticService
         }
         $n = $network ?? $this->networkSnapshot(); $e['affected_customers']=$n['affected_customers'];
         $e['status']=$e['critical']>0?'critical':($e['open']>0||$n['olt_offline']>0?'attention':'healthy'); return $e;
+    }
+
+    /**
+     * Read-only audit of ONU/customer identity links and optical telemetry freshness.
+     *
+     * Optical power is reported with its source and measurement age. Absolute RX/TX
+     * alarms are intentionally not inferred without a vendor/model-specific threshold.
+     */
+    public function onuMappingAudit(int $limit = 25): array
+    {
+        $now = now();
+        if (! Schema::hasTable('olt_onu_customer_mappings')) {
+            return [
+                'available' => false,
+                'read_only' => true,
+                'generated_at' => $now->toIso8601String(),
+                'message' => 'ONU mapping audit unavailable: mapping table is missing.',
+                'summary' => [],
+                'findings' => [],
+                'findings_total' => 0,
+            ];
+        }
+
+        $maps = OltOnuCustomerMapping::query()
+            ->with(['olt', 'customer', 'pppUser'])
+            ->orderBy('id')
+            ->get();
+
+        $summary = [
+            'total_mappings' => $maps->count(),
+            'linked_mappings' => 0,
+            'unmapped' => 0,
+            'missing_identity_records' => 0,
+            'invalid_mac_records' => 0,
+            'invalid_customer_links' => 0,
+            'ppp_link_mismatches' => 0,
+            'missing_ppp_links' => 0,
+            'duplicate_mac_groups' => 0,
+            'duplicate_serial_groups' => 0,
+            'duplicate_customer_groups' => 0,
+            'optical_readings' => 0,
+            'optical_stale' => 0,
+            'optical_unknown_timestamp' => 0,
+            'optical_missing_reading' => 0,
+            'optical_unknown_source' => 0,
+            'stale_online_status' => 0,
+        ];
+        $findings = [];
+        $macGroups = [];
+        $serialGroups = [];
+        $customerGroups = [];
+
+        $addFinding = static function (
+            string $type,
+            string $severity,
+            OltOnuCustomerMapping $map,
+            string $details,
+            string $evidence
+        ) use (&$findings): void {
+            $findings[] = [
+                'type' => $type,
+                'severity' => $severity,
+                'mapping_id' => $map->id,
+                'olt' => $map->olt?->name ?? ('OLT #'.$map->olt_device_id),
+                'onu_id' => (string) ($map->onu_id ?? ''),
+                'pon' => (string) ($map->pon_port ?? ''),
+                'mac' => (string) ($map->onu_mac ?? ''),
+                'customer_id' => (string) ($map->customer?->customer_unique_id ?? ''),
+                'customer_name' => (string) ($map->customer?->customer_name ?? ''),
+                'details' => $details,
+                'evidence' => $evidence,
+            ];
+        };
+
+        foreach ($maps as $map) {
+            $customer = $map->customer;
+            $pppUser = $map->pppUser;
+
+            if (! $map->customer_id) {
+                $summary['unmapped']++;
+                $addFinding('unmapped_onu', 'warning', $map,
+                    'ONU has no linked customer.',
+                    'No customer_id is stored on this ONU mapping.');
+            } elseif (! $customer) {
+                $summary['invalid_customer_links']++;
+                $addFinding('invalid_customer_link', 'critical', $map,
+                    'ONU mapping references a customer record that cannot be loaded.',
+                    'customer_id='.$map->customer_id.' has no visible matching customer; check deleted/archived records.');
+            } else {
+                $summary['linked_mappings']++;
+                $customerGroups[(string) $map->customer_id][] = $map;
+                if ($map->ppp_user_id && ! $pppUser) {
+                    $summary['ppp_link_mismatches']++;
+                    $addFinding('missing_ppp_record', 'warning', $map,
+                        'ONU mapping references a PPP user that cannot be loaded.',
+                        'ppp_user_id='.$map->ppp_user_id.' has no visible matching PPP secret.');
+                } elseif ($map->ppp_user_id && (int) $customer->ppp_user_id !== (int) $map->ppp_user_id) {
+                    $summary['ppp_link_mismatches']++;
+                    $addFinding('ppp_link_mismatch', 'warning', $map,
+                        'ONU mapping PPP user differs from the customer’s current PPP user.',
+                        'Mapping PPP ID='.$map->ppp_user_id.'; customer PPP ID='.($customer->ppp_user_id ?? 'none').'.');
+                } elseif (! $map->ppp_user_id && $customer->ppp_user_id) {
+                    $summary['missing_ppp_links']++;
+                    $addFinding('missing_ppp_link', 'warning', $map,
+                        'Customer has a PPP user but the ONU mapping does not reference it.',
+                        'Customer PPP ID='.$customer->ppp_user_id.'; mapping ppp_user_id is empty.');
+                }
+            }
+
+            $rawMac = trim((string) $map->onu_mac);
+            $rawSerial = trim((string) $map->onu_serial);
+            $mac = strtolower(preg_replace('/[^a-f0-9]/i', '', $rawMac));
+            $serial = strtoupper(preg_replace('/[^a-z0-9]/i', '', $rawSerial));
+            if ($rawMac === '' && $rawSerial === '') {
+                $summary['missing_identity_records']++;
+                $addFinding('missing_onu_identity', 'warning', $map,
+                    'ONU mapping has neither a MAC address nor a serial number.',
+                    'Without a stable ONU identifier, customer matching cannot be confirmed safely.');
+            }
+            if ($rawMac !== '' && (! preg_match('/^[a-f0-9]{12}$/i', $mac) || in_array($mac, ['000000000000', 'ffffffffffff'], true))) {
+                $summary['invalid_mac_records']++;
+                $addFinding('invalid_onu_mac', 'warning', $map,
+                    'ONU MAC field is not a valid 12-hex-digit MAC address.',
+                    'Stored ONU MAC='.$rawMac.'; verify the vendor adapter/source before using it for matching.');
+            } elseif ($mac !== '') {
+                $macGroups[$mac][] = $map;
+            }
+            if ($serial !== '') {
+                $serialGroups[$serial][] = $map;
+            }
+
+            $hasPower = $map->rx_power !== null || $map->tx_power !== null;
+            if (! $hasPower) {
+                $summary['optical_missing_reading']++;
+                $addFinding('optical_missing_reading', 'warning', $map,
+                    'No RX/TX optical power reading is recorded.',
+                    'Verify whether this OLT vendor/adapter supports optical power collection.');
+            } else {
+                $summary['optical_readings']++;
+                if (trim((string) $map->opm_source) === '') {
+                    $summary['optical_unknown_source']++;
+                    $addFinding('optical_unknown_source', 'warning', $map,
+                        'Optical reading has no recorded measurement source.',
+                        'RX='.($map->rx_power ?? 'n/a').' dBm; TX='.($map->tx_power ?? 'n/a').' dBm.');
+                }
+
+                if (! $map->opm_last_seen_at) {
+                    $summary['optical_unknown_timestamp']++;
+                    $addFinding('optical_unknown_timestamp', 'warning', $map,
+                        'Optical power reading has no measurement timestamp.',
+                        'The value may be historical; freshness cannot be confirmed.');
+                } else {
+                    $measuredAt = \Illuminate\Support\Carbon::parse($map->opm_last_seen_at);
+                    $ageSeconds = max(0, $measuredAt->diffInSeconds($now, false));
+                    if ($measuredAt->gt($now->copy()->addMinutes(5))) {
+                        $summary['optical_unknown_timestamp']++;
+                        $addFinding('optical_future_timestamp', 'warning', $map,
+                            'Optical measurement timestamp is in the future.',
+                            'Measurement time='.$measuredAt->toIso8601String().'; check device/server clock synchronization.');
+                    } elseif ($ageSeconds > 86400) {
+                        $summary['optical_stale']++;
+                        $addFinding('optical_stale', 'warning', $map,
+                            'Optical power reading is older than 24 hours.',
+                            'Last optical sample='.$measuredAt->toIso8601String().'; age='.round($ageSeconds / 3600, 1).' hours.');
+                    }
+                }
+            }
+
+            if (in_array(strtolower((string) $map->status), ['online', 'up', 'active'], true)) {
+                $lastSeen = $map->last_seen_at;
+                $lastSeenAge = $lastSeen ? max(0, \Illuminate\Support\Carbon::parse($lastSeen)->diffInSeconds($now, false)) : null;
+                if ($lastSeenAge === null || $lastSeenAge > 86400) {
+                    $summary['stale_online_status']++;
+                    $addFinding('stale_online_status', 'warning', $map,
+                        'ONU is marked online but its last-seen timestamp is missing or older than 24 hours.',
+                        'Stored status='.$map->status.'; last_seen_at='.($lastSeen ? \Illuminate\Support\Carbon::parse($lastSeen)->toIso8601String() : 'missing').'.');
+                }
+            }
+        }
+
+        foreach ($macGroups as $normalizedMac => $group) {
+            if (count($group) < 2) {
+                continue;
+            }
+            $summary['duplicate_mac_groups']++;
+            $ids = implode(', ', array_map(fn ($map) => (string) $map->id, $group));
+            foreach ($group as $map) {
+                $addFinding('duplicate_onu_mac', 'critical', $map,
+                    'The same normalized ONU MAC appears in multiple mapping records.',
+                    'Normalized MAC='.$normalizedMac.'; mapping IDs='.$ids.'. No mapping was changed.');
+            }
+        }
+
+        foreach ($serialGroups as $normalizedSerial => $group) {
+            if (count($group) < 2) {
+                continue;
+            }
+            $summary['duplicate_serial_groups']++;
+            $ids = implode(', ', array_map(fn ($map) => (string) $map->id, $group));
+            foreach ($group as $map) {
+                $addFinding('duplicate_onu_serial', 'warning', $map,
+                    'The same normalized ONU serial appears in multiple mapping records.',
+                    'Normalized serial='.$normalizedSerial.'; mapping IDs='.$ids.'. Verify whether this represents duplicate inventory.');
+            }
+        }
+
+        foreach ($customerGroups as $customerId => $group) {
+            if (count($group) < 2) {
+                continue;
+            }
+            $summary['duplicate_customer_groups']++;
+            $ids = implode(', ', array_map(fn ($map) => (string) $map->id, $group));
+            foreach ($group as $map) {
+                $addFinding('duplicate_customer_mapping', 'warning', $map,
+                    'A customer is linked to more than one ONU mapping record.',
+                    'Customer DB ID='.$customerId.'; mapping IDs='.$ids.'. Confirm whether multiple ONUs are intentional.');
+            }
+        }
+
+        $severityRank = ['critical' => 0, 'warning' => 1, 'info' => 2];
+        usort($findings, fn ($a, $b) => ($severityRank[$a['severity']] ?? 3) <=> ($severityRank[$b['severity']] ?? 3));
+
+        return [
+            'available' => true,
+            'read_only' => true,
+            'generated_at' => $now->toIso8601String(),
+            'stale_after_hours' => 24,
+            'summary' => $summary,
+            'findings_total' => count($findings),
+            'findings' => array_slice($findings, 0, max(1, min($limit, 100))),
+            'note' => 'Read-only audit. No ONU/customer mappings or optical values were changed. RX/TX alarm thresholds must be configured for the specific vendor/model before classifying absolute dBm values as good or bad.',
+        ];
     }
 
     public function unmappedOnus(int $limit=20): array

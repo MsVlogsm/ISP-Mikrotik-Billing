@@ -96,6 +96,15 @@ class AiEngineerControllerTest extends TestCase
         $service->shouldReceive('unmappedOnus')->once()->with(12)->andReturn([]);
         $service->shouldReceive('upstreamCorrelation')->once()->with(100)->andReturn(['groups'=>[],'read_only'=>true]);
         $service->shouldReceive('matchingCandidates')->once()->with(100)->andReturn(['matches'=>[],'read_only'=>true]);
+        $service->shouldReceive('billingAudit')->once()->with(25)->andReturn([
+            'available'=>true,'read_only'=>true,'month'=>now()->format('F Y'),
+            'issues_total'=>0,'summary'=>[],'findings'=>[],'findings_total'=>0,
+            'note'=>'Read-only test audit.',
+        ]);
+        $service->shouldReceive('onuMappingAudit')->once()->with(30)->andReturn([
+            'available'=>true,'read_only'=>true,'summary'=>[],'findings'=>[],'findings_total'=>0,
+            'note'=>'Read-only test ONU audit.',
+        ]);
         $this->app->instance(AiEngineerDiagnosticService::class, $service);
 
         $this->get('/ai-engineer')->assertOk()->assertSee('AI Engineer');

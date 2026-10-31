@@ -44,8 +44,8 @@
                     <div id="customer-live-traffic" data-url="{{ route('customer.live-traffic', ['id' => encrypt($customer->customer_unique_id)]) }}">
                         <div class="row g-3 mb-3">
                             <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Status</div><div id="traffic-status" class="fs-5 fw-bold text-secondary">Checking…</div></div></div>
-                            <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Download</div><div id="traffic-rx" class="fs-5 fw-bold text-success">0 Mbps</div></div></div>
-                            <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Upload</div><div id="traffic-tx" class="fs-5 fw-bold text-primary">0 Mbps</div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Download</div><div id="traffic-download" class="fs-5 fw-bold text-success">0 Mbps</div></div></div>
+                            <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Upload</div><div id="traffic-upload" class="fs-5 fw-bold text-primary">0 Mbps</div></div></div>
                             <div class="col-md-3"><div class="border rounded p-3 h-100"><div class="small text-muted">Session Usage</div><div id="traffic-total" class="fs-6 fw-bold">0 MB ↓ / 0 MB ↑</div></div></div>
                         </div>
                         <div class="border rounded p-2 bg-body-tertiary">
@@ -56,8 +56,8 @@
                             <svg id="customer-traffic-chart" viewBox="0 0 1000 360" preserveAspectRatio="none" role="img" aria-label="Customer real-time internet usage graph" style="width:100%;height:360px;display:block;">
                                 <rect x="0" y="0" width="1000" height="360" fill="transparent"></rect>
                                 <g id="traffic-grid"></g>
-                                <polyline id="traffic-rx-line" fill="none" stroke="#198754" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points=""></polyline>
-                                <polyline id="traffic-tx-line" fill="none" stroke="#0d6efd" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points=""></polyline>
+                                <polyline id="traffic-download-line" fill="none" stroke="#198754" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points=""></polyline>
+                                <polyline id="traffic-upload-line" fill="none" stroke="#0d6efd" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points=""></polyline>
                             </svg>
                             <div class="d-flex justify-content-center gap-4 small mt-1"><span class="text-success">● Download</span><span class="text-primary">● Upload</span></div>
                         </div>
@@ -69,30 +69,32 @@
                             if (!root || root.dataset.initialized === '1') return;
                             root.dataset.initialized = '1';
                             const url = root.dataset.url;
-                            const rx = [], tx = [], maxPoints = 60;
+                            const download = [], upload = [], maxPoints = 60;
                             const el = id => document.getElementById(id);
                             const fmt = bits => bits >= 1000000 ? (bits / 1000000).toFixed(2) + ' Mbps' : bits >= 1000 ? (bits / 1000).toFixed(2) + ' Kbps' : Math.round(bits) + ' bps';
                             function draw() {
-                                const all = rx.concat(tx);
+                                const all = download.concat(upload);
                                 const max = Math.max(1, ...all) * 1.15;
                                 const line = values => values.map((v,i) => {
                                     const x = values.length <= 1 ? 500 : 20 + (i * 960 / (values.length - 1));
                                     const y = 330 - ((v / max) * 290);
                                     return `${x.toFixed(1)},${y.toFixed(1)}`;
                                 }).join(' ');
-                                el('traffic-rx-line').setAttribute('points', line(rx));
-                                el('traffic-tx-line').setAttribute('points', line(tx));
+                                el('traffic-download-line').setAttribute('points', line(download));
+                                el('traffic-upload-line').setAttribute('points', line(upload));
                             }
                             function update(d) {
                                 const t = d.traffic || {};
-                                const rxBits = Number(t['rx-bits-per-second'] || 0);
-                                const txBits = Number(t['tx-bits-per-second'] || 0);
-                                rx.push(rxBits); tx.push(txBits);
-                                if (rx.length > maxPoints) rx.shift();
-                                if (tx.length > maxPoints) tx.shift();
-                                el('traffic-rx').textContent = fmt(rxBits);
-                                el('traffic-tx').textContent = fmt(txBits);
-                                el('traffic-total').textContent = `${Number(t['rx-mb'] || 0).toFixed(2)} MB ↓ / ${Number(t['tx-mb'] || 0).toFixed(2)} MB ↑`;
+                                // For a customer's PPPoE interface, RouterOS RX is customer upload
+                                // and RouterOS TX is customer download.
+                                const downloadBits = Number(t['download-bits-per-second'] ?? t['tx-bits-per-second'] ?? 0);
+                                const uploadBits = Number(t['upload-bits-per-second'] ?? t['rx-bits-per-second'] ?? 0);
+                                download.push(downloadBits); upload.push(uploadBits);
+                                if (download.length > maxPoints) download.shift();
+                                if (upload.length > maxPoints) upload.shift();
+                                el('traffic-download').textContent = fmt(downloadBits);
+                                el('traffic-upload').textContent = fmt(uploadBits);
+                                el('traffic-total').textContent = `${Number(t['download-mb'] ?? t['tx-mb'] ?? 0).toFixed(2)} MB ↓ / ${Number(t['upload-mb'] ?? t['rx-mb'] ?? 0).toFixed(2)} MB ↑`;
                                 el('traffic-status').textContent = d.online ? 'Online' : 'Offline';
                                 el('traffic-status').className = 'fs-5 fw-bold ' + (d.online ? 'text-success' : 'text-danger');
                                 el('traffic-updated').textContent = new Date().toLocaleTimeString();

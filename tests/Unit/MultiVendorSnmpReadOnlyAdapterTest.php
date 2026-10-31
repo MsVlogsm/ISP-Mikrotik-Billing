@@ -17,7 +17,7 @@ class MultiVendorSnmpReadOnlyAdapterTest extends TestCase
         }
     }
 
-    public function test_vsol_v1600d4_live_sysdescr_uses_verified_legacy_oid_columns(): void
+    public function test_vsol_v1600d4_live_sysdescr_uses_verified_auth_info_table_columns(): void
     {
         $adapter = new MultiVendorSnmpReadOnlyAdapter();
         $device = new NetworkInventoryDevice(['type' => 'olt', 'vendor' => 'VSOL', 'model' => 'V1601E04-DP']);
@@ -25,8 +25,8 @@ class MultiVendorSnmpReadOnlyAdapterTest extends TestCase
         $method->setAccessible(true);
         $profile = $method->invoke($adapter, $device, 'V1600D4');
 
-        $this->assertSame('vsol_v1600d4_legacy_onu_table', $profile['key']);
-        $this->assertSame('1.3.6.1.4.1.37950.1.1.5.12.1.9.1.3', $profile['onu_oids']['onu_id']);
+        $this->assertSame('vsol_v1600d4_auth_info_table', $profile['key']);
+        $this->assertSame('1.3.6.1.4.1.37950.1.1.5.12.1.12.1.3', $profile['onu_oids']['onu_id']);
         $this->assertArrayNotHasKey('tx_power', $profile['onu_oids']);
     }
 

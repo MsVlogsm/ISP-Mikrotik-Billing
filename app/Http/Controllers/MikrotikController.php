@@ -1145,6 +1145,19 @@ class MikrotikController extends Controller
 
             foreach (RouterList::query()->get() as $router) {
                 $name = (string) $router->router_name;
+
+                // A disconnected router must never be polled for live telemetry.
+                // Keep it visible as unavailable rather than treating it as zero sessions.
+                if (($router->action ?? null) !== 'connected') {
+                    $routers[$name] = [
+                        'status' => 'unavailable',
+                        'count' => null,
+                        'synced_at' => \Cache::get("mikrotik:live_ppp_last_success:{$name}"),
+                        'type' => null,
+                    ];
+                    continue;
+                }
+
                 try {
                     $result = $this->checkConnection(
                         $router->ip_address,

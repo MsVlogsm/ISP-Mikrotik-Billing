@@ -293,6 +293,32 @@ class SyncOltOnuMappings extends Command
                 && $count === count($rows)
                 && $skipped === 0;
 
+            // Keep OLT-level live counters in sync only after a complete, verified,
+            // read-only poll. Capacity remains a separate PON-port property.
+            if ($completeReadOnlyPoll && ! $this->option('dry-run')) {
+                $liveOnuIds = collect($rows)
+                    ->map(fn (array $row) => trim((string) ($row['onu_id'] ?? $row['onuId'] ?? $row['id'] ?? $row['snmp_index'] ?? '')))
+                    ->filter(fn (string $id) => $id !== '')
+                    ->unique()
+                    ->values();
+                $liveTotal = $liveOnuIds->count();
+                $liveOnline = collect($rows)
+                    ->filter(fn (array $row) => $this->normalizeStatus($row) === 'online')
+                    ->count();
+                $mappedCustomerCount = OltOnuCustomerMapping::where('olt_device_id', $olt->id)
+                    ->whereIn('onu_id', $liveOnuIds->all())
+                    ->whereNotNull('customer_id')
+                    ->distinct()
+                    ->count('customer_id');
+
+                $olt->update([
+                    'onu_total' => $liveTotal,
+                    'onu_online' => $liveOnline,
+                    'customer_count' => $mappedCustomerCount,
+                ]);
+                $this->line("OLT {$olt->id}: live counters reconciled — {$liveOnline}/{$liveTotal} online; {$mappedCustomerCount} mapped customers.");
+            }
+
             $staleCandidates = $existingMappings->filter(
                 fn ($mapping) => strtolower(trim((string) $mapping->status)) === 'online'
                     && ! isset($seenMappingIds[(string) $mapping->id])

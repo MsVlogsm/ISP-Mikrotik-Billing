@@ -13,6 +13,12 @@
                 <p class="customer-page-subtitle mb-0">{{ __('Manage customer profiles, connectivity, billing and service actions from one place.') }}</p>
             </div>
             <div class="customer-header-actions d-flex flex-wrap gap-2">
+                @if(auth()->user()?->hasRole('Super Admin') || hasAccess(['Super Admin'], ['edit-customer']))
+                    <button type="button" class="btn btn-outline-primary" onclick="openBulkClientChange()">
+                        <i class="bi bi-arrow-left-right me-1"></i>{{ __('Bulk Client Copy') }}
+                        <span class="badge bg-primary ms-1" id="bulk-client-selected-count">0</span>
+                    </button>
+                @endif
                 @if(auth()->user()?->hasRole('Super Admin') || hasAccess(['Super Admin'], ['create-customer']))
                     <a href="{{ route('customer-add') }}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>{{ __('Add Customer') }}</a>
                 @endif
@@ -134,6 +140,99 @@
         </div>
     </div>
 
+    @if($bulkClientModalOpen)
+        <div class="modal fade show bulk-client-copy-modal" tabindex="-1" style="display:block; background:rgba(0,0,0,.55);" aria-modal="true" role="dialog" wire:key="bulk-client-change-modal">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title mb-1"><i class="bi bi-arrow-left-right me-2 text-primary"></i>{{ __('Bulk Client Copy') }}</h5>
+                            <div class="small text-muted">{{ count($bulkClientPreview) }} {{ __('selected PPPoE customers') }}</div>
+                        </div>
+                        <button type="button" class="btn-close" wire:click="closeBulkClientChange" aria-label="{{ __('Close') }}"></button>
+                    </div>
+                    <form class="bulk-client-copy-form" wire:submit.prevent="submitBulkClientChange">
+                        <div class="modal-body bulk-client-copy-body">
+                            @if($bulkClientError)
+                                <div class="alert alert-danger py-2">{{ $bulkClientError }}</div>
+                            @endif
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">{{ __('1st MikroTik Router (Source)') }}</label>
+                                    <select class="form-select" wire:model="bulkClientSourceRouter" required>
+                                        <option value="">{{ __('Select source router') }}</option>
+                                        @foreach($routers as $router)
+                                            <option value="{{ $router->router_name }}">{{ $router->router_name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <small class="text-muted">{{ __('Selected customers must belong to this router.') }}</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">{{ __('2nd MikroTik Router (Destination)') }}</label>
+                                    <select class="form-select" wire:model.live="bulkClientTargetRouter" required>
+                                        <option value="">{{ __('Select destination router') }}</option>
+                                        @foreach($routers as $router)
+                                            @if($router->router_name !== $bulkClientSourceRouter)
+                                                <option value="{{ $router->router_name }}">{{ $router->router_name }}{{ $router->action === 'connected' ? '' : ' (Offline)' }}</option>
+                                            @endif
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info py-2 small">
+                                <strong>{{ __('Copy behavior:') }}</strong>
+                                {{ __('Each destination PPP secret is first created as disabled and verified. The source router secret remains untouched, and the existing customer PPP router/profile assignment in X-Link Billing is not changed.') }}
+                                <br>
+                                {{ __('Billing, payments, package assignments, customer identity, ONU mappings and active source sessions remain unchanged. PPPoE server/interface settings are not changed.') }}
+                            </div>
+
+                            <div class="table-responsive border rounded">
+                                <table class="table table-sm table-striped align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>{{ __('Customer ID') }}</th>
+                                            <th>{{ __('Customer') }}</th>
+                                            <th>{{ __('PPPoE Username') }}</th>
+                                            <th>{{ __('Current Profile') }}</th>
+                                            <th>{{ __('Destination Profile') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($bulkClientPreview as $client)
+                                            <tr>
+                                                <td class="fw-semibold">{{ $client['cid'] }}</td>
+                                                <td>{{ $client['customer'] }}</td>
+                                                <td><code>{{ $client['username'] }}</code></td>
+                                                <td>{{ $client['profile'] ?: '—' }}</td>
+                                                <td style="min-width:190px;">
+                                                    <select class="form-select form-select-sm" wire:model="bulkClientProfileMap.{{ $client['cid'] }}" @disabled(empty($bulkClientProfiles))>
+                                                        <option value="">{{ __('Select profile') }}</option>
+                                                        @foreach($bulkClientProfiles as $profile)
+                                                            <option value="{{ $profile }}">{{ $profile }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="small text-muted mt-2">{{ __('Maximum 100 customers per batch. A matching destination profile is preselected when available; review the destination profile for every customer. If a username already exists on the destination router, the entire batch is stopped before any changes.') }}</div>
+                        </div>
+                        <div class="modal-footer bulk-client-copy-footer">
+                            <button type="button" class="btn btn-light border" wire:click="closeBulkClientChange">{{ __('Cancel') }}</button>
+                            <button type="button" class="btn btn-primary" onclick="confirmBulkClientChange()" @disabled(empty($bulkClientProfiles))>
+                                <i class="bi bi-arrow-left-right me-1"></i>{{ __('Copy Selected Customers') }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
     @if($editingCustomerId)
         <div class="modal fade show" tabindex="-1" style="display: block; background: rgba(0,0,0,0.5);" aria-modal="true" role="dialog" wire:key="edit-customer-modal-{{ $editingCustomerId }}">
             <div class="modal-dialog modal-fullscreen">
@@ -240,6 +339,41 @@
 
 @push('styles')
     <style>
+        /* Keep the bulk-copy action bar visible while the customer table scrolls. */
+        .bulk-client-copy-modal .modal-content {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 1rem);
+            max-height: calc(100vh - 1rem);
+            overflow: hidden;
+        }
+        .bulk-client-copy-form {
+            display: flex;
+            flex: 1 1 auto;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .bulk-client-copy-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto !important;
+            overscroll-behavior: contain;
+        }
+        .bulk-client-copy-footer {
+            position: sticky;
+            bottom: 0;
+            z-index: 5;
+            flex: 0 0 auto;
+            background: var(--bs-modal-bg, #fff);
+            border-top: 1px solid var(--bs-border-color, #dee2e6);
+            box-shadow: 0 -5px 14px rgba(15, 23, 42, .06);
+        }
+        .bulk-client-copy-footer .btn-primary {
+            min-height: 42px;
+            padding-inline: 1.15rem;
+            font-weight: 700;
+        }
         .customer-cid-live { display:inline-flex; align-items:center; gap:.45rem; white-space:nowrap; }
         .customer-live-dot { display:inline-block; width:.58rem; height:.58rem; flex:0 0 .58rem; border-radius:50%; }
         .customer-live-dot--active { background:#16a34a; box-shadow:0 0 0 0 rgba(22,163,74,.55); animation:customerLivePulse 1.6s infinite; }
@@ -260,6 +394,21 @@
         .customer-row-actions .dropdown-toggle { border-radius: 9px; font-size: .78rem; font-weight: 700; white-space: nowrap; }
         .customer-row-actions .dropdown-menu { min-width: 235px; max-height: 70vh; overflow-y: auto; padding: .45rem; border: 1px solid #e7ebf3; border-radius: 12px; z-index: 1085; }
         .customer-row-actions .dropdown-item { border-radius: 7px; padding: .48rem .65rem; font-size: .82rem; }
+        /* Anchor actions are permitted menu items, not disabled links. Explicitly override
+           inherited theme link colors so they remain readable like the button actions. */
+        .customer-row-actions .dropdown-menu a.dropdown-item {
+            color: #25364d !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            cursor: pointer !important;
+            text-decoration: none !important;
+        }
+        .customer-row-actions .dropdown-menu a.dropdown-item:hover,
+        .customer-row-actions .dropdown-menu a.dropdown-item:focus {
+            color: #14243a !important;
+            background: #eaf0ff !important;
+        }
+        .customer-row-actions .dropdown-menu a.dropdown-item i { opacity: 1 !important; }
         .customer-row-actions .dropdown-item:hover { background: #f2f5ff; }
         .customer-filter-card,
         .customer-table-card {
@@ -654,20 +803,27 @@
                 }
             }
 
+            function updateBulkClientSelectionCount() {
+                $('#bulk-client-selected-count').text($('.customer-select:checked').length);
+            }
+
             table.on('draw', function () {
                 updateCustomerCount();
                 $('#select-all-customers').prop('checked', false);
+                updateBulkClientSelectionCount();
             });
 
             // Select/unselect all customers visible on the current page.
             $(document).off('change.customerSelectAll', '#select-all-customers').on('change.customerSelectAll', '#select-all-customers', function () {
                 $('.customer-select').prop('checked', this.checked);
+                updateBulkClientSelectionCount();
             });
 
             $(document).off('change.customerSelect', '.customer-select').on('change.customerSelect', '.customer-select', function () {
                 const total = $('.customer-select').length;
                 const selected = $('.customer-select:checked').length;
                 $('#select-all-customers').prop('checked', total > 0 && total === selected);
+                updateBulkClientSelectionCount();
             });
             
             // Logic to reset table search when a filter is clicked
@@ -695,6 +851,48 @@
                 table.clear().draw();
                 table.ajax.reload(null, true);
             });
+
+            window.openBulkClientChange = function() {
+                const selectedCustomerIds = $('.customer-select:checked').map(function () {
+                    return String(this.value || '').trim();
+                }).get().filter(Boolean);
+
+                if (!selectedCustomerIds.length) {
+                    Swal.fire({
+                        title: "{{ __('No customers selected') }}",
+                        text: "{{ __('Select customers using the checkboxes in the first column.') }}",
+                        icon: "info"
+                    });
+                    return;
+                }
+
+                if (selectedCustomerIds.length > 100) {
+                    Swal.fire({
+                        title: "{{ __('Batch limit reached') }}",
+                        text: "{{ __('Select no more than 100 customers per batch.') }}",
+                        icon: "warning"
+                    });
+                    return;
+                }
+
+                $wire.call('openBulkClientChange', selectedCustomerIds);
+            };
+
+            window.confirmBulkClientChange = function() {
+                Swal.fire({
+                    title: "{{ __('Copy selected customers to destination router?') }}",
+                    text: "{{ __('The destination PPP secrets will be created and verified. Source secrets, customer assignments and active source sessions will remain unchanged.') }}",
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonColor: "#2563eb",
+                    cancelButtonColor: "#6b7280",
+                    confirmButtonText: "{{ __('Yes, copy customers') }}"
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $wire.call('submitBulkClientChange');
+                    }
+                });
+            };
 
             window.confirmDeleteCustomer = function(encryptedId) {
                 Swal.fire({

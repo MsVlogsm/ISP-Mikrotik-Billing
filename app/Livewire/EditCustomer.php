@@ -764,6 +764,15 @@ class EditCustomer extends Component
                         }
                     }
 
+                    // Validate the prepaid expiry before creating anything on the router.
+                    // This prevents an unpaid renewal attempt from leaving an orphan PPP secret.
+                    $customerId = decrypt($this->customerId);
+                    $billingPreflight = BillingInfo::where('customer_bill_unique_id', $customerId)->firstOrFail();
+                    $billingPreflight->auto_disable_date = $this->auto_disable_date
+                        ? Carbon::parse($this->auto_disable_date)->toDateString()
+                        : Carbon::now()->addDays(30)->toDateString();
+                    app(\App\Services\PrepaidExpiryGuard::class)->assertCanSave($billingPreflight);
+
                     // Build and execute PPP secret add via pooled/cached controller
                     if ($this->ppp_remote_ip != '') {
                         $cmd = "/ppp secret add name={$this->mtValue($this->username)} password={$this->mtValue($this->password)} service={$this->mtValue($this->service)} profile={$this->mtValue($this->profile)} comment={$this->mtValue($this->comment)} remote-address={$this->mtValue($this->ppp_remote_ip)} caller-id={$this->mtValue($this->caller_id)}";

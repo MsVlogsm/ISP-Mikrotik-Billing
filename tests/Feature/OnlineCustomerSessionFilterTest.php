@@ -64,6 +64,59 @@ class OnlineCustomerSessionFilterTest extends TestCase
         );
     }
 
+    public function test_live_session_on_replacement_router_counts_customer_assigned_to_disconnected_router(): void
+    {
+        $oldRouter = $this->router('router-old');
+        $oldRouter->update(['action' => 'disconnected']);
+        $this->router('router-new');
+
+        $customer = $this->customer('CID-MANUAL-SHIFT', 'copied-user', 'router-old');
+
+        // The destination router has the copied PPP secret, but the customer
+        // still references the original PPPSecrets row in the billing database.
+        PPPSecrets::create([
+            'router_name' => 'router-new',
+            'username' => 'copied-user',
+            'service' => 'pppoe',
+            'status' => 'active',
+        ]);
+
+        $filter = app(OnlineCustomerSessionFilter::class);
+        $users = $filter->addDisconnectedRouterAliases(
+            ['router-new' => ['copied-user' => true]],
+            1
+        );
+
+        $this->assertTrue($users['router-old']['copied-user'] ?? false);
+        $this->assertSame(
+            [$customer->customer_unique_id],
+            $filter->apply(CustomersInfo::query(), $users, 1)
+                ->orderBy('id')
+                ->pluck('customer_unique_id')
+                ->all()
+        );
+    }
+
+    public function test_ambiguous_username_is_not_aliased_across_disconnected_routers(): void
+    {
+        $routerA = $this->router('router-old-a');
+        $routerA->update(['action' => 'disconnected']);
+        $routerB = $this->router('router-old-b');
+        $routerB->update(['action' => 'disconnected']);
+        $this->router('router-new');
+
+        $this->customer('CID-DUPLICATE-A', 'same-user', 'router-old-a');
+        $this->customer('CID-DUPLICATE-B', 'same-user', 'router-old-b');
+
+        $users = app(OnlineCustomerSessionFilter::class)->addDisconnectedRouterAliases(
+            ['router-new' => ['same-user' => true]],
+            1
+        );
+
+        $this->assertArrayNotHasKey('router-old-a', $users);
+        $this->assertArrayNotHasKey('router-old-b', $users);
+    }
+
     public function test_failed_live_session_reads_never_fall_back_to_enabled_account_counts(): void
     {
         $this->router('router-a');

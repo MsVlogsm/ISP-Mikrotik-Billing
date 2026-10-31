@@ -107,6 +107,7 @@
 </x-mikrotik.section-form>
 </div>
 </div>
+</div>
 <div class="edit-customer-tab-pane d-none" id="network-{{ md5((string)$customerId) }}">
 <div class="card border-0 shadow-sm">
 <div class="card-header bg-white"><strong><i class="bi bi-geo-alt me-2"></i>Network Location</strong><small class="d-block text-muted">Set the customer's exact network location. Click on the map or enter coordinates manually.</small></div>

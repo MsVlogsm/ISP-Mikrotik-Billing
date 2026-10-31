@@ -775,12 +775,12 @@ class ResellerTest extends TestCase
             'package_id' => $package->id,
             'amount' => 150.00,
             'commission_percentage' => 15.00,
-            'created_at' => now()->subMonth()->startOfMonth(),
+            'created_at' => now()->startOfMonth()->subMonth(),
         ]);
 
         \App\Models\CollectionSummary::create([
             'customer_collection_unique_id' => $customer->customer_unique_id,
-            'collection_date' => now()->subMonth()->startOfMonth(),
+            'collection_date' => now()->startOfMonth()->subMonth(),
             'collection_amount' => 700.00,
             'payment_status' => 'paid',
             'invoice_no' => 1002,
@@ -809,7 +809,7 @@ class ResellerTest extends TestCase
         $this->assertEquals(250.00, (float) $resellerObj->totalProfit());
 
         // 3. Check specific month (last month)
-        $lastMonth = now()->subMonth();
+        $lastMonth = now()->startOfMonth()->subMonth();
         $response = $this->actingAs($admin)
             ->withServerVariables(['HTTP_HOST' => 'bill.xlinkbd.net', 'SERVER_NAME' => 'bill.xlinkbd.net', 'SERVER_PORT' => '8081'])
             ->get(route('admin.resellers.index', ['month' => $lastMonth->month, 'year' => $lastMonth->year]));

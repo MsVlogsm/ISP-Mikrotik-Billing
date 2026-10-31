@@ -69,8 +69,20 @@ const pointFeature = (node) => {
             router: node.router || '',
             customer_uid: node.customer_uid || '',
             customer_url: node.customer_url || '',
+            account_status: node.account_status || '',
             latitude: Number(node.lat),
             longitude: Number(node.lng),
+            vendor: node.vendor || '',
+            model: node.model || '',
+            firmware: node.firmware || '',
+            serial_no: node.serial_no || '',
+            health_status: node.health_status || '',
+            last_checked_at: node.last_checked_at || '',
+            last_latency_ms: node.last_latency_ms ?? null,
+            onu_total: node.onu_total ?? null,
+            onu_online: node.onu_online ?? null,
+            rx_power: node.rx_power ?? null,
+            customer_count: node.customer_count ?? null,
         },
         geometry: {
             type: 'Point',
@@ -86,6 +98,15 @@ const lineFeature = (edge) => ({
         toKey: edge.toKey,
         type: edge.type || 'connection',
         label: edge.label || edge.type || 'Connection',
+        status: edge.status || 'unknown',
+        capacity_mbps: edge.capacity_mbps ?? null,
+        traffic_mbps: edge.traffic_mbps ?? null,
+        latency_ms: edge.latency_ms ?? null,
+        packet_loss: edge.packet_loss ?? null,
+        fiber_core: edge.fiber_core || '',
+        fiber_type: edge.fiber_type || '',
+        source_port: edge.source_port || '',
+        target_port: edge.target_port || '',
     },
     geometry: {
         type: 'LineString',
@@ -187,14 +208,44 @@ function popupContent(node) {
             ${node.customer_uid
                 ? `<div class="xlink-network-popup__row"><span>Customer ID</span><strong>${escapeHtml(node.customer_uid)}</strong></div>`
                 : ''}
+            ${node.kind === 'customer' && node.account_status
+                ? `<div class="xlink-network-popup__row"><span>Billing account</span><strong>${escapeHtml(node.account_status)}</strong></div>`
+                : ''}
             ${node.ip
                 ? `<div class="xlink-network-popup__row"><span>IP address</span><strong>${escapeHtml(node.ip)}</strong></div>`
                 : ''}
             ${node.router
                 ? `<div class="xlink-network-popup__row"><span>Router</span><strong>${escapeHtml(node.router)}</strong></div>`
                 : ''}
+            ${node.vendor || node.model
+                ? `<div class="xlink-network-popup__row"><span>Vendor / model</span><strong>${escapeHtml([node.vendor, node.model].filter(Boolean).join(' · '))}</strong></div>`
+                : ''}
+            ${node.firmware
+                ? `<div class="xlink-network-popup__row"><span>Firmware</span><strong>${escapeHtml(node.firmware)}</strong></div>`
+                : ''}
+            ${node.serial_no
+                ? `<div class="xlink-network-popup__row"><span>Serial</span><strong>${escapeHtml(node.serial_no)}</strong></div>`
+                : ''}
             ${node.location
                 ? `<div class="xlink-network-popup__row"><span>Location</span><strong>${escapeHtml(node.location)}</strong></div>`
+                : ''}
+            ${node.health_status && String(node.health_status).toLowerCase() !== status
+                ? `<div class="xlink-network-popup__row"><span>Source status</span><strong>${escapeHtml(node.health_status)}</strong></div>`
+                : ''}
+            ${node.last_latency_ms !== null && node.last_latency_ms !== undefined && Number.isFinite(Number(node.last_latency_ms))
+                ? `<div class="xlink-network-popup__row"><span>Last latency</span><strong>${escapeHtml(Number(node.last_latency_ms).toFixed(1))} ms</strong></div>`
+                : ''}
+            ${node.last_checked_at
+                ? `<div class="xlink-network-popup__row"><span>Last checked</span><strong>${escapeHtml(node.last_checked_at)}</strong></div>`
+                : ''}
+            ${node.onu_total !== null && node.onu_total !== undefined
+                ? `<div class="xlink-network-popup__row"><span>ONU status</span><strong>${escapeHtml(node.onu_online ?? '—')} / ${escapeHtml(node.onu_total)} online</strong></div>`
+                : ''}
+            ${node.customer_count !== null && node.customer_count !== undefined
+                ? `<div class="xlink-network-popup__row"><span>Customers served</span><strong>${escapeHtml(node.customer_count)}</strong></div>`
+                : ''}
+            ${node.rx_power !== null && node.rx_power !== undefined && Number.isFinite(Number(node.rx_power))
+                ? `<div class="xlink-network-popup__row"><span>RX power</span><strong>${escapeHtml(Number(node.rx_power).toFixed(2))} dBm</strong></div>`
                 : ''}
             <div class="xlink-network-popup__row"><span>Coordinates</span><strong>${coordinates}</strong></div>
             <div class="xlink-network-popup__actions">
@@ -212,7 +263,7 @@ function popupContent(node) {
                     ? `<a class="xlink-map-action" href="${escapeHtml(node.customer_url)}">View Customer</a>`
                     : ''}
             </div>
-            <p class="xlink-network-popup__note">Street imagery depends on Google Maps coverage at this location.</p>
+            <p class="xlink-network-popup__note">${node.kind === 'customer' ? 'Billing account status is not a live network-session check, so connectivity is shown as unknown here.' : 'Street imagery depends on Google Maps coverage at this location.'}</p>
         </section>
     `;
 }
@@ -311,11 +362,58 @@ function bootNetworkMap() {
         );
     };
 
+    const renderNodeDirectory = () => {
+        const container = document.getElementById('map-node-directory');
+        const summary = document.getElementById('map-directory-summary');
+        const countBadge = document.getElementById('map-directory-count');
+        if (!container) return;
+
+        const kindRank = { olt: 0, router: 1, onu: 2, switch: 3, 'wifi-router': 4, 'access-point': 5, customer: 6 };
+        const statusRank = { offline: 0, unknown: 1, online: 2 };
+        const priorityNodes = [...filteredNodes].sort((a, b) =>
+            (statusRank[String(a.status || 'unknown')] ?? 1) - (statusRank[String(b.status || 'unknown')] ?? 1) ||
+            (kindRank[a.kind] ?? 9) - (kindRank[b.kind] ?? 9) ||
+            String(a.label || a.id || '').localeCompare(String(b.label || b.id || '')),
+        );
+        const displayed = priorityNodes.slice(0, 10);
+        const icons = { router: 'bi-router', olt: 'bi-hdd-network', onu: 'bi-diagram-2', 'wifi-router': 'bi-wifi', 'access-point': 'bi-broadcast', switch: 'bi-ethernet', customer: 'bi-person-vcard' };
+        const tones = { router: '#2563eb', olt: '#7c3aed', onu: '#0891b2', 'wifi-router': '#16a34a', 'access-point': '#ea580c', switch: '#64748b', customer: '#64748b' };
+
+        container.innerHTML = displayed.length ? displayed.map((node) => {
+            const key = toKey(node);
+            const kind = KINDS[node.kind] || 'Network device';
+            const status = ['online', 'offline', 'unknown'].includes(String(node.status || '').toLowerCase()) ? String(node.status).toLowerCase() : 'unknown';
+            const meta = node.ip || node.customer_uid || `${Number(node.lat).toFixed(4)}, ${Number(node.lng).toFixed(4)}`;
+            return `<button type="button" class="network-map-directory-item" data-map-node-key="${escapeHtml(key)}" style="--dir-color:${tones[node.kind] || '#64748b'};--dir-soft:color-mix(in srgb, ${tones[node.kind] || '#64748b'} 12%, transparent)">
+                <span class="network-map-directory-item__icon"><i class="bi ${icons[node.kind] || 'bi-hdd-network'}"></i></span>
+                <span class="network-map-directory-item__text"><span class="network-map-directory-item__name">${escapeHtml(node.label || node.id || kind)}</span><span class="network-map-directory-item__meta">${escapeHtml(kind)} · ${escapeHtml(meta)}</span></span>
+                <span class="network-map-directory-item__status ${status}">${escapeHtml(status)}</span>
+            </button>`;
+        }).join('') : '<div class="network-map-directory-empty"><i class="bi bi-search me-1"></i>No nodes match these filters.</div>';
+
+        if (countBadge) countBadge.textContent = String(displayed.length);
+        if (summary) summary.textContent = filteredNodes.length > 10
+            ? `Showing 10 of ${filteredNodes.length} matches · offline/unknown first`
+            : `${displayed.length} matching node${displayed.length === 1 ? '' : 's'} · offline/unknown first`;
+    };
+
     const updateCount = () => {
         const result = document.getElementById('map-result-count');
         if (result) {
             result.textContent = `${filteredNodes.length} node${filteredNodes.length === 1 ? '' : 's'} shown`;
         }
+        const countByStatus = (status) => filteredNodes.filter((node) => String(node.status || 'unknown').toLowerCase() === status).length;
+        const online = document.getElementById('map-visible-online');
+        const offline = document.getElementById('map-visible-offline');
+        const unknown = document.getElementById('map-visible-unknown');
+        const visibleNodes = document.getElementById('map-visible-nodes');
+        const visibleLinks = document.getElementById('map-visible-links');
+        if (online) online.textContent = countByStatus('online').toLocaleString();
+        if (offline) offline.textContent = countByStatus('offline').toLocaleString();
+        if (unknown) unknown.textContent = countByStatus('unknown').toLocaleString();
+        if (visibleNodes) visibleNodes.textContent = filteredNodes.length.toLocaleString();
+        if (visibleLinks) visibleLinks.textContent = filteredEdges.length.toLocaleString();
+        renderNodeDirectory();
     };
 
     const updateSources = (refit = false) => {
@@ -593,19 +691,46 @@ function bootNetworkMap() {
         }
 
         if (props.type || props.label) {
+            const toNumber = (value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
+            const capacity = toNumber(props.capacity_mbps);
+            const traffic = toNumber(props.traffic_mbps);
+            const latency = toNumber(props.latency_ms);
+            const packetLoss = toNumber(props.packet_loss);
+            const utilization = capacity > 0 && traffic !== null ? `${((traffic / capacity) * 100).toFixed(1)}%` : 'Not reported';
+            const row = (label, value) => `<div class="xlink-network-popup__row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+            const numberRow = (label, value, suffix, digits = 2) => row(label, value === null ? 'Not reported' : `${value.toFixed(digits)} ${suffix}`);
+            const status = String(props.status || 'unknown').toLowerCase();
+            const safeStatus = ['online', 'offline', 'unknown', 'up', 'down', 'active', 'inactive'].includes(status) ? status : 'unknown';
             const html = `
-                <div class="xlink-network-popup">
-                    <span class="xlink-network-popup__kind">Network connection</span>
+                <section class="xlink-network-popup xlink-network-popup--connection">
+                    <header class="xlink-network-popup__header"><span class="xlink-network-popup__kind">Network connection</span><span class="xlink-network-popup__status ${safeStatus === 'online' || safeStatus === 'up' || safeStatus === 'active' ? 'online' : (safeStatus === 'offline' || safeStatus === 'down' || safeStatus === 'inactive' ? 'offline' : 'unknown')}">${escapeHtml(safeStatus)}</span></header>
                     <h4 class="xlink-network-popup__title">${escapeHtml(props.label || 'Connection')}</h4>
-                    <div class="xlink-network-popup__row"><span>Type</span><strong>${escapeHtml(
-                        String(props.type || 'connection').replace(/_/g, ' '),
-                    )}</strong></div>
-                </div>`;
+                    ${row('Connection type', String(props.type || 'connection').replace(/_/g, ' '))}
+                    ${row('Source endpoint', `${props.fromKey || '—'}${props.source_port ? ` · Port ${props.source_port}` : ''}`)}
+                    ${row('Target endpoint', `${props.toKey || '—'}${props.target_port ? ` · Port ${props.target_port}` : ''}`)}
+                    ${numberRow('Capacity', capacity, 'Mbps', 1)}
+                    ${numberRow('Traffic', traffic, 'Mbps', 2)}
+                    ${row('Utilization', utilization)}
+                    ${numberRow('Latency', latency, 'ms', 1)}
+                    ${numberRow('Packet loss', packetLoss, '%', 2)}
+                    ${props.fiber_type ? row('Fiber type', props.fiber_type) : ''}
+                    ${props.fiber_core ? row('Fiber core', props.fiber_core) : ''}
+                </section>`;
             popup.setLngLat(event.lngLat).setHTML(html).addTo(map);
         }
     };
 
     const mapClickHandler = () => {
+        document.getElementById('map-node-directory')?.addEventListener('click', (event) => {
+            const item = event.target.closest('[data-map-node-key]');
+            if (!item || !map) return;
+            const node = featuresByKey.get(item.dataset.mapNodeKey);
+            if (!node) return;
+            const point = [Number(node.lng), Number(node.lat)];
+            map.easeTo({ center: point, zoom: Math.max(map.getZoom(), 15), duration: 550 });
+            popup.setLngLat(point).setHTML(popupContent(node)).addTo(map);
+        });
+
         const options = [
             document.getElementById('map-type-filter'),
             document.getElementById('map-router-filter'),

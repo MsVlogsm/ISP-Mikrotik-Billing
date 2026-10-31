@@ -9,7 +9,6 @@ use App\Models\PaymentSummary;
 use App\Models\PPPSecrets;
 use App\Models\Reseller;
 use App\Models\RouterList;
-use App\Services\PrepaidBillingCycle;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Livewire\Attributes\On;
@@ -55,6 +54,22 @@ class CustomerList extends Component
     public $bill_username;
 
     public $bill_auto_disable_date;
+
+    public $bulkClientModalOpen = false;
+
+    public $bulkClientSelectedIds = [];
+
+    public $bulkClientSourceRouter = '';
+
+    public $bulkClientTargetRouter = '';
+
+    public $bulkClientProfiles = [];
+
+    public $bulkClientProfileMap = [];
+
+    public $bulkClientPreview = [];
+
+    public $bulkClientError = '';
 
     public function render()
     {
@@ -389,33 +404,56 @@ class CustomerList extends Component
                 $disableBtn = '<button onclick="confirmDisableCustomer(\''.$id.'\')" class="btn btn-warning text-dark" title="Disable"><i class="bi bi-slash-circle"></i></button>';
                 $deleteBtn = '<button onclick="confirmDeleteCustomer(\''.$id.'\')" class="btn btn-danger" title="Delete"><i class="bi bi-trash"></i></button>';
 
-                $isAdmin = auth()->user()?->hasRole('Super Admin');
-                $canEdit = $isAdmin || hasAccess(['Super Admin'], ['edit-customer']);
-                $canBill = hasAccess(['Super Admin'], ['update-bill']);
-                $canCollect = $isAdmin || hasAccess(['Super Admin'], ['payment-collection', 'update-bill']);
-                $canTicket = $isAdmin || hasAccess(['Super Admin'], ['manage-tickets']);
+                $isAdmin = (bool) auth()->user()?->hasRole('Super Admin');
+                $canAction = fn (array $permissions) => $isAdmin || (auth()->user()?->hasAnyPermission($permissions) ?? false);
+                $canView = $canAction(['view-customer', 'all-customer']);
+                $canEdit = $canAction(['edit-customer']);
+                $canBill = $canAction(['update-bill']);
+                $canOwner = $canAction(['manage-customer-assignment']);
+                $canPush = $canAction(['push-customers']);
+                $canWifi = $canAction(['mikrotik-setup']);
+                $canLedger = $canAction(['payment-history', 'collection-list', 'amount-collection-report']);
+                $canCollect = $canAction(['payment-collection']);
+                $canInvoice = $canAction(['payment-collection-invoice']);
+                $canSms = $canAction(['create-sms']);
+                $canGraph = $canAction(['network-inventory', 'mikrotik-setup']);
+                $canTicket = $canAction(['manage-tickets', 'view-tickets']);
                 $actionUrl = fn ($action) => route('customer.actions', ['id' => $id, 'action' => $action]);
                 $menu = '<div class="dropdown customer-row-actions">'
                     .'<button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-lightning-charge me-1"></i>Actions</button>'
-                    .'<ul class="dropdown-menu dropdown-menu-end shadow">'
-                    .'<li><a class="dropdown-item" href="'.e(route('customer.details', $row->customer_unique_id)).'"><i class="bi bi-person-vcard me-2 text-primary"></i>Customer overview</a></li>';
+                    .'<ul class="dropdown-menu dropdown-menu-end shadow">';
 
+                if ($canView) {
+                    $menu .= '<li><a class="dropdown-item" href="'.e(route('customer.details', $row->customer_unique_id)).'"><i class="bi bi-person-vcard me-2 text-primary"></i>Customer overview</a></li>';
+                }
                 if ($canEdit) {
                     $menu .= '<li><button class="dropdown-item" type="button" onclick="Livewire.dispatch(\'open-edit-customer\', { id: \''.$id.'\' })"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit customer</button></li>';
+                }
+                if ($canOwner) {
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('owner')).'"><i class="bi bi-person-gear me-2"></i>Change owner / package</a></li>';
+                }
+                if ($canPush) {
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('class')).'"><i class="bi bi-tags me-2"></i>Change customer class</a></li>';
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('password')).'"><i class="bi bi-key me-2"></i>Change PPPoE password</a></li>';
+                }
+                if ($canWifi) {
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('wifi-login')).'"><i class="bi bi-wifi me-2"></i>Wi-Fi router login</a></li>';
                 }
                 if ($canBill && ! in_array($row->status, ['pending', 'disable', 'inactive'], true)) {
                     $menu .= '<li><button class="dropdown-item" type="button" onclick="Livewire.dispatch(\'open-bill-modal\', { id: \''.$id.'\' })"><i class="bi bi-journal-arrow-up me-2 text-info"></i>Update bill</button></li>';
                 }
-                if ($canCollect) {
+                if ($canLedger) {
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('ledger')).'"><i class="bi bi-journal-text me-2"></i>Billing ledger</a></li>';
+                }
+                if ($canCollect) {
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('cash-credit')).'"><i class="bi bi-cash-coin me-2"></i>Cash / credit / return</a></li>';
+                }
+                if ($canBill) {
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('recharge')).'"><i class="bi bi-calendar-plus me-2"></i>Monthly recharge</a></li>';
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('billing-date')).'"><i class="bi bi-calendar-date me-2"></i>Change billing date</a></li>';
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('grace')).'"><i class="bi bi-hourglass me-2"></i>Extra grace</a></li>';
+                }
+                if ($canInvoice) {
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('invoice')).'" target="_blank"><i class="bi bi-receipt me-2"></i>Invoice</a></li>';
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('pos-print')).'" target="_blank"><i class="bi bi-printer me-2"></i>POS print</a></li>';
                 }
@@ -423,8 +461,10 @@ class CustomerList extends Component
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('ticket')).'"><i class="bi bi-ticket-perforated me-2"></i>Create support ticket</a></li>';
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('ticket-history')).'"><i class="bi bi-clock-history me-2"></i>Ticket history</a></li>';
                 }
-                if ($canEdit) {
+                if ($canSms) {
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('sms')).'"><i class="bi bi-chat-dots me-2"></i>Send SMS</a></li>';
+                }
+                if ($canGraph) {
                     $menu .= '<li><a class="dropdown-item" href="'.e($actionUrl('online-graph')).'"><i class="bi bi-graph-up me-2"></i>Online graph</a></li>';
                 }
                 $menu .= '<li><hr class="dropdown-divider"></li>';
@@ -544,10 +584,7 @@ class CustomerList extends Component
                 $customer->status = 'active';
                 $customer->save();
 
-                // Enabling a customer must not grant a fresh prepaid validity period.
-                // The expiry changes only through a payment/recharge or an explicit
-                // authorized billing-date update. Keep the existing postpaid schedule.
-                if ($bill->billing_type !== 'prepaid' && $bill->auto_disable_date) {
+                if ($bill->auto_disable_date) {
                     $autoDisableDate = Carbon::parse($bill->auto_disable_date)->startOfDay();
                     $autoDisableMonth = $bill->auto_disable_month;
                     $disableDate = $autoDisableDate->copy()->addMonths($autoDisableMonth);
@@ -1026,6 +1063,397 @@ class CustomerList extends Component
         }
 
         $this->dispatch('customer-action-done');
+    }
+
+    public function openBulkClientChange(array $customerIds = []): void
+    {
+        if (! auth()->user()?->hasRole('Super Admin') && ! hasAccess(['Super Admin'], ['edit-customer'])) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $ids = collect($customerIds)
+            ->map(fn ($id) => trim((string) $id))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty() || $ids->count() > 100) {
+            flash()->addError($ids->isEmpty()
+                ? 'Select at least one customer from the list.'
+                : 'Bulk change supports up to 100 selected customers per batch.');
+
+            return;
+        }
+
+        $customers = CustomersInfo::with('pppUser')
+            ->whereIn('customer_unique_id', $ids->all())
+            ->get();
+
+        if ($customers->count() !== $ids->count()) {
+            flash()->addError('Some selected customers could not be found. Refresh the list and select them again.');
+
+            return;
+        }
+
+        if ($customers->contains(fn ($customer) => ! $customer->pppUser || strtolower((string) $customer->pppUser->service) !== 'pppoe')) {
+            flash()->addError('Every selected customer must have a PPPoE user linked.');
+
+            return;
+        }
+
+        $sourceRouters = $customers->pluck('pppUser.router_name')->filter()->unique()->values();
+        if ($sourceRouters->count() !== 1) {
+            flash()->addError('Select customers from one source MikroTik router at a time.');
+
+            return;
+        }
+
+        $this->bulkClientSelectedIds = $customers->pluck('customer_unique_id')->values()->all();
+        $this->bulkClientSourceRouter = (string) $sourceRouters->first();
+        $this->bulkClientTargetRouter = '';
+        $this->bulkClientProfiles = [];
+        $this->bulkClientProfileMap = [];
+        $this->bulkClientError = '';
+        $this->bulkClientPreview = $customers->map(fn ($customer) => [
+            'cid' => (string) $customer->customer_unique_id,
+            'customer' => (string) $customer->customer_name,
+            'username' => (string) $customer->pppUser->username,
+            'profile' => (string) $customer->pppUser->profile,
+        ])->values()->all();
+        foreach ($this->bulkClientPreview as $client) {
+            $this->bulkClientProfileMap[$client['cid']] = '';
+        }
+        $this->bulkClientModalOpen = true;
+    }
+
+    public function updatedBulkClientTargetRouter($routerName): void
+    {
+        $this->bulkClientProfiles = [];
+        $this->bulkClientError = '';
+
+        if (! filled($routerName) || $routerName === $this->bulkClientSourceRouter) {
+            if ($routerName === $this->bulkClientSourceRouter) {
+                $this->bulkClientError = 'Choose a different destination router.';
+            }
+
+            return;
+        }
+
+        $router = RouterList::where('router_name', $routerName)
+            ->where('action', 'connected')
+            ->first();
+
+        if (! $router) {
+            $this->bulkClientError = 'Destination router is not connected.';
+            return;
+        }
+
+        try {
+            $profiles = app(MikrotikController::class)->singleRead(
+                $routerName,
+                '/ppp/profile/print',
+                'ppp profile print without-paging terse',
+                [],
+                false,
+                true
+            );
+
+            $this->bulkClientProfiles = collect($profiles)
+                ->pluck('name')
+                ->filter(fn ($name) => is_string($name) && trim($name) !== '')
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            if (empty($this->bulkClientProfiles)) {
+                $this->bulkClientError = 'No PPP profiles could be read from the destination router.';
+            } else {
+                foreach ($this->bulkClientPreview as $client) {
+                    $selected = (string) ($this->bulkClientProfileMap[$client['cid']] ?? '');
+                    $current = (string) ($client['profile'] ?? '');
+                    if ($selected === '' || ! in_array($selected, $this->bulkClientProfiles, true)) {
+                        $this->bulkClientProfileMap[$client['cid']] = in_array($current, $this->bulkClientProfiles, true) ? $current : '';
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Bulk client change could not load target PPP profiles', [
+                'target_router' => $routerName,
+                'error' => $e->getMessage(),
+            ]);
+            $this->bulkClientError = 'Unable to load PPP profiles from the destination router.';
+        }
+    }
+
+    public function closeBulkClientChange(): void
+    {
+        $this->bulkClientModalOpen = false;
+        $this->bulkClientSelectedIds = [];
+        $this->bulkClientPreview = [];
+        $this->bulkClientProfiles = [];
+        $this->bulkClientTargetRouter = '';
+        $this->bulkClientError = '';
+    }
+
+    public function submitBulkClientChange(): void
+    {
+        if (! auth()->user()?->hasRole('Super Admin') && ! hasAccess(['Super Admin'], ['edit-customer'])) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $this->bulkClientError = '';
+        $sourceName = trim((string) $this->bulkClientSourceRouter);
+        $targetName = trim((string) $this->bulkClientTargetRouter);
+        $ids = collect($this->bulkClientSelectedIds)->map(fn ($id) => trim((string) $id))->filter()->unique()->values();
+
+        if ($ids->isEmpty() || $ids->count() > 100 || $sourceName === '' || $targetName === '') {
+            $this->bulkClientError = 'Select customers, source router, destination router and destination PPP profile.';
+            return;
+        }
+
+        if ($sourceName === $targetName) {
+            $this->bulkClientError = 'Source and destination routers must be different.';
+            return;
+        }
+
+        $sourceRouter = RouterList::where('router_name', $sourceName)->where('action', 'connected')->first();
+        $targetRouter = RouterList::where('router_name', $targetName)->where('action', 'connected')->first();
+        if (! $sourceRouter || ! $targetRouter) {
+            $this->bulkClientError = 'Both source and destination MikroTik routers must be connected.';
+            return;
+        }
+
+        $customers = CustomersInfo::with('pppUser')
+            ->whereIn('customer_unique_id', $ids->all())
+            ->get();
+
+        if ($customers->count() !== $ids->count()) {
+            $this->bulkClientError = 'Selected customer records changed. Close this window, refresh the table and select the customers again.';
+            return;
+        }
+
+        $invalidCustomers = $customers->filter(function ($customer) use ($sourceName) {
+            return ! $customer->pppUser
+                || strtolower((string) $customer->pppUser->service) !== 'pppoe'
+                || (string) $customer->pppUser->router_name !== $sourceName
+                || ! filled($customer->pppUser->username);
+        });
+
+        if ($invalidCustomers->isNotEmpty()) {
+            $this->bulkClientError = 'All selected customers must still have a PPPoE user on the selected source router.';
+            return;
+        }
+
+        $mikrotik = app(MikrotikController::class);
+
+        try {
+            $targetProfiles = $mikrotik->singleRead(
+                $targetName,
+                '/ppp/profile/print',
+                'ppp profile print without-paging terse',
+                [],
+                false,
+                true
+            );
+            $profileNames = collect($targetProfiles)->pluck('name')->filter()->map(fn ($name) => (string) $name)->all();
+            $profileMap = [];
+            $preflightErrors = [];
+            foreach ($customers as $customer) {
+                $cid = (string) $customer->customer_unique_id;
+                $selectedProfile = trim((string) ($this->bulkClientProfileMap[$cid] ?? ''));
+                if ($selectedProfile === '' || ! in_array($selectedProfile, $profileNames, true)) {
+                    $preflightErrors[] = $cid.': select a valid destination PPP profile';
+                    continue;
+                }
+                $profileMap[$cid] = $selectedProfile;
+            }
+
+            $sourceSecrets = $mikrotik->singleRead(
+                $sourceName,
+                '/ppp/secret/print',
+                'ppp secret print without-paging terse',
+                [],
+                false,
+                true
+            );
+            $targetSecrets = $mikrotik->singleRead(
+                $targetName,
+                '/ppp/secret/print',
+                'ppp secret print without-paging terse',
+                [],
+                false,
+                true
+            );
+
+            $sourceByUsername = collect($sourceSecrets)->filter(fn ($secret) => filled($secret['name'] ?? null))
+                ->keyBy(fn ($secret) => mb_strtolower((string) $secret['name']));
+            $targetUsernames = collect($targetSecrets)->pluck('name')->filter()
+                ->map(fn ($name) => mb_strtolower((string) $name))->all();
+
+            $prepared = [];
+            $seen = [];
+
+            foreach ($customers as $customer) {
+                $ppp = $customer->pppUser;
+                $username = trim((string) $ppp->username);
+                $key = mb_strtolower($username);
+                if (isset($seen[$key])) {
+                    $preflightErrors[] = $customer->customer_unique_id.': duplicate PPP username in selected customers';
+                    continue;
+                }
+                $seen[$key] = true;
+
+                if (in_array($key, $targetUsernames, true)) {
+                    $preflightErrors[] = $customer->customer_unique_id.': username already exists on destination router';
+                    continue;
+                }
+
+                $sourceSecret = $sourceByUsername->get($key);
+                if (! $sourceSecret) {
+                    $preflightErrors[] = $customer->customer_unique_id.': PPP secret was not found on source router';
+                    continue;
+                }
+
+                $password = (string) ($sourceSecret['password'] ?? '');
+                if ($password === '' || $password === '-' || str_contains($password, '*')) {
+                    $password = (string) $ppp->password;
+                }
+                if ($password === '' || $password === '-' || str_contains($password, '*') || preg_match('/^\$2[ayb]\$/', $password)) {
+                    $preflightErrors[] = $customer->customer_unique_id.': recoverable PPP password is not available';
+                    continue;
+                }
+
+                $disabledValue = strtolower((string) ($sourceSecret['disabled'] ?? 'unknown'));
+                if (! in_array($disabledValue, ['true', 'false', 'yes', 'no', '1', '0'], true)) {
+                    $preflightErrors[] = $customer->customer_unique_id.': source enabled/disabled state could not be read';
+                    continue;
+                }
+
+                $prepared[] = [
+                    'customer' => $customer,
+                    'ppp' => $ppp,
+                    'target_profile' => $profileMap[(string) $customer->customer_unique_id] ?? '',
+                    'source_secret' => $sourceSecret,
+                    'password' => $password,
+                    'was_disabled' => in_array($disabledValue, ['true', 'yes', '1'], true),
+                ];
+            }
+
+            if (! empty($preflightErrors)) {
+                $this->bulkClientError = 'Pre-check stopped the whole batch; no router or customer records were changed: '.implode(' | ', $preflightErrors);
+                return;
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Bulk client copy preflight failed', [
+                'source_router' => $sourceName,
+                'target_router' => $targetName,
+                'error' => $e->getMessage(),
+            ]);
+            $this->bulkClientError = 'Router pre-check failed. No PPP secrets were copied; verify both router connections and try again.';
+            return;
+        }
+
+        $copied = 0;
+        $failed = 0;
+        $warnings = [];
+
+        foreach ($prepared as $item) {
+            $customer = $item['customer'];
+            $ppp = $item['ppp'];
+            $sourceSecret = $item['source_secret'];
+            $targetProfile = (string) $item['target_profile'];
+            $username = (string) $ppp->username;
+            $targetCreated = false;
+
+            $params = [
+                'name' => $username,
+                'password' => $item['password'],
+                'service' => 'pppoe',
+                'profile' => $targetProfile,
+                'disabled' => 'yes',
+            ];
+
+            $comment = (string) ($sourceSecret['comment'] ?? $ppp->comment ?? '');
+            $callerId = (string) ($sourceSecret['caller-id'] ?? $ppp->caller_id ?? '');
+            $remoteAddress = (string) ($sourceSecret['remote-address'] ?? $ppp->ppp_remote_ip ?? '');
+            if ($comment !== '') $params['comment'] = $comment;
+            if ($callerId !== '') $params['caller-id'] = $callerId;
+            if ($remoteAddress !== '') $params['remote-address'] = $remoteAddress;
+
+            try {
+                // Stage the destination secret as disabled first. The source remains
+                // untouched until the destination entry has been read back successfully.
+                $mikrotik->singleWrite($targetName, '/ppp/secret/add', $params);
+                $targetCreated = true;
+
+                $targetCheck = $mikrotik->singleRead(
+                    $targetName,
+                    '/ppp/secret/print',
+                    'ppp secret print without-paging terse',
+                    ['name' => $username],
+                    false,
+                    true
+                );
+                $targetRecord = collect($targetCheck)->first(
+                    fn ($secret) => mb_strtolower((string) ($secret['name'] ?? '')) === mb_strtolower($username)
+                );
+                $verifiedProfile = (string) ($targetRecord['profile'] ?? '');
+                if (! $targetRecord || $verifiedProfile !== $targetProfile) {
+                    throw new \RuntimeException('Destination PPP secret or selected profile could not be verified after creation.');
+                }
+
+                // The source router and local customer/PPP assignment are intentionally
+                // left unchanged. This workflow only creates a copy on the destination.
+                try {
+                    $mikrotik->singleWrite(
+                        $targetName,
+                        '/ppp/secret/set [find name='.$mikrotik->mtQuote($username).']',
+                        ['disabled' => $item['was_disabled'] ? 'yes' : 'no']
+                    );
+                } catch (\Throwable $stateError) {
+                    $warnings[] = $customer->customer_unique_id.' copied to destination but remains disabled because its original state could not be restored.';
+                    \Log::warning('Bulk client copy destination secret state could not be restored', [
+                        'customer_id' => $customer->customer_unique_id,
+                        'target_router' => $targetName,
+                        'error' => $stateError->getMessage(),
+                    ]);
+                }
+
+                $copied++;
+            } catch (\Throwable $e) {
+                $failed++;
+                if ($targetCreated) {
+                    try {
+                        $mikrotik->singleWrite($targetName, '/ppp/secret/remove [find name='.$mikrotik->mtQuote($username).']');
+                    } catch (\Throwable $cleanupError) {
+                        \Log::error('Bulk client copy could not remove an incomplete destination PPP secret', [
+                            'customer_id' => $customer->customer_unique_id,
+                            'target_router' => $targetName,
+                            'error' => $cleanupError->getMessage(),
+                        ]);
+                    }
+                }
+
+                \Log::error('Bulk client copy failed for customer', [
+                    'customer_id' => $customer->customer_unique_id,
+                    'source_router' => $sourceName,
+                    'target_router' => $targetName,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $this->bulkClientModalOpen = false;
+        $this->dispatch('customer-action-done');
+
+        if ($failed === 0 && $copied > 0 && empty($warnings)) {
+            flash()->addSuccess("Bulk Client Copy completed. {$copied} customer PPP secret(s) copied from {$sourceName} to {$targetName}. Source secrets and customer assignments were left unchanged.");
+        } elseif ($copied > 0) {
+            flash()->addWarning("Bulk Client Copy finished. Copied: {$copied}, Failed: {$failed}. ".count($warnings).' additional warning(s); review the application log.');
+        } else {
+            flash()->addError("Bulk Client Copy failed. Copied: 0, Failed: {$failed}. The source router and customer assignments were left unchanged.");
+        }
     }
 
     private function syncCustomer(CustomersInfo $customer): void

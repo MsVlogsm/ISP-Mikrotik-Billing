@@ -184,9 +184,12 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
             $result['meta']['opm_status'] = ($txCount > 0 && $rxCount > 0)
                 ? (($txCount === $onuCount && $rxCount === $onuCount) ? 'ok' : 'partial')
                 : 'not_ready';
+            $firmware = strtoupper(trim((string) ($device->firmware ?? '')));
             $result['meta']['opm_message'] = ($txCount + $rxCount) > 0
                 ? "VSOL SNMP supplied {$macCount} ONU MACs; TX {$txCount}/{$onuCount}, RX {$rxCount}/{$onuCount}."
-                : 'VSOL ONU inventory was read, but optical TX/RX metrics were unavailable in this poll.';
+                : (($profile['key'] ?? null) === 'v1600d4_auth_info_table' && $firmware === 'V1.0.2R'
+                    ? 'Firmware V1.0.2R: populated OPM values were confirmed in the Web Management UI, but documented SNMP OPM tables returned no usable rows. Billing leaves TX/RX unknown rather than estimating values.'
+                    : 'VSOL ONU inventory was read, but optical TX/RX metrics were unavailable in this poll.');
             $result['meta']['opm_source'] = ($txCount + $rxCount) > 0 ? 'vsol-snmp-opm' : null;
         }
 
@@ -452,6 +455,8 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
     ): array {
         $values = ['rx_power' => [], 'tx_power' => []];
 
+        // Prefer table walks when the firmware exposes them. Some V1600D4
+        // firmware answers direct OPM GETs but returns an empty table walk.
         foreach (['rx_power', 'tx_power'] as $field) {
             $oid = $opmOids[$field] ?? null;
             if (!is_string($oid) || !$this->validOid($oid)) {
@@ -468,18 +473,75 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
         }
 
         foreach ($onus as &$onu) {
-            $index = (string) ($onu['snmp_index'] ?? '');
-            $rx = $values['rx_power'][$index] ?? null;
-            $tx = $values['tx_power'][$index] ?? null;
+            // Both authInfoTable and OPM use the PON + actual ONU ID here.
+            // Never join optical values by either table's ordinal row suffix.
+            $index = $this->opmIndexForOnu($onu);
+            $rx = $index !== null ? ($values['rx_power'][$index] ?? null) : null;
+            $tx = $index !== null ? ($values['tx_power'][$index] ?? null) : null;
+            $usedDirectGet = false;
+
+            // V1.0.2R may omit instances from an OPM walk. Probe only missing
+            // metrics with exact-instance GET; empty/invalid responses stay null.
+            if ($index !== null) {
+                foreach (['rx_power', 'tx_power'] as $field) {
+                    $current = $field === 'rx_power' ? $rx : $tx;
+                    $baseOid = $opmOids[$field] ?? null;
+                    if ($current !== null || !is_string($baseOid) || !$this->validOid($baseOid)) {
+                        continue;
+                    }
+                    $instanceOid = rtrim(trim($baseOid), '.').'.'.$index;
+                    $raw = @snmp2_get(
+                        $host,
+                        $community,
+                        $instanceOid,
+                        max(250000, min(1000000, $timeout)),
+                        max(0, min(1, $retries))
+                    );
+                    if ($raw === false) {
+                        continue;
+                    }
+                    $candidate = $this->normalizeOpticalPower($this->cleanSnmpValue($raw));
+                    if ($candidate === null) {
+                        continue;
+                    }
+                    if ($field === 'rx_power') {
+                        $rx = $candidate;
+                    } else {
+                        $tx = $candidate;
+                    }
+                    $usedDirectGet = true;
+                }
+            }
+
             $onu['rx_power'] = $rx;
             $onu['tx_power'] = $tx;
             if ($rx !== null || $tx !== null) {
-                $onu['opm_source'] = 'vsol-snmp-opm';
+                $onu['opm_source'] = $usedDirectGet ? 'vsol-snmp-opm-direct-get' : 'vsol-snmp-opm';
             }
         }
         unset($onu);
 
         return $onus;
+    }
+
+    /**
+     * The documented VSOL OPM MIB indexes entries by PON and ONU ID. The
+     * V1600D4 legacy auth table has a separate ordinal row suffix, so its
+     * snmp_index must never be used to join optical readings.
+     */
+    private function opmIndexForOnu(array $onu): ?string
+    {
+        $pon = trim((string) ($onu['pon_port'] ?? ''));
+        if (preg_match('/(?:EPON0\/|PON)?(\d+)$/i', $pon, $matches)) {
+            $pon = $matches[1];
+        }
+
+        $onuId = trim((string) ($onu['onu_id'] ?? ''));
+        if ($pon === '' || !ctype_digit($pon) || $onuId === '' || !ctype_digit($onuId)) {
+            return null;
+        }
+
+        return $pon.'.'.$onuId;
     }
 
     private function walkWithRetry(string $host, string $community, string $oid, int $timeout, int $retries): array

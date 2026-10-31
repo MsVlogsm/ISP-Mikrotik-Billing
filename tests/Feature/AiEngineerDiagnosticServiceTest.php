@@ -144,8 +144,47 @@ class AiEngineerDiagnosticServiceTest extends TestCase
 
         $this->assertSame('warning', $result['severity']);
         $this->assertSame('offline', $result['service_path']['onu']['olt_state']);
-        $this->assertContains('Linked OLT inventory is marked offline.', $result['likely_causes']);
+        $this->assertStringContainsString('not confirmed', strtolower(implode(' ', $result['likely_causes'])));
         $this->assertTrue($result['read_only']);
+    }
+
+    public function test_stale_offline_router_status_is_not_treated_as_a_confirmed_current_outage(): void
+    {
+        [$customer, $router] = $this->makeCustomerWithRouter();
+        $router->forceFill(['action' => 'offline', 'last_checked_at' => now()->subMinutes(30)])->save();
+
+        $result = (new AiEngineerDiagnosticService($this->mikrotik))->diagnoseCustomer($customer->customer_unique_id);
+
+        $this->assertSame('warning', $result['severity']);
+        $this->assertSame('low', $result['diagnostic_confidence']);
+        $this->assertStringContainsString('not confirmed', strtolower(implode(' ', $result['likely_causes'])));
+        $this->assertTrue($result['read_only']);
+    }
+
+    public function test_stale_onu_los_snapshot_is_reported_as_unconfirmed(): void
+    {
+        [$customer, , $ppp] = $this->makeCustomerWithRouter();
+        $olt = NetworkInventoryDevice::create([
+            'type' => 'olt', 'name' => 'Fresh OLT', 'ip_address' => '192.0.2.11',
+            'status' => 'online', 'health_status' => 'online', 'last_checked_at' => now(),
+        ]);
+        $mapping = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id, 'customer_id' => $customer->id, 'ppp_user_id' => $ppp->id,
+            'onu_id' => '9', 'status' => 'los',
+        ]);
+        DB::table('olt_onu_customer_mappings')->where('id', $mapping->id)->update([
+            'updated_at' => now()->subMinutes(30),
+        ]);
+        $this->mikrotik->shouldReceive('singleRead')->once()->andReturn([
+            ['name' => 'customer-ppp', 'address' => '10.0.0.10'],
+        ]);
+
+        $result = (new AiEngineerDiagnosticService($this->mikrotik))->diagnoseCustomer($customer->customer_unique_id);
+
+        $this->assertSame('warning', $result['severity']);
+        $this->assertSame('stale', $result['service_path']['onu']['mapping_check_freshness']);
+        $this->assertStringContainsString('not confirmed', strtolower(implode(' ', $result['likely_causes'])));
+        $this->assertNotSame('high', $result['diagnostic_confidence']);
     }
 
     private function makeCustomerWithRouter(): array

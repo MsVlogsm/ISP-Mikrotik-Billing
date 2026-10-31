@@ -24,7 +24,7 @@ class SiteStatusTest extends TestCase
     public function test_site_is_accessible_when_active_and_no_maintenance()
     {
         $response = $this->get('http://bill.xlinkbd.net/');
-        $response->assertStatus(200);
+        $response->assertRedirect(route('login'));
     }
 
     public function test_site_and_portal_redirect_or_show_maintenance_when_maintenance_is_on()

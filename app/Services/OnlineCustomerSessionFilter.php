@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\PPPSecrets;
+use App\Models\RouterList;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -37,6 +39,69 @@ class OnlineCustomerSessionFilter
             'users_by_router' => $usersByRouter,
             'successful_routers' => max(0, (int) ($telemetry['successful_routers'] ?? 0)),
         ];
+    }
+
+    /**
+     * Attribute a live session on a replacement router to a customer whose
+     * saved PPP assignment still points at a disconnected router.
+     *
+     * This is a read-only compatibility bridge for manual router migrations:
+     * it requires a real live session, one unique customer-linked PPP username,
+     * and a known disconnected assigned router. Ambiguous usernames are ignored.
+     */
+    public function addDisconnectedRouterAliases(array $usersByRouter, int $successfulRouters): array
+    {
+        if ($successfulRouters < 1 || $usersByRouter === []) {
+            return $usersByRouter;
+        }
+
+        $routerActions = RouterList::query()->pluck('action', 'router_name')->all();
+        $linkedAssignments = PPPSecrets::query()
+            ->whereHas('customer')
+            ->get(['router_name', 'username'])
+            ->filter(fn ($secret) => filled($secret->router_name) && filled($secret->username))
+            ->groupBy(fn ($secret) => mb_strtolower(trim((string) $secret->username)));
+
+        foreach ($usersByRouter as $liveRouter => $usernames) {
+            foreach ($usernames as $username => $present) {
+                // Numeric-string PPP usernames become integer array keys in PHP.
+                if (is_int($username)) {
+                    if (is_string($present)) {
+                        $username = $present;
+                    } elseif ($present) {
+                        $username = (string) $username;
+                    } else {
+                        continue;
+                    }
+                } elseif (! $present) {
+                    continue;
+                }
+
+                $username = mb_strtolower(trim((string) $username));
+                if ($username === '') {
+                    continue;
+                }
+
+                $assignments = $linkedAssignments->get($username, collect());
+                if ($assignments->count() !== 1) {
+                    continue;
+                }
+
+                $assignedRouter = trim((string) $assignments->first()->router_name);
+                if (
+                    $assignedRouter === ''
+                    || $assignedRouter === (string) $liveRouter
+                    || ! array_key_exists($assignedRouter, $routerActions)
+                    || $routerActions[$assignedRouter] === 'connected'
+                ) {
+                    continue;
+                }
+
+                $usersByRouter[$assignedRouter][$username] = true;
+            }
+        }
+
+        return $usersByRouter;
     }
 
     /**
