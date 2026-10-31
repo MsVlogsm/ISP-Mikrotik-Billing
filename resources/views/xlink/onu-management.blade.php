@@ -86,7 +86,20 @@
             <td><div class="onu-signal {{ $signalClass }}">RX {{ $rx!==null ? number_format($rx,2).' dBm' : '—' }}</div><div class="onu-secondary">TX {{ $tx!==null ? number_format($tx,2).' dBm' : '—' }}</div><div class="onu-secondary">OPM: {{ $m->opm_last_seen_at ? (($m->opm_source==='operator-supplied-olt-cli' ? 'CLI sample · ' : '').$m->opm_last_seen_at->format('d M Y H:i:s')) : (($m->rx_power !== null || $m->tx_power !== null) ? 'stale value hidden · no timestamp' : 'no reading') }}</div></td>
             <td><span class="onu-status {{ in_array($m->status,['online','offline'],true) ? $m->status : 'unknown' }}"><i class="bi {{ $m->status==='online'?'bi-check-circle-fill':($m->status==='offline'?'bi-x-circle-fill':'bi-question-circle-fill') }}"></i>{{ ucfirst($m->status ?: 'unknown') }}</span></td>
             <td>{{ $m->last_seen_at ? $m->last_seen_at->format('d M Y') : '—' }}<div class="onu-secondary">{{ $m->last_seen_at ? $m->last_seen_at->format('H:i:s') : 'No successful sync recorded' }}</div></td>
-            <td><div class="d-flex gap-1"><a class="btn btn-sm btn-outline-primary" href="{{ $m->olt ? route('network-inventory.olt.customers',$m->olt) : route('network-inventory.onu-management') }}" title="Open OLT/customer mapping"><i class="bi bi-link-45deg"></i></a><a class="btn btn-sm btn-outline-secondary" href="{{ $m->olt ? route('network-inventory.olt.diagnostics',$m->olt) : route('network-inventory.onu-management') }}" title="Read-only OLT diagnostics"><i class="bi bi-activity"></i></a></div></td>
+            <td><div class="d-flex gap-1">
+              <button type="button" class="btn btn-sm btn-outline-info js-onu-details" data-bs-toggle="modal" data-bs-target="#onuDetailsModal"
+                data-customer="{{ $m->customer?->customer_name ?: 'Unmapped customer' }}" data-cid="{{ $m->customer?->customer_unique_id ?: '—' }}"
+                data-pppoe="{{ $m->pppUser?->username ?: '—' }}" data-olt="{{ $m->olt?->name ?: 'OLT unavailable' }}" data-pon="{{ $m->pon_port ?: '—' }}"
+                data-onu-id="{{ $m->onu_id ?: '—' }}" data-model="{{ $m->onu_type ?: 'Unavailable' }}" data-mac="{{ $m->onu_mac ?: '—' }}"
+                data-serial="{{ $m->onu_serial ?: '—' }}" data-status="{{ ucfirst($m->status ?: 'unknown') }}"
+                data-rx="{{ $rx!==null ? number_format($rx,2).' dBm' : 'Unavailable' }}" data-tx="{{ $tx!==null ? number_format($tx,2).' dBm' : 'Unavailable' }}"
+                data-distance="{{ is_numeric($m->distance_m) ? number_format((float)$m->distance_m,0).' m' : 'Unavailable' }}"
+                data-last-seen="{{ $m->last_seen_at ? $m->last_seen_at->format('d M Y H:i:s') : 'No successful sync recorded' }}"
+                data-opm-sync="{{ $m->opm_last_seen_at ? $m->opm_last_seen_at->format('d M Y H:i:s') : 'No optical telemetry timestamp' }}"
+                data-uptime="Not collected by the current OLT adapter" title="ONU status & diagnostics"><i class="bi bi-info-circle"></i></button>
+              <a class="btn btn-sm btn-outline-primary" href="{{ $m->olt ? route('network-inventory.olt.customers',$m->olt) : route('network-inventory.onu-management') }}" title="Open OLT/customer mapping"><i class="bi bi-link-45deg"></i></a>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ $m->olt ? route('network-inventory.olt.diagnostics',$m->olt) : route('network-inventory.onu-management') }}" title="Read-only OLT diagnostics"><i class="bi bi-activity"></i></a>
+            </div></td>
           </tr>
         @empty
           <tr><td colspan="8"><div class="onu-empty"><i class="bi bi-diagram-3"></i><strong>No saved ONU mappings found</strong><div class="mt-1">Run Sync ONU Inventory from an OLT that is reachable and configured, or open OLT Devices to inspect connectivity.</div><a class="btn btn-sm btn-outline-primary mt-3" href="{{ route('network-inventory.olt') }}">Open OLT Devices</a></div></td></tr>
@@ -98,4 +111,54 @@
     @if($mappings->hasPages())<div class="p-3">{{ $mappings->links() }}</div>@endif
   </section>
 </div>
+
+{{-- Read-only ONU details. No reboot/provision command is exposed from this ledger. --}}
+<div class="modal fade" id="onuDetailsModal" tabindex="-1" aria-labelledby="onuDetailsTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title" id="onuDetailsTitle"><i class="bi bi-activity me-2 text-info"></i>ONU Status &amp; Diagnostics</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-light border mb-3"><div class="fw-bold" id="onu-detail-customer">—</div><div class="small text-muted" id="onu-detail-identity">—</div><div class="mt-2"><span class="badge bg-secondary" id="onu-detail-status">Unknown</span></div></div>
+        <div class="row g-3">
+          <div class="col-md-6"><div class="border rounded p-3 h-100"><div class="small text-muted mb-2">Network location</div><div><strong>OLT:</strong> <span id="onu-detail-olt">—</span></div><div><strong>PON:</strong> <span id="onu-detail-pon">—</span></div><div><strong>ONU ID:</strong> <span id="onu-detail-id">—</span></div><div><strong>Model:</strong> <span id="onu-detail-model">—</span></div></div></div>
+          <div class="col-md-6"><div class="border rounded p-3 h-100"><div class="small text-muted mb-2">Optical identity</div><div><strong>MAC:</strong> <span id="onu-detail-mac">—</span></div><div><strong>Serial:</strong> <span id="onu-detail-serial">—</span></div><div><strong>RX Power:</strong> <span id="onu-detail-rx">—</span></div><div><strong>TX Power:</strong> <span id="onu-detail-tx">—</span></div></div></div>
+          <div class="col-md-6"><div class="border rounded p-3 h-100"><div class="small text-muted mb-2">Operational observations</div><div><strong>Distance:</strong> <span id="onu-detail-distance">—</span></div><div><strong>ONU uptime:</strong> <span id="onu-detail-uptime">—</span></div><div><strong>Last status sync:</strong> <span id="onu-detail-last-seen">—</span></div><div><strong>Last optical sync:</strong> <span id="onu-detail-opm-sync">—</span></div></div></div>
+          <div class="col-md-6"><div class="border rounded p-3 h-100"><div class="small text-muted mb-2">Customer mapping</div><div><strong>Customer ID:</strong> <span id="onu-detail-cid">—</span></div><div><strong>PPPoE:</strong> <span id="onu-detail-pppoe">—</span></div><p class="small text-muted mt-2 mb-0">Values are taken from the latest saved inventory record. Missing telemetry is shown as unavailable, not estimated.</p></div></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
+@push('scripts')
+<script>
+(() => {
+  const modal = document.getElementById('onuDetailsModal');
+  if (!modal || modal.dataset.bound === '1') return;
+  modal.dataset.bound = '1';
+  modal.addEventListener('show.bs.modal', event => {
+    const d = event.relatedTarget?.dataset || {};
+    const fields = {
+      'customer':'customer','identity':'identity','status':'status','olt':'olt','pon':'pon','id':'onuId','model':'model',
+      'mac':'mac','serial':'serial','rx':'rx','tx':'tx','distance':'distance','uptime':'uptime','last-seen':'lastSeen',
+      'opm-sync':'opmSync','cid':'cid','pppoe':'pppoe'
+    };
+    for (const [target, source] of Object.entries(fields)) {
+      const el = document.getElementById('onu-detail-' + target);
+      if (el) el.textContent = d[source] || 'Unavailable';
+    }
+    const badge = document.getElementById('onu-detail-status');
+    if (badge) {
+      const status = (d.status || 'unknown').toLowerCase();
+      badge.className = 'badge ' + (status === 'online' ? 'bg-success' : status === 'offline' ? 'bg-danger' : 'bg-warning text-dark');
+    }
+    const identity = document.getElementById('onu-detail-identity');
+    if (identity) identity.textContent = 'PPPoE: ' + (d.pppoe || '—');
+  });
+})();
+</script>
+@endpush
 </x-app-layout>

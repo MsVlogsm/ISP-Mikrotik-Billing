@@ -71,6 +71,17 @@ class CustomerList extends Component
 
     public $bulkClientError = '';
 
+    /** Force the next Customer List draw to refresh the cached live PPP session snapshot. */
+    public function refreshLiveOnlineStatus(): void
+    {
+        if (! hasAccess(['Super Admin'], ['view-customer', 'all-customer'])) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        \Illuminate\Support\Facades\Cache::forget('customer-list:live-ppp-usernames-v2');
+        $this->dispatch('customer-online-sync-complete');
+    }
+
     public function render()
     {
         if (! hasAccess(['Super Admin'], ['view-customer', 'all-customer'])) {

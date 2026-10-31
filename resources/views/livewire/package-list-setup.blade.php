@@ -32,6 +32,16 @@
                                     <input type="text" class="form-control form-control-sm shadow-xs" wire:model.defer="speed" placeholder="8 Mbps" style="border-radius: 6px;">
                                 </div>
                                 <div class="col-md-6 col-12">
+                                    <label class="form-label fw-semibold text-dark small">{{ __('Package Type') }}</label>
+                                    <select class="form-select form-select-sm shadow-xs" wire:model.defer="bandwidth_type" style="border-radius: 6px;">
+                                        <option value="">{{ __('Not specified') }}</option>
+                                        @foreach($bandwidthTypes as $type)
+                                            <option value="{{ $type['code'] }}">{{ $type['name'] }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('bandwidth_type') <span class="text-danger small">{{ $message }}</span> @enderror
+                                </div>
+                                <div class="col-md-6 col-12">
                                     <label class="form-label fw-semibold text-dark small">
                                         {{ __('MikroTik Rate Limit') }}
                                         <span class="text-muted small">{{ __('(e.g. 8M/8M)') }}</span>
@@ -173,6 +183,7 @@
                                     <th class="py-2">{{ __('Package') }}</th>
                                     <th class="py-2">{{ __('Router') }}</th>
                                     <th class="py-2">{{ __('Speed') }}</th>
+                                    <th class="py-2">{{ __('Type') }}</th>
                                     <th class="py-2">{{ __('Rate Limit') }}</th>
                                     <th class="py-2">{{ __('Price') }}</th>
                                     <th class="py-2 text-center">{{ __('On Site') }}</th>
@@ -201,6 +212,8 @@
                                             @endif
                                         </td>
                                         <td>{{ $package['speed'] }}</td>
+                                        @php($packageType = collect($bandwidthTypes)->firstWhere('code', $package['bandwidth_type'] ?? null))
+                                        <td><span class="badge {{ ($package['bandwidth_type'] ?? '') === 'dedicated' ? 'bg-primary-subtle text-primary' : 'bg-secondary-subtle text-secondary' }}">{{ $packageType['name'] ?? (($package['bandwidth_type'] ?? null) ? ucfirst($package['bandwidth_type']) : '—') }}</span></td>
                                         <td>
                                             @if($package['mikrotik_rate_limit'])
                                                 <code class="text-danger small">{{ $package['mikrotik_rate_limit'] }}</code>
@@ -241,7 +254,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="10" class="text-center text-muted py-4">{{ __('No packages yet.') }}</td></tr>
+                                    <tr><td colspan="11" class="text-center text-muted py-4">{{ __('No packages yet.') }}</td></tr>
                                 @endforelse
                             </tbody>
                         </table>

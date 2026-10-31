@@ -11,6 +11,7 @@ use App\Models\CustomersInfo;
 use App\Services\PrepaidBillingCycle;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -43,6 +44,16 @@ class PaymentCollection extends Component
     public $expire_date = '';
 
     public $advance_paid = 0;
+
+    public $payment_method = 'cash';
+
+    public $transaction_id = '';
+
+    public $payment_details = '';
+
+    public $collection_date = '';
+
+    public $send_sms = true;
 
     public function mount()
     {
@@ -197,6 +208,11 @@ class PaymentCollection extends Component
             ->whereYear('collection_date', Carbon::now()->year)
             ->get();
         $this->paid_amount = '';
+        $this->payment_method = 'cash';
+        $this->transaction_id = '';
+        $this->payment_details = '';
+        $this->collection_date = now()->format('Y-m-d\TH:i');
+        $this->send_sms = true;
         $this->total_amount = $this->info_data->billing->due_amount;
         $this->due_amount = (int) $this->total_amount - (int) $this->paid_amount;
     }
@@ -204,6 +220,19 @@ class PaymentCollection extends Component
     public function savePayment()
     {
         $this->authorizePaymentCollection();
+        if (! $this->info_data || ! $this->info_data->billing) {
+            flash()->error('Select a valid customer with billing information first.');
+            return;
+        }
+        $this->validate([
+            'paid_amount' => ['required','numeric','gt:0','max:99999999'],
+            'payment_method' => ['required', Rule::in(['cash','bkash','nagad','rocket','bank','other'])],
+            'transaction_id' => ['nullable','string','max:120', Rule::unique('collection_summaries','transaction_id')->where(fn ($q) => $q->whereNotNull('transaction_id'))],
+            'payment_details' => ['nullable','string','max:2000'],
+            'collection_date' => ['required','date','before_or_equal:now'],
+            'expire_date' => ['required','date'],
+            'send_sms' => ['boolean'],
+        ]);
         if ($this->info_data->status != 'active') {
             sweetalert()->showDenyButton()->info('Are you sure you want to Enable this customer?');
         }
@@ -261,13 +290,30 @@ class PaymentCollection extends Component
     public function paymentSubmit(): bool
     {
         $this->authorizePaymentCollection();
+        if (! $this->info_data || ! $this->info_data->billing) {
+            flash()->error('Select a valid customer with billing information first.');
+            return false;
+        }
+        $this->validate([
+            'paid_amount' => ['required','numeric','gt:0','max:99999999'],
+            'payment_method' => ['required', Rule::in(['cash','bkash','nagad','rocket','bank','other'])],
+            'transaction_id' => ['nullable','string','max:120', Rule::unique('collection_summaries','transaction_id')->where(fn ($q) => $q->whereNotNull('transaction_id'))],
+            'payment_details' => ['nullable','string','max:2000'],
+            'collection_date' => ['required','date','before_or_equal:now'],
+            'expire_date' => ['required','date'],
+            'send_sms' => ['boolean'],
+        ]);
         DB::beginTransaction();
         try {
             CollectionSummary::create([
                 'customer_collection_unique_id' => $this->info_data->customer_unique_id,
-                'collection_date' => Carbon::now(),
+                'collection_date' => Carbon::parse($this->collection_date),
                 'collection_amount' => $this->paid_amount,
                 'collected_by' => auth()->user()->email,
+                'payment_type' => $this->payment_method === 'cash' ? 'cash' : 'online',
+                'payment_method' => $this->payment_method,
+                'transaction_id' => filled($this->transaction_id) ? trim($this->transaction_id) : null,
+                'details' => filled($this->payment_details) ? trim($this->payment_details) : null,
                 'payment_status' => 'paid',
             ]);
 
@@ -275,7 +321,7 @@ class PaymentCollection extends Component
                 ->lockForUpdate()
                 ->firstOrFail();
             $billing->paid_amount = $this->paid_amount + $billing->paid_amount;
-            $billing->paid_date = Carbon::now();
+            $billing->paid_date = Carbon::parse($this->collection_date);
             $billing->auto_disable_date = $this->expire_date;
             $billing->due_amount = $this->due_amount;
             app(PrepaidExpiryGuard::class)->saveAfterPaidCollection($billing);
@@ -302,8 +348,10 @@ class PaymentCollection extends Component
             ];
 
             // Call the SMSController's method
-            $response = app(SMSController::class)->paymentCollectionSMS($data);
-            if ($response && $response->isSuccessful()) {
+            $response = $this->send_sms ? app(SMSController::class)->paymentCollectionSMS($data) : null;
+            if (! $this->send_sms) {
+                // SMS intentionally skipped by the collector.
+            } elseif ($response && $response->isSuccessful()) {
                 flash()->success($response->getMessage());
             } else {
                 flash()->error('Failed to send SMS notification. Please try again.');

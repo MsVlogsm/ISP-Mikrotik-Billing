@@ -176,7 +176,7 @@
             {{-- ── Broadband ── --}}
             <li class="nav-item">
                 <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
-                    <div class="col-auto navbar-vertical-label">{{ __('Broadband') }}</div>
+                    <div class="col-auto navbar-vertical-label">{{ __('Customer & Broadband Workspace') }}</div>
                     <div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div>
                 </div>
                 <!-- Broadband Dropdown -->
@@ -199,28 +199,10 @@
                 </ul>
 
             </li>
-            {{-- ── Billing & Finance ── --}}
-            <li class="nav-item">
-                <a class="nav-link dropdown-indicator collapsed" href="#billingFinanceMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="billingFinanceMenu">
-                    <div class="d-flex align-items-center">
-                        <span class="nav-link-icon"><i class="bi bi-cash-stack"></i></span>
-                        <span class="nav-link-text ps-1">{{ __('Billing & Finance') }}</span>
-                    </div>
-                </a>
-                <div class="collapse ps-4" id="billingFinanceMenu">
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('billing-finance') }}"><span class="nav-link-text ps-1">{{ __('Overview') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('income-summary') }}"><span class="nav-link-text ps-1">{{ __('Income & Collection') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ledger-summary') }}"><span class="nav-link-text ps-1">{{ __('Ledger Summary') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('extra-charges') }}"><span class="nav-link-text ps-1">{{ __('Extra Charges') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('admin.expenses') }}"><span class="nav-link-text ps-1">{{ __('Expenses') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('admin.profit-summary') }}"><span class="nav-link-text ps-1">{{ __('Profit & Loss') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('payment-collection') }}"><span class="nav-link-text ps-1">{{ __('Payment Collection') }}</span></a>
-                </div>
-            </li>
             <li class="nav-item">
                 <!-- label-->
                 <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
-                    <div class="col-auto navbar-vertical-label">{{ __('Mikrotik') }}</div>
+                    <div class="col-auto navbar-vertical-label">{{ __('Network Operations') }}</div>
                     <div class="col ps-0">
                         <hr class="mb-0 navbar-vertical-divider" />
                     </div>
@@ -327,29 +309,7 @@
             </li>
             <li class="nav-item">
                 <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
-                    <div class="col-auto navbar-vertical-label">{{ __('iPilot Workspace') }}</div>
-                    <div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div>
-                </div>
-                <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot') }}"><span class="nav-link-icon"><i class="bi bi-cpu"></i></span><span class="nav-link-text ps-1">{{ __('iPilot Overview') }}</span></a>
-                <div class="collapse show ps-4" id="ipilotWorkspaceMenu">
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.integrations') }}">{{ __('API & Webhooks') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.api-docs') }}">{{ __('API v2 Docs') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.app-settings') }}">{{ __('App Settings') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.zabbix') }}">{{ __('Zabbix Monitoring') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.reports') }}">{{ __('Reports Hub') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.btrc') }}">{{ __('BTRC Report Draft') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.terminal') }}">{{ __('Read-only Terminal') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-topology.live') }}">{{ __('Auto Network Map / Live Topology') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-map') }}">{{ __('Geographic Network Map') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-topology.designer') }}">{{ __('Custom Map Editor') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.gis.outside-plant') }}">{{ __('Network & Outside Plant') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.gis.operations') }}">{{ __('Network Operations') }}</a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.gis.planning') }}">{{ __('Planning & Serviceability') }}</a>
-                </div>
-            </li>
-            <li class="nav-item">
-                <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
-                    <div class="col-auto navbar-vertical-label">{{ __('Network Monitoring') }}</div>
+                    <div class="col-auto navbar-vertical-label">{{ __('Device Monitoring') }}</div>
                     <div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div>
                 </div>
                 <a class="nav-link dropdown-indicator collapsed" href="#networkMonitoringMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="networkMonitoringMenu">
@@ -389,7 +349,67 @@
                     <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.switches') }}"><span class="nav-link-text ps-1">{{ __('Switch Management') }}</span></a>
                     <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.access-points') }}"><span class="nav-link-text ps-1">{{ __('Access Point Management') }}</span></a>
                 </div>
+            {{-- ── Billing & Finance ── --}}
+            <li class="nav-item">
+                <a class="nav-link dropdown-indicator collapsed" href="#billingFinanceMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="billingFinanceMenu">
+                    <div class="d-flex align-items-center">
+                        <span class="nav-link-icon"><i class="bi bi-cash-stack"></i></span>
+                        <span class="nav-link-text ps-1">{{ __('Billing & Finance') }}</span>
+                    </div>
+                </a>
+                <div class="collapse ps-4" id="billingFinanceMenu">
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('billing-finance') }}"><span class="nav-link-text ps-1">{{ __('Overview') }}</span></a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('extra-charges') }}"><span class="nav-link-text ps-1">{{ __('Extra Charges') }}</span></a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('admin.expenses') }}"><span class="nav-link-text ps-1">{{ __('Expenses') }}</span></a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('payment-collection') }}"><span class="nav-link-text ps-1">{{ __('Payment Collection') }}</span></a>
+                </div>
+            </li>
+
+            <li class="nav-item">
+                <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
+                    <div class="col-auto navbar-vertical-label">{{ __('iPilot Workspace') }}</div>
+                    <div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div>
+                </div>
+                <a class="nav-link dropdown-indicator collapsed" href="#ipilotWorkspaceMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="ipilotWorkspaceMenu">
+                    <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-cpu"></i></span><span class="nav-link-text ps-1">{{ __('iPilot Overview') }}</span></div>
+                </a>
+                <div class="collapse ps-4" id="ipilotWorkspaceMenu">
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot') }}">{{ __('Workspace Dashboard') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.integrations') }}">{{ __('API & Webhooks') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.api-docs') }}">{{ __('API v2 Docs') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.app-settings') }}">{{ __('App Settings') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.zabbix') }}">{{ __('Zabbix Monitoring') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.terminal') }}">{{ __('Read-only Terminal') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.gis.outside-plant') }}">{{ __('Network & Outside Plant') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.gis.operations') }}">{{ __('Network Operations') }}</a>
+                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('ipilot.gis.planning') }}">{{ __('Planning & Serviceability') }}</a>
+                </div>
+            </li>
+
+            {{-- ── Reports & Analytics: consolidated reporting destinations ── --}}
+            <li class="nav-item">
+                <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
+                    <div class="col-auto navbar-vertical-label">{{ __('Reports & Analytics') }}</div>
+                    <div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div>
+                </div>
+                <a class="nav-link dropdown-indicator collapsed" href="#reportsAnalyticsMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="reportsAnalyticsMenu">
+                    <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-graph-up-arrow"></i></span><span class="nav-link-text ps-1">{{ __('Reports Dashboard') }}</span></div>
+                </a>
+                <div class="collapse ps-4" id="reportsAnalyticsMenu">
+                    <a wire:navigate.hover class="nav-link" href="{{ route('ipilot.reports') }}">{{ __('Reports Hub') }}</a>
+                    <a wire:navigate.hover class="nav-link" href="{{ route('ipilot.btrc') }}">{{ __('BTRC Report Draft') }}</a>
+                    <a wire:navigate.hover class="nav-link" href="{{ route('collection-report.index') }}">{{ __('Collection Report') }}</a>
+                    <a wire:navigate.hover class="nav-link" href="{{ route('income-summary') }}">{{ __('Income & Collection') }}</a>
+                    <a wire:navigate.hover class="nav-link" href="{{ route('ledger-summary') }}">{{ __('Ledger Summary') }}</a>
+                    <a wire:navigate.hover class="nav-link" href="{{ route('admin.profit-summary') }}">{{ __('Profit & Loss') }}</a>
+                    <a wire:navigate.hover class="nav-link" href="{{ route('customer-summary') }}">{{ __('Customer Summary') }}</a>
+                    <a wire:navigate.hover class="nav-link" href="{{ route('attendance-report') }}">{{ __('Attendance Report') }}</a>
+                    <a wire:navigate.hover class="nav-link" href="{{ route('sms-service.reports') }}">{{ __('SMS Reports & Delivery History') }}</a>
+                </div>
+            </li>
+
                 {{-- X-Link Billing parity modules: collapsed parents with click-to-open submenus --}}
+                <li class="nav-item"><div class="row navbar-vertical-label-wrapper mt-3 mb-2"><div class="col-auto navbar-vertical-label">{{ __('Billing & Payment Services') }}</div><div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div></div></li>
                 <a class="nav-link dropdown-indicator collapsed" href="#mobileBankingMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="mobileBankingMenu">
                     <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-phone"></i></span><span class="nav-link-text ps-1">{{ __('Mobile Banking') }}</span></div>
                 </a>
@@ -416,8 +436,10 @@
                 <div class="collapse ps-4" id="bandwidthResellerMenu">
                     <a wire:navigate.hover class="nav-link" href="{{ route('xlink.bandwidth-reseller') }}">{{ __('Reseller Management') }}</a>
                     <a wire:navigate.hover class="nav-link" href="{{ route('bandwidth-services') }}">{{ __('Services') }}</a>
+                    <a wire:navigate.hover class="nav-link" href="{{ route('bandwidth-trading') }}">{{ __('Bandwidth Buy / Sell') }}</a>
                     <a wire:navigate.hover class="nav-link" href="{{ route('bandwidth-invoices') }}">{{ __('Billing') }}</a>
                     <a wire:navigate.hover class="nav-link" href="{{ route('bandwidth-tickets') }}">{{ __('Support Ticket') }}</a>
+                    <a wire:navigate.hover class="nav-link" href="{{ route('company-settings.service-configuration',['category'=>'bandwidth_type']) }}">{{ __('Bandwidth Types') }}</a>
                 </div>
 
                 <a class="nav-link dropdown-indicator collapsed" href="#stockInventoryMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="stockInventoryMenu">
@@ -431,6 +453,7 @@
                     <a wire:navigate.hover class="nav-link" href="{{ route('stock-inventory.damaged') }}">{{ __('Lost & Damaged') }}</a>
                     <a wire:navigate.hover class="nav-link" href="{{ route('stock-inventory.settings') }}">{{ __('Settings') }}</a>
                 </div>
+                <li class="nav-item"><div class="row navbar-vertical-label-wrapper mt-3 mb-2"><div class="col-auto navbar-vertical-label">{{ __('Communication & Support') }}</div><div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div></div></li>
                 <a class="nav-link dropdown-indicator collapsed" href="#communicationCenterMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="communicationCenterMenu">
                     <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-chat-dots"></i></span><span class="nav-link-text ps-1">{{ __('Communication Center') }}</span></div>
                 </a>
@@ -454,9 +477,8 @@
                     <a wire:navigate.hover class="nav-link" href="{{ route('support-center.sales-create') }}">{{ __('Add Sales Query') }}</a>
                     <a wire:navigate.hover class="nav-link" href="{{ route('support-center.kyc') }}">{{ __('KYC Update') }}</a>
                     <a wire:navigate.hover class="nav-link" href="{{ route('support-center.templates') }}">{{ __('Template Settings') }}</a>
-                    <a wire:navigate.hover class="nav-link" href="{{ route('admin.activity-logs') }}">{{ __('Activity Logs') }}</a>
-                    <a wire:navigate.hover class="nav-link" href="{{ route('admin.login-logs') }}">{{ __('Login Logs') }}</a>
                 </div>
+                <li class="nav-item"><div class="row navbar-vertical-label-wrapper mt-3 mb-2"><div class="col-auto navbar-vertical-label">{{ __('Team & Access Management / System Configuration') }}</div><div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div></div></li>
                 @foreach([
                     ['xlink.team-access','Team & Access','bi-people','teamAccessMenu'],
                     ['xlink.system-settings','System Settings','bi-gear','systemSettingsMenu'],
@@ -475,7 +497,6 @@
                         <a wire:navigate.hover class="nav-link" href="{{ route('staff-team') }}">{{ __('Team Overview') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('staff-conveyance') }}">{{ __('Visits & Conveyance') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('attendance') }}">{{ __('Attendance') }}</a>
-                        <a wire:navigate.hover class="nav-link" href="{{ route('attendance-report') }}">{{ __('Attendance Report') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('attendance-leave') }}">{{ __('Leave Management') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('attendance-payroll') }}">{{ __('Payroll & Salary') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('attendance-settings') }}">{{ __('Attendance Settings') }}</a>
@@ -486,26 +507,19 @@
                         <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route($route) }}">{{ __('Overview') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('site-settings') }}">{{ __('Master Setup') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('company-settings') }}">{{ __('Company Settings') }}</a>
-                        <a wire:navigate.hover class="nav-link" href="{{ route('mikrotik-sync') }}">{{ __('MikroTik Setup') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('sms-setup') }}">{{ __('SMS Setup') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('main-site-setup') }}">{{ __('Main Site Setup') }}</a>
-                        <a wire:navigate.hover class="nav-link" href="{{ route('mikrotik-server-backup') }}">{{ __('MikroTik Backup') }}</a>
-                        <a wire:navigate.hover class="nav-link" href="{{ route('mikrotik-log-viewer') }}">{{ __('MikroTik Logs') }}</a>
                     </div>
                     @elseif($menuId === 'billingHelplineMenu')
                     <div class="collapse ps-4" id="{{ $menuId }}">
                         <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route($route) }}">{{ __('Overview') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('admin-tickets') }}">{{ __('Support Tickets') }}</a>
-                        <a wire:navigate.hover class="nav-link" href="{{ route('payment-collection') }}">{{ __('Payment Collection') }}</a>
-                        <a wire:navigate.hover class="nav-link" href="{{ route('collection-report.index') }}">{{ __('Collection Report') }}</a>
-                        <a wire:navigate.hover class="nav-link" href="{{ route('customer-summary') }}">{{ __('Customer Summary') }}</a>
                     </div>
                     @elseif($menuId === 'profileSecurityMenu')
                     <div class="collapse ps-4" id="{{ $menuId }}">
                         <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route($route) }}">{{ __('Overview') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('profile.show') }}">{{ __('My Profile') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('api-tokens.index') }}">{{ __('API Tokens') }}</a>
-                        <a wire:navigate.hover class="nav-link" href="{{ route('admin.login-logs') }}">{{ __('Login Logs') }}</a>
                     </div>
                     @else
                     <div class="collapse ps-4" id="{{ $menuId }}">
@@ -517,7 +531,7 @@
             <li class="nav-item">
                 <!-- label-->
                 <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
-                    <div class="col-auto navbar-vertical-label">{{ __('Admin') }}</div>
+                    <div class="col-auto navbar-vertical-label">{{ __('Reseller & Administration') }}</div>
                     <div class="col ps-0">
                         <hr class="mb-0 navbar-vertical-divider" />
                     </div>
@@ -560,7 +574,6 @@
                 <ul class="nav collapse ps-2" id="macResellerAdminMenu">
                     <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mac-reseller.dashboard') }}"><i class="bi bi-speedometer2 me-2"></i>{{ __('Dashboard') }}</a></li>
                     <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('package-list-setup') }}"><i class="bi bi-box2 me-2"></i>{{ __('Package') }}</a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('package-list-setup') }}"><i class="bi bi-sliders me-2"></i>{{ __('Tariff Config') }}</a></li>
                     <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('admin.resellers.create', ['panel_type' => 'mac']) }}"><i class="bi bi-person-plus-fill me-2"></i>{{ __('Add MAC Reseller') }}</a></li>
                     <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('admin.resellers.index', ['panel_type' => 'mac']) }}"><i class="bi bi-list-ul me-2"></i>{{ __('MAC Reseller List') }}</a></li>
                     <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('reseller-cashflow') }}"><i class="bi bi-wallet2 me-2"></i>{{ __('Reseller Funding') }}</a></li>
@@ -579,6 +592,7 @@
                         <span class="nav-link-text ps-1">{{ __('Reseller Setup') }}</span>
                     </div>
                 </a>
+                <li class="nav-item"><div class="row navbar-vertical-label-wrapper mt-3 mb-2"><div class="col-auto navbar-vertical-label">{{ __('Logs & Audit') }}</div><div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div></div></li>
                 <!-- Logs Management Dropdown -->
                 <a class="nav-link dropdown-indicator collapsed" href="#logsSetupDropdown" role="button"
                     data-bs-toggle="collapse" aria-expanded="false" aria-controls="logsSetupDropdown">
@@ -652,14 +666,6 @@
                     <li class="nav-item"><a wire:navigate.hover class="nav-link" href="{{ route('sms-service.bulk') }}"><span class="nav-link-text ps-1">{{ __('Bulk Campaign') }}</span></a></li>
                     <li class="nav-item"><a wire:navigate.hover class="nav-link" href="{{ route('sms-service.templates') }}"><span class="nav-link-text ps-1">{{ __('SMS Templates') }}</span></a></li>
                     <li class="nav-item"><a wire:navigate.hover class="nav-link" href="{{ route('sms-service.gateway') }}"><span class="nav-link-text ps-1">{{ __('SMS Gateway') }}</span></a></li>
-                    <li class="nav-item"><a wire:navigate.hover class="nav-link" href="{{ route('sms-service.reports') }}"><span class="nav-link-text ps-1">{{ __('SMS Reports & Delivery History') }}</span></a></li>
-                    <li class="nav-item">
-                        <a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('sms-setup') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('SMS Setup') }}</span>
-                            </div>
-                        </a>
-                    </li>
                     <li class="nav-item">
                         <a wire:navigate.hover wire:current="active" class="nav-link"
                             href="{{ route('sms-bridge.index') }}">

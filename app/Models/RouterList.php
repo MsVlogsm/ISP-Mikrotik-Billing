@@ -10,10 +10,11 @@ class RouterList extends Model
     use HasFactory;
 
     protected $fillable = ['router_name',
-        'latitude', 'longitude', 'location', 'ip_address', 'username', 'password', 'action', 'ssh_port', 'api_port', 'api_ssl', 'last_latency_ms', 'last_checked_at'];
+        'latitude', 'longitude', 'location', 'ip_address', 'username', 'password', 'action', 'ssh_port', 'api_port', 'api_ssl', 'last_latency_ms', 'last_checked_at', 'notes'];
 
     protected $casts = [
         'api_ssl' => 'boolean',
+        'last_checked_at' => 'datetime',
     ];
 
     /**

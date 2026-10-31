@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Http\Controllers\MikrotikController;
 use App\Models\PackageList;
+use App\Models\CompanyServiceOption;
 use App\Models\RouterList;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -21,6 +22,10 @@ class PackageListSetup extends Component
     public $plan_label;
 
     public $speed;
+
+    public $bandwidth_type = 'shared';
+
+    public $bandwidthTypes = [];
 
     public $features_text = "24 HOURS UNLIMITED\nFiber Optics\nOTC Fee - 3000 Taka\n24/7 Customer Support";
 
@@ -55,6 +60,7 @@ class PackageListSetup extends Component
             'mikrotik_rate_limit', 'mikrotik_local_address', 'mikrotik_remote_address', 'push_to_mikrotik', 'router_name',
         ]);
         $this->show_on_site = true;
+        $this->bandwidthTypes = CompanyServiceOption::where('category', 'bandwidth_type')->where('is_active', true)->orderBy('name')->get(['code', 'name'])->toArray();
         $this->dataRender();
     }
 
@@ -77,6 +83,7 @@ class PackageListSetup extends Component
             'description' => 'nullable|max:255',
             'plan_label' => 'nullable|max:50',
             'speed' => 'nullable|max:100',
+            'bandwidth_type' => ['nullable', 'string', 'max:80', Rule::exists('company_service_options', 'code')->where(fn ($q) => $q->where('category', 'bandwidth_type')->where('is_active', true))],
             'features_text' => 'nullable|string',
             'sort_order' => 'nullable|integer|min:0',
             'mikrotik_rate_limit' => 'nullable|max:100',
@@ -126,6 +133,7 @@ class PackageListSetup extends Component
                     'description' => $this->description,
                     'plan_label' => $this->plan_label,
                     'speed' => $this->speed,
+                    'bandwidth_type' => $this->bandwidth_type ?: null,
                     'features' => $features,
                     'is_featured' => $this->is_featured,
                     'show_on_site' => $this->show_on_site,
@@ -176,11 +184,12 @@ class PackageListSetup extends Component
 
             \Log::info("PackageListSetup: createPackage COMPLETED for '{$this->package_name}'");
             $this->reset([
-                'package_id', 'package_name', 'price', 'description', 'plan_label', 'speed',
+                'package_id', 'package_name', 'price', 'description', 'plan_label', 'speed', 'bandwidth_type',
                 'features_text', 'is_featured', 'sort_order',
                 'mikrotik_rate_limit', 'mikrotik_local_address', 'mikrotik_remote_address', 'push_to_mikrotik', 'router_name',
             ]);
             $this->show_on_site = true;
+            $this->bandwidth_type = 'shared';
             $this->dataRender();
         } catch (\Exception $e) {
             \Log::error("PackageListSetup: FAILED to save or sync package '{$this->package_name}': ".$e->getMessage(), [
@@ -200,6 +209,7 @@ class PackageListSetup extends Component
         $this->description = $package->description;
         $this->plan_label = $package->plan_label;
         $this->speed = $package->speed;
+        $this->bandwidth_type = $package->bandwidth_type ?: 'shared';
         $this->is_featured = $package->is_featured;
         $this->show_on_site = $package->show_on_site;
         $this->sort_order = $package->sort_order;

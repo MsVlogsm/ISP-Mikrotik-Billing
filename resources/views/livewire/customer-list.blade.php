@@ -104,6 +104,10 @@
                                     <i class="bi bi-arrow-repeat me-1"></i><span>Sync ONU</span>
                                 </button>
                             </form>
+                            <button type="button" wire:click="refreshLiveOnlineStatus" wire:loading.attr="disabled" wire:target="refreshLiveOnlineStatus" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-0 shadow-none fw-600" style="height: 2rem;" title="Clear the short-lived PPP session cache and refresh live online status">
+                                <span wire:loading.remove wire:target="refreshLiveOnlineStatus"><i class="bi bi-wifi me-1"></i>Sync Online</span>
+                                <span wire:loading wire:target="refreshLiveOnlineStatus"><span class="spinner-border spinner-border-sm me-1"></span>Refreshing…</span>
+                            </button>
                             <button type="button" id="reset_table" class="btn btn-light btn-outline-dark btn-sm rounded-pill px-3 py-0 shadow-none fw-600" style="height: 2rem;" title="Reset all filters and search">
                                 <i class="bi bi-arrow-clockwise"></i> {{ __('Reset') }}
                             </button>
@@ -965,5 +969,6 @@
             };
 
             $wire.on('customer-action-done', () => { table.ajax.reload(null, false); });
+            $wire.on('customer-online-sync-complete', () => { table.ajax.reload(null, true); });
     </script>
 @endscript

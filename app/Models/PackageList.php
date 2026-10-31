@@ -10,7 +10,7 @@ class PackageList extends Model
     use HasFactory;
 
     protected $fillable = [
-        'package', 'price', 'description', 'merchant_company',
+        'package', 'price', 'description', 'merchant_company', 'bandwidth_type',
         'plan_label', 'speed', 'features', 'is_featured', 'show_on_site', 'sort_order',
         'mikrotik_rate_limit', 'push_to_mikrotik', 'mikrotik_local_address', 'mikrotik_remote_address',
         'router_name',

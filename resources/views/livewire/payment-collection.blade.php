@@ -147,22 +147,44 @@
                             </div>
                         </div>
                         
-                        <!-- Actions Form -->
+                        <!-- Advanced payment receipt -->
                         <div class="col-md-12 mt-4 pt-3 border-top">
-                            <form wire:submit.prevent="savePayment" class="row g-2 align-items-center">
-                                <div class="col-md-3 col-sm-12">
-                                    <input type="number" class="form-control form-control-sm" name="paid_amount" id="paid_amount" wire:model="paid_amount" wire:keyup="calculatePayment" min="1" autofocus placeholder="{{ __('Pay Amount') }}" required style="border-radius: 6px;">
+                            <form wire:submit.prevent="savePayment" class="row g-3 align-items-end">
+                                <div class="col-md-3 col-sm-6">
+                                    <label class="form-label small fw-semibold">{{ __('Amount Received') }}</label>
+                                    <input type="number" step="0.01" class="form-control form-control-sm" name="paid_amount" id="paid_amount" wire:model="paid_amount" wire:keyup="calculatePayment" min="0.01" max="99999999" autofocus placeholder="{{ __('Pay Amount') }}" required>
+                                    @error('paid_amount') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
-                                <div class="col-md-3 col-sm-12">
-                                    <input type="text" class="form-control form-control-sm" name="invoice" id="invoice" wire:model.live="invoice" placeholder="{{ __('Invoice No') }}" style="border-radius: 6px;">
+                                <div class="col-md-3 col-sm-6">
+                                    <label class="form-label small fw-semibold">{{ __('Payment Method') }}</label>
+                                    <select class="form-select form-select-sm" wire:model="payment_method" required>
+                                        <option value="cash">Cash</option><option value="bkash">bKash</option><option value="nagad">Nagad</option><option value="rocket">Rocket</option><option value="bank">Bank</option><option value="other">Other</option>
+                                    </select>
+                                    @error('payment_method') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
-                                <div class="col-md-3 col-sm-12">
-                                    <input type="date" class="form-control form-control-sm" name="expire_date" id="expire_date" wire:model.live="expire_date" style="border-radius: 6px;">
+                                <div class="col-md-3 col-sm-6">
+                                    <label class="form-label small fw-semibold">{{ __('Receipt / Transaction ID') }}</label>
+                                    <input type="text" class="form-control form-control-sm" wire:model="transaction_id" maxlength="120" placeholder="Optional receipt or TrxID">
+                                    @error('transaction_id') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
-                                <div class="col-md-3 col-sm-12">
-                                    <button class="btn btn-sm btn-success w-100 py-1.5" style="border-radius: 6px;">
-                                        <i class="bi bi-check-circle me-1"></i>{{ __('Pay Now') }}
-                                    </button>
+                                <div class="col-md-3 col-sm-6">
+                                    <label class="form-label small fw-semibold">{{ __('Collection Date & Time') }}</label>
+                                    <input type="datetime-local" class="form-control form-control-sm" wire:model="collection_date" required>
+                                    @error('collection_date') <span class="text-danger small">{{ $message }}</span> @enderror
+                                </div>
+                                <div class="col-md-4 col-sm-6">
+                                    <label class="form-label small fw-semibold">{{ __('New Expiry Date') }}</label>
+                                    <input type="date" class="form-control form-control-sm" wire:model.live="expire_date" required>
+                                    @error('expire_date') <span class="text-danger small">{{ $message }}</span> @enderror
+                                </div>
+                                <div class="col-md-5 col-sm-8">
+                                    <label class="form-label small fw-semibold">{{ __('Notes') }}</label>
+                                    <input type="text" class="form-control form-control-sm" wire:model="payment_details" maxlength="2000" placeholder="Optional collection note">
+                                    @error('payment_details') <span class="text-danger small">{{ $message }}</span> @enderror
+                                </div>
+                                <div class="col-md-3 col-sm-4">
+                                    <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="send_payment_sms" wire:model="send_sms"><label class="form-check-label small" for="send_payment_sms">{{ __('Send SMS receipt') }}</label></div>
+                                    <button class="btn btn-sm btn-success w-100" wire:loading.attr="disabled" wire:target="savePayment"><span wire:loading.remove wire:target="savePayment"><i class="bi bi-check-circle me-1"></i>{{ __('Collect Payment') }}</span><span wire:loading wire:target="savePayment">Saving…</span></button>
                                 </div>
                             </form>
                         </div>

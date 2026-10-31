@@ -66,6 +66,7 @@
                                         <input class="form-control form-control-sm" type="text" id="location" wire:model="location" placeholder="Location" aria-label="Location">
                                         <x-input-error for='location' />
                                     </div>
+                                    <div class="col-12 col-sm-12 col-md-8 col-lg-4"><input class="form-control form-control-sm" type="text" id="notes" wire:model="notes" maxlength="1000" placeholder="Router notes / POP / role" aria-label="Router notes"><x-input-error for='notes' /></div>
                                 </div>
                                 <button class="btn btn-sm btn-primary mt-2" type="submit">{{ __('Submit') }}</button>
                             </form>
@@ -106,6 +107,15 @@
                                         <span class="fw-bold text-dark">{{ $router->api_port ?? '-' }}</span>
                                     </div>
                                     <div class="d-flex justify-content-between align-items-center" style="font-size: 0.8rem;">
+                                        <span class="text-muted">{{ __('Last Check') }}:</span>
+                                        <span class="fw-semibold text-dark">{{ $router->last_checked_at ? $router->last_checked_at->diffForHumans() : 'Never tested' }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center" style="font-size: 0.8rem;">
+                                        <span class="text-muted">{{ __('Latency') }}:</span>
+                                        <span class="fw-semibold text-dark">{{ $router->last_latency_ms !== null ? $router->last_latency_ms.' ms' : '—' }}</span>
+                                    </div>
+                                    @if($router->notes)<div class="small text-muted text-truncate" title="{{ $router->notes }}">{{ $router->notes }}</div>@endif
+                                    <div class="d-flex justify-content-between align-items-center" style="font-size: 0.8rem;">
                                         <span class="text-muted">{{ __('API SSL') }}:</span>
                                         <span class="badge {{ $router->api_ssl ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' }}">{{ $router->api_ssl ? __('Enabled') : __('Disabled') }}</span>
                                     </div>
@@ -142,6 +152,7 @@
 
                                     <!-- Action Buttons -->
                                     <div class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-outline-success p-1" title="{{ __('Test Connection') }}" wire:click="testConnection({{ $router->id }})" wire:loading.attr="disabled" wire:target="testConnection({{ $router->id }})"><i class="bi bi-activity" style="font-size: 0.85rem;"></i></button>
                                         <button class="btn btn-sm btn-outline-danger p-1" title="{{ __('Delete') }}" wire:click="delete({{ $router->id }})">
                                             <i class="bi bi-trash" style="font-size: 0.85rem;"></i>
                                         </button>

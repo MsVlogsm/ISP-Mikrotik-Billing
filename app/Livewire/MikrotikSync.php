@@ -40,6 +40,8 @@ class MikrotikSync extends Component
 
     public $location;
 
+    public $notes;
+
     public function mount()
     {
         if (! hasAccess(['Super Admin'], ['mikrotik-setup'])) {
@@ -95,6 +97,7 @@ class MikrotikSync extends Component
             'latitude' => ['nullable','numeric','between:-90,90'],
             'longitude' => ['nullable','numeric','between:-180,180'],
             'location' => ['nullable','string','max:160'],
+            'notes' => ['nullable','string','max:1000'],
         ];
     }
 
@@ -113,6 +116,7 @@ class MikrotikSync extends Component
             'latitude' => $this->latitude !== '' ? $this->latitude : null,
             'longitude' => $this->longitude !== '' ? $this->longitude : null,
             'location' => $this->location !== '' ? $this->location : null,
+            'notes' => $this->notes !== '' ? $this->notes : null,
         ];
 
         // Include password only if provided
@@ -388,7 +392,46 @@ class MikrotikSync extends Component
             $this->latitude = $router->latitude;
             $this->longitude = $router->longitude;
             $this->location = $router->location ?? '';
+            $this->notes = $router->notes ?? '';
         }
+    }
+
+
+    public function testConnection(int $routerId): void
+    {
+        $this->authorizeRouterManagement();
+        $router = RouterList::findOrFail($routerId);
+        $started = microtime(true);
+        try {
+            $result = app(MikrotikController::class)->checkConnection(
+                $router->ip_address,
+                $router->ssh_port,
+                $router->api_port,
+                $router->username,
+                $router->password,
+                '/system/resource/print',
+                '/system resource print',
+                [],
+                false,
+                (bool) $router->api_ssl
+            );
+            $latency = max(0, (int) round((microtime(true) - $started) * 1000));
+            $router->forceFill(['last_latency_ms' => $result['status'] ? $latency : null, 'last_checked_at' => now()])->save();
+            if ($result['status'] ?? false) {
+                flash()->success('Router connection successful via '.($result['type'] ?? 'configured protocol')." ({$latency} ms).");
+            } else {
+                flash()->error('Router connection failed. Check IP, ports, API-SSL and credentials.');
+            }
+        } catch (\Throwable $e) {
+            report($e);
+            $router->forceFill(['last_latency_ms' => null, 'last_checked_at' => now()])->save();
+            flash()->error('Router connection test failed. Check the connection settings and server logs.');
+        }
+    }
+
+    private function authorizeRouterManagement(): void
+    {
+        abort_unless(hasAccess(['Super Admin'], ['mikrotik-setup']), 403, 'Unauthorized action.');
     }
 
     public function delete($id)

@@ -1455,6 +1455,10 @@ Route::middleware([
         Route::get('/bandwidth-services', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'services'])->name('bandwidth-services');
         Route::post('/bandwidth-services', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'storeService'])->name('bandwidth-services.store');
         Route::post('/bandwidth-services/{service}/toggle', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'toggleService'])->name('bandwidth-services.toggle');
+        Route::get('/bandwidth-trading', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'trading'])->name('bandwidth-trading');
+        Route::post('/bandwidth-trading/provider', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'storeProvider'])->name('bandwidth-trading.provider.store');
+        Route::post('/bandwidth-trading', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'storeTrading'])->name('bandwidth-trading.store');
+        Route::post('/bandwidth-trading/{transaction}/pay', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'payTrading'])->name('bandwidth-trading.pay');
         Route::get('/bandwidth-invoices', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'invoices'])->name('bandwidth-invoices');
         Route::post('/bandwidth-invoices', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'storeInvoice'])->name('bandwidth-invoices.store');
         Route::post('/bandwidth-invoices/{invoice}/pay', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'payInvoice'])->name('bandwidth-invoices.pay');
