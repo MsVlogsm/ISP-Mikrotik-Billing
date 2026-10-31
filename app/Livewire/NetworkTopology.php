@@ -637,7 +637,7 @@ class NetworkTopology extends Component
                     // Keep a synthetic PON→ONU edge only until an operator has drawn the
                     // actual published fiber/splitter route. Otherwise the graph would
                     // visually bypass the very splitter chain being identified.
-                    $graphEdges[] = ['id'=>'auto:pon-onu:'.$mapping->id,'from'=>$ponKey,'to'=>$onuKey,'label'=>$mapping->pon_port ?: 'ONU','connection_type'=>'splitter','arrows'=>'to','capacity_mbps'=>null,'traffic_mbps'=>null,'utilization'=>null];
+                    $graphEdges[] = ['id'=>'auto:pon-onu:'.$mapping->id,'from'=>$ponKey,'to'=>$onuKey,'label'=>'PON → ONU · splitter path not mapped','connection_type'=>'logical_service','arrows'=>'to','dashes'=>true,'capacity_mbps'=>null,'traffic_mbps'=>null,'utilization'=>null];
                 }
                 if ($mapping->customer_id && $mapping->customer) {
                     $customerKey = 'customer:'.$mapping->customer_id;

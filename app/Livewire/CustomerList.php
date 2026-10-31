@@ -167,8 +167,10 @@ class CustomerList extends Component
                 $data->whereNotIn('status', $statusFilter)
                     ->whereDoesntHave('customerAddress', function ($q) {
                         $q->where('label_name', 'Network Location')
-                            ->whereNotNull('latitude')
-                            ->whereNotNull('longitude');
+                            ->whereNotNull('latitude')->where('latitude', '!=', '')
+                            ->whereNotNull('longitude')->where('longitude', '!=', '')
+                            ->whereBetween('latitude', [-90, 90])
+                            ->whereBetween('longitude', [-180, 180]);
                     });
                 break;
 

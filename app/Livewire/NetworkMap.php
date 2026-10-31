@@ -89,15 +89,18 @@ class NetworkMap extends Component
             'notes' => $node->notes,
         ])->values()->toArray();
 
-        $customers = CustomersInfo::active()->count();
+        $customers = CustomersInfo::whereNull('deleted_at')->count();
         $nodes = CustomersAddress::query()
             ->leftJoin('customers_infos as ci', 'ci.customer_unique_id', '=', 'customers_addresses.customer_address_unique_id')
             ->leftJoin('p_p_p_secrets as ps', 'ps.id', '=', 'ci.ppp_user_id')
             ->where('customers_addresses.label_name', 'Network Location')
-            ->where('ci.status', 'active')
             ->whereNull('ci.deleted_at')
             ->whereNotNull('customers_addresses.latitude')
             ->whereNotNull('customers_addresses.longitude')
+            ->where('customers_addresses.latitude', '!=', '')
+            ->where('customers_addresses.longitude', '!=', '')
+            ->whereBetween('customers_addresses.latitude', [-90, 90])
+            ->whereBetween('customers_addresses.longitude', [-180, 180])
             ->limit(1000)
             ->get([
                 'customers_addresses.latitude', 'customers_addresses.longitude',

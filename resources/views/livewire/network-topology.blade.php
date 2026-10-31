@@ -33,7 +33,7 @@
    <button class="btn btn-primary" type="submit"><i class="bi bi-plus-lg me-1"></i>Save draft connection</button>
   </form>
  </div></div>
- <div class="col-xl-4"><div class="nt-card p-3"><h5 class="mb-1">Add Network Node</h5><p class="nt-muted">Add logical infrastructure such as a splitter, ODF, rack, POP or fiber segment.</p>
+ <div class="col-xl-4"><div class="nt-card p-3"><h5 class="mb-1">Add Network Node</h5><p class="nt-muted">Add logical infrastructure such as a splitter, ODF, rack, POP or fiber segment.</p><div class="alert alert-info py-2 small mb-2">Live OLT/PON/ONU identities are loaded from the mapping ledger. To build a physical path, add the actual splitter asset, enter its GPS coordinates and port ratio, then connect PON → splitter IN → splitter OUT → ONU and publish the links. Until this is configured, the live graph shows a dashed logical PON-to-ONU link, not a verified physical splitter path.</div>
   <form wire:submit.prevent="saveNode" class="d-grid gap-3">
    <div><label class="form-label">Node type</label><select wire:model="newNodeType" class="form-select"><option value="splitter">Fiber Splitter</option><option value="olt_pon">OLT PON Port</option><option value="odf">ODF</option><option value="rack">Rack</option><option value="pop">POP</option><option value="fiber_segment">Fiber segment</option><option value="cabinet">Street cabinet</option><option value="pole">Utility pole</option><option value="splice">Splice closure</option><option value="server">Server / headend</option></select></div>
    <div><label class="form-label">Name / reference *</label><input wire:model="newNodeName" class="form-control" required placeholder="e.g. SPL-POP1-01">@error('newNodeName')<small class="text-danger">{{ $message }}</small>@enderror</div>
