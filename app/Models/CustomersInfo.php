@@ -221,6 +221,21 @@ class CustomersInfo extends Model
         return $this->belongsTo(PackageList::class, 'package_id', 'id');
     }
 
+    /**
+     * Latest mapped ONU RX reading for this customer, limited to fresh OPM data.
+     * The mapping's customer_id references customers_infos.id (not the public CID).
+     */
+    public function latestOnuOpticalReading()
+    {
+        $now = now();
+
+        return $this->hasOne(OltOnuCustomerMapping::class, 'customer_id', 'id')
+            ->ofMany(['opm_last_seen_at' => 'max', 'id' => 'max'], function ($query) use ($now) {
+                $query->whereNotNull('rx_power')
+                    ->whereBetween('opm_last_seen_at', [$now->copy()->subMinutes(30), $now]);
+            });
+    }
+
     public function customerAddress()
     {
         return $this->hasMany(CustomersAddress::class, 'customer_address_unique_id', 'customer_unique_id');

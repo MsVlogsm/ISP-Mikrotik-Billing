@@ -111,7 +111,7 @@ class CustomerList extends Component
         $statusFilter = ['pending', 'disable', 'free', 'inactive'];
 
         $data = CustomersInfo::query()
-            ->with(['billing', 'pppUser', 'customerAddress', 'official', 'package', 'reseller'])
+            ->with(['billing', 'pppUser', 'customerAddress', 'official', 'package', 'reseller', 'latestOnuOpticalReading.olt'])
             ->select('customers_infos.*');
 
         // Global customer search: search across the customer's stored identity/contact
@@ -374,6 +374,31 @@ class CustomerList extends Component
                 return '<div class="fw-semibold">'.e($name ?: 'N/A').'</div>'
                     .($price !== null ? '<small class="text-muted">'.number_format((float) $price, 2).' ৳</small>' : '');
             })
+            ->addColumn('onu_rx_power_display', function ($row) {
+                $reading = $row->latestOnuOpticalReading;
+
+                if (! $reading || $reading->rx_power === null) {
+                    return '<span class="text-muted small" title="No RX measurement received in the last 30 minutes">No fresh OPM</span>';
+                }
+
+                $rxPower = (float) $reading->rx_power;
+                $signalClass = $rxPower >= -20
+                    ? 'bg-success-subtle text-success'
+                    : ($rxPower >= -27 ? 'bg-warning-subtle text-warning-emphasis' : 'bg-danger-subtle text-danger');
+
+                $details = array_filter([
+                    $reading->olt?->name,
+                    filled($reading->pon_port) ? 'PON '.$reading->pon_port : null,
+                    filled($reading->onu_id) ? 'ONU '.$reading->onu_id : null,
+                ]);
+                $sampledAt = $reading->opm_last_seen_at?->format('d M H:i:s');
+                $title = implode(' · ', array_filter(array_merge($details, $sampledAt ? ['Sampled '.$sampledAt] : [])));
+
+                return '<div class="d-inline-flex flex-column align-items-start gap-1" title="'.e($title).'">'
+                    .'<span class="badge rounded-pill '.$signalClass.' fw-bold">RX '.number_format($rxPower, 2).' dBm</span>'
+                    .'<small class="text-muted">'.e(implode(' · ', $details) ?: 'Mapped ONU').'</small>'
+                    .'</div>';
+            })
             ->addColumn('billing_date_display', function ($row) {
                 if (! $row->billing?->auto_disable_date) {
                     return '<span class="text-muted">—</span>';
@@ -500,7 +525,7 @@ class CustomerList extends Component
                 }
                 return $menu.'</ul></div>';
             })
-            ->rawColumns(['customer_identity', 'customers_address', 'billing_breakdown', 'connection_details', 'billing_summary', 'action', 'disable_details', 'cid', 'customer_name_display', 'connection', 'mobile_display', 'package_display', 'billing_date_display', 'balance_display', 'expiry_display', 'address_display', 'pop_area', 'monthly_bill_display'])
+            ->rawColumns(['customer_identity', 'customers_address', 'billing_breakdown', 'connection_details', 'billing_summary', 'action', 'disable_details', 'cid', 'customer_name_display', 'connection', 'mobile_display', 'package_display', 'onu_rx_power_display', 'billing_date_display', 'balance_display', 'expiry_display', 'address_display', 'pop_area', 'monthly_bill_display'])
             ->make(true);
     }
 

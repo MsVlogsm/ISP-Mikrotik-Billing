@@ -129,6 +129,7 @@
                         <th>{{ __('Connection') }}</th>
                         <th>{{ __('Mobile') }}</th>
                         <th>{{ __('Package') }}</th>
+                        <th>{{ __('ONU RX Power') }}</th>
                         <th>{{ __('Billing Date') }}</th>
                         <th class="text-end">{{ __('Balance') }}</th>
                         <th>{{ __('Expiry') }}</th>
@@ -841,6 +842,7 @@
                     { data: 'connection', name: 'ppp_user.username', title: '{{ __('Connection') }}', className: 'text-start' },
                     { data: 'mobile_display', name: 'mobile', title: '{{ __('Mobile') }}', className: 'text-start' },
                     { data: 'package_display', name: 'package.package', title: '{{ __('Package') }}', className: 'text-start' },
+                    { data: 'onu_rx_power_display', name: 'onu_rx_power_display', title: '{{ __('ONU RX Power') }}', orderable: false, searchable: false, className: 'text-start' },
                     { data: 'billing_date_display', name: 'billing.auto_disable_date', title: '{{ __('Billing Date') }}', className: 'text-start' },
                     { data: 'balance_display', name: 'billing.due_amount', title: '{{ __('Balance') }}', className: 'text-end' },
                     { data: 'expiry_display', name: 'billing.auto_disable_date', title: '{{ __('Expiry') }}', className: 'text-start' },
