@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\BillingInfo;
 use App\Models\CustomersInfo;
 use App\Models\PackageList;
+use App\Models\PaymentSummary;
+use App\Models\CollectionSummary;
 use App\Models\PPPSecrets;
 use App\Models\Reseller;
 use App\Models\RouterList;
@@ -133,12 +135,49 @@ class BroadbandController extends Controller
 
         if ($status === 'unverified') $query->where(function ($q) { $q->whereNull('mobile')->orWhereNull('identification_no'); });
         if ($status === 'due') $query->whereHas('billing', fn ($q) => $q->where('due_amount', '>', 0));
+        $paidMonth = null;
         if ($status === 'paid') {
-            // Paid means a payment was recorded and the current balance is settled.
-            // A zero balance alone is not proof of payment (new/free customers can be zero).
-            $query->whereHas('billing', fn ($q) => $q
-                ->where('paid_amount', '>', 0)
-                ->where('due_amount', '<=', 0));
+            // BillingInfo is rolled forward at the start of each billing cycle and
+            // paid_amount is reset for the new month. Historical paid customers must
+            // therefore be calculated from that month's PaymentSummary + collections,
+            // not from the newly-reset BillingInfo row.
+            $requestedMonth = (string) $request->input('paid_month', '');
+            if (preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $requestedMonth)) {
+                $paidMonth = $requestedMonth;
+            } else {
+                $latestPaidDate = CollectionSummary::query()
+                    ->where('payment_status', 'paid')
+                    ->where('collection_amount', '>', 0)
+                    ->max('collection_date');
+                $paidMonth = $latestPaidDate
+                    ? Carbon::parse($latestPaidDate)->format('Y-m')
+                    : now()->format('Y-m');
+            }
+
+            $monthStart = Carbon::createFromFormat('!Y-m', $paidMonth)->startOfMonth();
+            $monthEnd = $monthStart->copy()->addMonth();
+            $monthStartValue = $monthStart->toDateString();
+            $monthEndValue = $monthEnd->toDateString();
+
+            $settledCustomerIds = PaymentSummary::query()
+                ->whereDate('summary_date', $monthStartValue)
+                ->whereRaw('(COALESCE(monthly_rent,0) + COALESCE(additional_charge,0) + COALESCE(vat,0) + COALESCE(previous_due,0) - COALESCE(discount,0) - COALESCE(advance,0)) > 0')
+                ->whereRaw(
+                    '(SELECT COALESCE(SUM(cs.collection_amount),0) FROM collection_summaries cs '
+                    .'WHERE cs.customer_collection_unique_id = payment_summaries.customer_payment_unique_id '
+                    .'AND cs.payment_status = ? AND cs.collection_date >= ? AND cs.collection_date < ?) '
+                    .'>= (COALESCE(monthly_rent,0) + COALESCE(additional_charge,0) + COALESCE(vat,0) + COALESCE(previous_due,0) - COALESCE(discount,0) - COALESCE(advance,0))',
+                    ['paid', $monthStartValue, $monthEndValue]
+                )
+                ->whereExists(function ($subquery) {
+                    $subquery->selectRaw('1')
+                        ->from('customers_infos as paid_customers')
+                        ->whereColumn('paid_customers.customer_unique_id', 'payment_summaries.customer_payment_unique_id')
+                        ->whereNull('paid_customers.deleted_at');
+                })
+                ->select('customer_payment_unique_id');
+
+            $query->whereIn('customer_unique_id', $settledCustomerIds);
         }
         if ($status === 'disabled') $query->whereIn('status', ['disable', 'temporary_disable']);
 
@@ -163,6 +202,7 @@ class BroadbandController extends Controller
             'packages' => PackageList::orderBy('package')->get(),
             'leftStats' => $leftStats,
             'onlineSessionStatus' => $onlineSessionStatus,
+            'paidMonth' => $paidMonth,
         ]);
     }
 

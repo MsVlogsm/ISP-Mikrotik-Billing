@@ -78,6 +78,12 @@
                     <label class="form-label mb-1">Search customer</label>
                     <input class="form-control" name="q" value="{{ request('q') }}" placeholder="CID, name, mobile, username, IP, NID, address, router or package">
                 </div>
+                @if($mode === 'paid')
+                    <div class="col-6 col-lg-2">
+                        <label class="form-label mb-1">Payment Month</label>
+                        <input class="form-control" type="month" name="paid_month" value="{{ $paidMonth ?? now()->format('Y-m') }}">
+                    </div>
+                @endif
                 <div class="col-6 col-lg-2">
                     <label class="form-label mb-1">Router</label>
                     <select class="form-select" name="router_id">
@@ -129,7 +135,12 @@
     <div class="card shadow-sm border-0">
         <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
             <strong>{{ $mode === 'inactive' ? 'Left Customer Register' : ($mode === 'disabled' ? 'Disabled Customer List' : 'Customer List') }}</strong>
-            <span class="text-muted small">{{ number_format($customers->total()) }} records</span>
+            <div class="text-end">
+                @if($mode === 'paid' && !empty($paidMonth))
+                    <div class="small text-muted">Fully settled bill · {{ \Carbon\Carbon::createFromFormat('!Y-m', $paidMonth)->format('F Y') }}</div>
+                @endif
+                <span class="text-muted small">{{ number_format($customers->total()) }} records</span>
+            </div>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 broadband-customer-table">
@@ -271,7 +282,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="{{ $mode === 'inactive' ? 14 : 10 }}" class="text-center py-5 text-muted">No customers found.</td></tr>
+                    <tr><td colspan="{{ $mode === 'inactive' ? 14 : 10 }}" class="text-center py-5 text-muted">{{ $mode === 'paid' ? 'No fully settled customers found for '.(\Carbon\Carbon::createFromFormat('!Y-m', $paidMonth ?? now()->format('Y-m'))->format('F Y')).'.' : 'No customers found.' }}</td></tr>
                 @endforelse
                 </tbody>
             </table>
