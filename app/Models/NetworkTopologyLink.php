@@ -9,7 +9,7 @@ class NetworkTopologyLink extends Model
 {
     protected $fillable = [
         'map_id', 'source_key', 'target_key', 'connection_type', 'label', 'capacity_mbps',
-        'traffic_mbps', 'latency_ms', 'packet_loss', 'fiber_core', 'fiber_type', 'source_port', 'target_port',
+        'traffic_mbps', 'latency_ms', 'packet_loss', 'fiber_core', 'fiber_type', 'fiber_color_standard', 'fiber_core_color', 'fiber_core_color_hex', 'fiber_tube_number', 'fiber_tube_color', 'source_port', 'target_port',
         'status', 'is_published', 'created_by',
     ];
 

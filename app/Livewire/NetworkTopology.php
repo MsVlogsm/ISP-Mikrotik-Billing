@@ -31,6 +31,10 @@ class NetworkTopology extends Component
     public string $packet_loss = '';
     public string $fiber_core = '';
     public string $fiber_type = 'singlemode';
+    public string $newNodeFiberCoreCount = '';
+    public string $newNodeFiberColorStandard = 'tia_598';
+    public string $fiberCoreColorOverride = '';
+    public string $fiberCoreHexOverride = '';
     public string $splitter_ratio = '';
     public string $port_reference = '';
     public string $source_port = '';
@@ -120,6 +124,8 @@ class NetworkTopology extends Component
                     'input_ports' => $node->input_ports,
                     'output_ports' => $node->output_ports,
                     'port_capacity' => $node->port_capacity,
+                    'fiber_core_count' => $node->fiber_core_count,
+                    'fiber_color_standard' => $node->fiber_color_standard ?: 'tia_598',
                     'latitude' => $node->latitude,
                     'longitude' => $node->longitude,
                     'notes' => $node->notes,
@@ -144,6 +150,11 @@ class NetworkTopology extends Component
                     'packet_loss' => $link->packet_loss,
                     'fiber_core' => $link->fiber_core,
                     'fiber_type' => $link->fiber_type,
+                    'fiber_color_standard' => $link->fiber_color_standard,
+                    'fiber_core_color' => $link->fiber_core_color,
+                    'fiber_core_color_hex' => $link->fiber_core_color_hex,
+                    'fiber_tube_number' => $link->fiber_tube_number,
+                    'fiber_tube_color' => $link->fiber_tube_color,
                     'source_port' => $link->source_port,
                     'target_port' => $link->target_port,
                     'status' => $link->status,
@@ -169,8 +180,8 @@ class NetworkTopology extends Component
         $payload = [
             'format' => 'xlink-topology-backup', 'version' => 1, 'exported_at' => now()->toIso8601String(),
             'map' => ['name'=>$map->name, 'slug'=>$map->slug, 'description'=>$map->description, 'is_default'=>$map->is_default],
-            'nodes' => $nodes->map(fn($n)=>['backup_key'=>'custom:'.$n->id,'type'=>$n->type,'subtype'=>$n->subtype,'name'=>$n->name,'location'=>$n->location,'port_reference'=>$n->port_reference,'splitter_ratio'=>$n->splitter_ratio,'input_ports'=>$n->input_ports,'output_ports'=>$n->output_ports,'port_capacity'=>$n->port_capacity,'latitude'=>$n->latitude,'longitude'=>$n->longitude,'notes'=>$n->notes,'is_published'=>$n->is_published])->values()->all(),
-            'links' => $links->map(fn($l)=>['source_key'=>$l->source_key,'target_key'=>$l->target_key,'connection_type'=>$l->connection_type,'label'=>$l->label,'capacity_mbps'=>$l->capacity_mbps,'traffic_mbps'=>$l->traffic_mbps,'latency_ms'=>$l->latency_ms,'packet_loss'=>$l->packet_loss,'fiber_core'=>$l->fiber_core,'fiber_type'=>$l->fiber_type,'source_port'=>$l->source_port,'target_port'=>$l->target_port,'status'=>$l->status,'is_published'=>$l->is_published])->values()->all(),
+            'nodes' => $nodes->map(fn($n)=>['backup_key'=>'custom:'.$n->id,'type'=>$n->type,'subtype'=>$n->subtype,'name'=>$n->name,'location'=>$n->location,'port_reference'=>$n->port_reference,'splitter_ratio'=>$n->splitter_ratio,'input_ports'=>$n->input_ports,'output_ports'=>$n->output_ports,'port_capacity'=>$n->port_capacity,'fiber_core_count'=>$n->fiber_core_count,'fiber_color_standard'=>$n->fiber_color_standard,'latitude'=>$n->latitude,'longitude'=>$n->longitude,'notes'=>$n->notes,'is_published'=>$n->is_published])->values()->all(),
+            'links' => $links->map(fn($l)=>['source_key'=>$l->source_key,'target_key'=>$l->target_key,'connection_type'=>$l->connection_type,'label'=>$l->label,'capacity_mbps'=>$l->capacity_mbps,'traffic_mbps'=>$l->traffic_mbps,'latency_ms'=>$l->latency_ms,'packet_loss'=>$l->packet_loss,'fiber_core'=>$l->fiber_core,'fiber_type'=>$l->fiber_type,'fiber_color_standard'=>$l->fiber_color_standard,'fiber_core_color'=>$l->fiber_core_color,'fiber_core_color_hex'=>$l->fiber_core_color_hex,'fiber_tube_number'=>$l->fiber_tube_number,'fiber_tube_color'=>$l->fiber_tube_color,'source_port'=>$l->source_port,'target_port'=>$l->target_port,'status'=>$l->status,'is_published'=>$l->is_published])->values()->all(),
         ];
         $name = preg_replace('/[^A-Za-z0-9_-]+/', '-', $map->name).'-'.now()->format('Ymd-His').'.json';
         return response()->streamDownload(function() use ($payload) { echo json_encode($payload, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES); }, $name, ['Content-Type'=>'application/json']);
@@ -192,13 +203,13 @@ class NetworkTopology extends Component
             $keyMap = [];
             foreach ($nodes as $n) {
                 if (!is_array($n) || empty($n['name']) || empty($n['type'])) continue;
-                $created = NetworkTopologyNode::create(['map_id'=>$map->id,'type'=>$n['type'],'subtype'=>$n['subtype']??null,'name'=>$n['name'],'location'=>$n['location']??null,'port_reference'=>$n['port_reference']??null,'splitter_ratio'=>$n['splitter_ratio']??null,'input_ports'=>$n['input_ports']??null,'output_ports'=>$n['output_ports']??null,'port_capacity'=>$n['port_capacity']??null,'latitude'=>$n['latitude']??null,'longitude'=>$n['longitude']??null,'notes'=>$n['notes']??null,'is_published'=>(bool)($n['is_published']??false),'created_by'=>auth()->id()]);
+                $created = NetworkTopologyNode::create(['map_id'=>$map->id,'type'=>$n['type'],'subtype'=>$n['subtype']??null,'name'=>$n['name'],'location'=>$n['location']??null,'port_reference'=>$n['port_reference']??null,'splitter_ratio'=>$n['splitter_ratio']??null,'input_ports'=>$n['input_ports']??null,'output_ports'=>$n['output_ports']??null,'port_capacity'=>$n['port_capacity']??null,'fiber_core_count'=>$n['fiber_core_count']??null,'fiber_color_standard'=>$n['fiber_color_standard']??'tia_598','latitude'=>$n['latitude']??null,'longitude'=>$n['longitude']??null,'notes'=>$n['notes']??null,'is_published'=>(bool)($n['is_published']??false),'created_by'=>auth()->id()]);
                 if (!empty($n['backup_key'])) $keyMap[$n['backup_key']] = 'topology:'.$created->id;
             }
             foreach ($links as $l) {
                 if (!is_array($l) || empty($l['source_key']) || empty($l['target_key']) || empty($l['connection_type'])) continue;
                 $source = $keyMap[$l['source_key']] ?? $l['source_key']; $target = $keyMap[$l['target_key']] ?? $l['target_key'];
-                NetworkTopologyLink::create(['map_id'=>$map->id,'source_key'=>$source,'target_key'=>$target,'connection_type'=>$l['connection_type'],'label'=>$l['label']??null,'capacity_mbps'=>$l['capacity_mbps']??null,'traffic_mbps'=>$l['traffic_mbps']??null,'latency_ms'=>$l['latency_ms']??null,'packet_loss'=>$l['packet_loss']??null,'fiber_core'=>$l['fiber_core']??null,'fiber_type'=>$l['fiber_type']??null,'source_port'=>$l['source_port']??null,'target_port'=>$l['target_port']??null,'status'=>$l['status']??'unknown','is_published'=>(bool)($l['is_published']??false),'created_by'=>auth()->id()]);
+                NetworkTopologyLink::create(['map_id'=>$map->id,'source_key'=>$source,'target_key'=>$target,'connection_type'=>$l['connection_type'],'label'=>$l['label']??null,'capacity_mbps'=>$l['capacity_mbps']??null,'traffic_mbps'=>$l['traffic_mbps']??null,'latency_ms'=>$l['latency_ms']??null,'packet_loss'=>$l['packet_loss']??null,'fiber_core'=>$l['fiber_core']??null,'fiber_type'=>$l['fiber_type']??null,'fiber_color_standard'=>$l['fiber_color_standard']??null,'fiber_core_color'=>$l['fiber_core_color']??null,'fiber_core_color_hex'=>$l['fiber_core_color_hex']??null,'fiber_tube_number'=>$l['fiber_tube_number']??null,'fiber_tube_color'=>$l['fiber_tube_color']??null,'source_port'=>$l['source_port']??null,'target_port'=>$l['target_port']??null,'status'=>$l['status']??'unknown','is_published'=>(bool)($l['is_published']??false),'created_by'=>auth()->id()]);
             }
         });
         $this->reset('topologyImportFile');
@@ -222,10 +233,26 @@ class NetworkTopology extends Component
             'latency_ms' => ['nullable', 'numeric', 'min:0'],
             'packet_loss' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'fiber_core' => ['nullable', 'integer', 'min:1'],
+            'fiberCoreColorOverride' => ['nullable', 'string', 'max:32'],
+            'fiberCoreHexOverride' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'fiber_type' => ['nullable', Rule::in(['singlemode', 'multimode', 'drop', 'unknown'])],
             'source_port' => ['nullable', 'string', 'max:40'],
             'target_port' => ['nullable', 'string', 'max:40'],
         ]);
+
+        foreach ([['key'=>$data['source_key'],'port'=>$data['source_port'],'field'=>'source_port','node_field'=>'output_ports'],['key'=>$data['target_key'],'port'=>$data['target_port'],'field'=>'target_port','node_field'=>'input_ports']] as $ep) {
+            if (str_starts_with($ep['key'], 'topology:')) {
+                $endpointNode = NetworkTopologyNode::where('map_id', $this->mapId)->find((int) substr($ep['key'], 9));
+                if ($endpointNode?->type === 'splitter' && !$ep['port']) {
+                    $this->addError($ep['field'], 'A real splitter IN/OUT port is required for this connection.');
+                    return;
+                }
+            }
+        }
+        if (in_array($data['connection_type'], ['fiber_core', 'splitter'], true) && !$data['fiber_core']) {
+            $this->addError('fiber_core', 'Enter the physical fiber core number for this fiber connection.');
+            return;
+        }
 
         foreach ([['key'=>$data['source_key'],'port'=>$data['source_port'],'field'=>'source_port','node_field'=>'output_ports'],['key'=>$data['target_key'],'port'=>$data['target_port'],'field'=>'target_port','node_field'=>'input_ports']] as $ep) {
             if (!$ep['port'] || !str_starts_with($ep['key'], 'topology:')) continue;
@@ -242,12 +269,30 @@ class NetworkTopology extends Component
             if ($portNumber < 1 || ($capacity > 0 && $portNumber > $capacity)) { $this->addError($ep['field'], 'Port number exceeds this splitter configured port count.'); return; }
         }
 
+        $fiberSegment = collect([$data['source_key'], $data['target_key']])
+            ->filter(fn ($key) => str_starts_with($key, 'topology:'))
+            ->map(fn ($key) => NetworkTopologyNode::where('map_id', $this->mapId)->find((int) substr($key, 9)))
+            ->first(fn ($node) => $node && $node->type === 'fiber_segment');
+        $coreDetails = null;
+        if ($data['fiber_core']) {
+            if ($fiberSegment && $fiberSegment->fiber_core_count && (int) $data['fiber_core'] > (int) $fiberSegment->fiber_core_count) {
+                $this->addError('fiber_core', 'Selected core exceeds this cable segment capacity (' . $fiberSegment->fiber_core_count . ' cores).');
+                return;
+            }
+            $coreDetails = $this->fiberCoreColour((int) $data['fiber_core'], $fiberSegment?->fiber_color_standard ?: 'tia_598');
+            if (($coreDetails['standard'] ?? '') === 'manufacturer_custom') {
+                if (trim($this->fiberCoreColorOverride) === '') { $this->addError('fiberCoreColorOverride', 'Enter the core colour from the cable manufacturer chart.'); return; }
+                $coreDetails['name'] = trim($this->fiberCoreColorOverride);
+                $coreDetails['hex'] = $this->fiberCoreHexOverride ?: null;
+            }
+        }
+
         NetworkTopologyLink::updateOrCreate(
             ['map_id' => $this->mapId, 'source_key' => $data['source_key'], 'target_key' => $data['target_key'], 'connection_type' => $data['connection_type']],
-            ['label' => $data['label'] ?: null, 'capacity_mbps' => $data['capacity_mbps'] ?: null, 'traffic_mbps' => $data['traffic_mbps'] ?: null, 'latency_ms' => $data['latency_ms'] ?: null, 'packet_loss' => $data['packet_loss'] ?: null, 'fiber_core' => $data['fiber_core'] ?: null, 'fiber_type' => $data['fiber_type'] ?: null, 'source_port' => $data['source_port'] ?: null, 'target_port' => $data['target_port'] ?: null, 'status' => 'unknown', 'is_published' => false, 'created_by' => auth()->id()]
+            ['label' => $data['label'] ?: null, 'capacity_mbps' => $data['capacity_mbps'] ?: null, 'traffic_mbps' => $data['traffic_mbps'] ?: null, 'latency_ms' => $data['latency_ms'] ?: null, 'packet_loss' => $data['packet_loss'] ?: null, 'fiber_core' => $data['fiber_core'] ?: null, 'fiber_type' => $data['fiber_type'] ?: null, 'fiber_color_standard' => $coreDetails['standard'] ?? null, 'fiber_core_color' => $coreDetails['name'] ?? null, 'fiber_core_color_hex' => $coreDetails['hex'] ?? null, 'fiber_tube_number' => $coreDetails['tube_number'] ?? null, 'fiber_tube_color' => $coreDetails['tube_color'] ?? null, 'source_port' => $data['source_port'] ?: null, 'target_port' => $data['target_port'] ?: null, 'status' => 'unknown', 'is_published' => false, 'created_by' => auth()->id()]
         );
 
-        $this->reset(['source_key', 'target_key', 'label', 'capacity_mbps', 'traffic_mbps', 'latency_ms', 'packet_loss', 'fiber_core', 'source_port', 'target_port']);
+        $this->reset(['source_key', 'target_key', 'label', 'capacity_mbps', 'traffic_mbps', 'latency_ms', 'packet_loss', 'fiber_core', 'source_port', 'target_port', 'fiberCoreColorOverride', 'fiberCoreHexOverride']);
         $this->fiber_type = 'singlemode';
         $this->connection_type = 'fiber_core';
         $this->message = 'Topology connection saved as a draft. Publish it to show it in Live Topology.';
@@ -267,6 +312,8 @@ class NetworkTopology extends Component
             'port_reference' => ['nullable', 'string', 'max:80'],
             'input_ports' => ['nullable', 'integer', 'min:1', 'max:64'],
             'output_ports' => ['nullable', 'integer', 'min:1', 'max:64'],
+            'newNodeFiberCoreCount' => ['nullable', 'integer', 'min:1', 'max:864'],
+            'newNodeFiberColorStandard' => ['required', Rule::in(['tia_598', 'manufacturer_custom'])],
         ]);
         NetworkTopologyNode::create([
             'map_id' => $this->mapId, 'type' => $data['newNodeType'], 'name' => trim($data['newNodeName']),
@@ -274,12 +321,15 @@ class NetworkTopology extends Component
             'splitter_ratio' => $data['newNodeType'] === 'splitter' && $this->splitter_ratio !== '' ? (int) $this->splitter_ratio : null,
             'input_ports' => $data['newNodeType'] === 'splitter' ? (int) ($this->input_ports ?: 1) : null,
             'output_ports' => $data['newNodeType'] === 'splitter' ? (int) ($this->output_ports ?: ($this->splitter_ratio ?: 1)) : null,
+            'fiber_core_count' => $data['newNodeType'] === 'fiber_segment' && $this->newNodeFiberCoreCount !== '' ? (int) $this->newNodeFiberCoreCount : null,
+            'fiber_color_standard' => $data['newNodeType'] === 'fiber_segment' ? $this->newNodeFiberColorStandard : 'tia_598',
             'notes' => $data['newNodeNotes'] ?: null,
             'latitude' => $data['newNodeLatitude'] !== '' ? (float) $data['newNodeLatitude'] : null,
             'longitude' => $data['newNodeLongitude'] !== '' ? (float) $data['newNodeLongitude'] : null,
             'is_published' => false, 'created_by' => auth()->id(),
         ]);
-        $this->reset(['newNodeName', 'newNodeLocation', 'newNodeNotes', 'newNodeLatitude', 'newNodeLongitude']);
+        $this->reset(['newNodeName', 'newNodeLocation', 'newNodeNotes', 'newNodeLatitude', 'newNodeLongitude', 'newNodeFiberCoreCount']);
+        $this->newNodeFiberColorStandard = 'tia_598';
         $this->newNodeType = 'splitter';
         $this->splitter_ratio = '';
         $this->port_reference = '';
@@ -497,6 +547,26 @@ class NetworkTopology extends Component
             : 'No connected path yet; add and publish the real fiber links.';
     }
 
+    private function fiberCoreColour(int $core, string $standard = 'tia_598'): array
+    {
+        $colors = [
+            ['name'=>'Blue','hex'=>'#0070C0'], ['name'=>'Orange','hex'=>'#F28C28'], ['name'=>'Green','hex'=>'#00843D'],
+            ['name'=>'Brown','hex'=>'#8B4513'], ['name'=>'Slate','hex'=>'#708090'], ['name'=>'White','hex'=>'#FFFFFF'],
+            ['name'=>'Red','hex'=>'#E31B23'], ['name'=>'Black','hex'=>'#111111'], ['name'=>'Yellow','hex'=>'#FFD400'],
+            ['name'=>'Violet','hex'=>'#8F00FF'], ['name'=>'Rose','hex'=>'#FF69B4'], ['name'=>'Aqua','hex'=>'#00BFC4'],
+        ];
+        $coreColor = $colors[($core - 1) % 12];
+        $tubeNumber = intdiv($core - 1, 12) + 1;
+        $tubeColor = $colors[($tubeNumber - 1) % 12];
+        return [
+            'standard'=>$standard,
+            'name'=>$standard === 'tia_598' ? $coreColor['name'] : 'Manufacturer-defined',
+            'hex'=>$standard === 'tia_598' ? $coreColor['hex'] : null,
+            'tube_number'=>$tubeNumber,
+            'tube_color'=>$standard === 'tia_598' ? $tubeColor['name'] : 'Manufacturer-defined',
+        ];
+    }
+
     private function nodeOptions(): array
     {
         $options = [];
@@ -592,7 +662,7 @@ class NetworkTopology extends Component
             $graphEdges[] = [
                 'id' => 'link:'.$link->id, 'from' => $link->source_key, 'to' => $link->target_key,
                 'label' => $link->label ?: trim((string) (($link->source_port ?: '') . (($link->source_port || $link->target_port) ? ' → ' : '') . ($link->target_port ?: str_replace('_', ' ', $link->connection_type)))),
-                'connection_type' => $link->connection_type, 'source_port' => $link->source_port, 'target_port' => $link->target_port, 'arrows' => 'to',
+                'connection_type' => $link->connection_type, 'source_port' => $link->source_port, 'target_port' => $link->target_port, 'fiber_core' => $link->fiber_core, 'fiber_core_color' => $link->fiber_core_color, 'fiber_core_color_hex' => $link->fiber_core_color_hex, 'fiber_tube_number' => $link->fiber_tube_number, 'fiber_tube_color' => $link->fiber_tube_color, 'arrows' => 'to',
                 'capacity_mbps' => $link->capacity_mbps, 'traffic_mbps' => $link->traffic_mbps,
                 'latency_ms' => $link->latency_ms, 'packet_loss' => $link->packet_loss,
                 'utilization' => ($link->capacity_mbps && $link->capacity_mbps > 0) ? round(($link->traffic_mbps ?: 0) / $link->capacity_mbps * 100, 1) : null,
