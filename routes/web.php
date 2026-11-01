@@ -244,6 +244,7 @@ Route::middleware([
         Route::get('/system/sync-health', [\App\Http\Controllers\SystemSyncHealthController::class, 'index'])->name('system.sync-health');
         Route::get('/network-map', NetworkMap::class)->name('network-map');
         Route::get('/network-topology/designer', NetworkTopology::class)->name('network-topology.designer');
+        Route::get('/fiber-mapping', \App\Livewire\FiberMapping::class)->name('fiber-mapping');
         Route::get('/network-topology/live', NetworkTopology::class)->defaults('mode', 'live')->name('network-topology.live');
         Route::get('/optical-audit', OpticalAudit::class)->name('optical-audit');
         Route::get('/traffic-monitor', TrafficMonitor::class)->name('traffic-monitor');
