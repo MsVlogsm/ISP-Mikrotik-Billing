@@ -65,6 +65,7 @@ class BroadbandController extends Controller
         $leftStats = null;
 
         $onlineSessionStatus = null;
+        $livePppDetails = [];
         if ($status === 'online') {
             // Online Customers means a real MikroTik /ppp/active session, not an enabled account.
             // Always poll the live router sessions for this request. Do not reuse a cached
@@ -81,8 +82,17 @@ class BroadbandController extends Controller
                     // An empty response is a valid zero-session result; exceptions are not.
                     $successCount++;
                     foreach ($sessions as $session) {
-                        $username = trim((string) ($session['name'] ?? ''));
-                        if ($username !== '') $usersByRouter[(string) $router->router_name][mb_strtolower($username)] = true;
+                        if (! is_array($session)) continue;
+                        $username = trim((string) ($session['name'] ?? $session['user'] ?? $session['username'] ?? ''));
+                        if ($username === '') continue;
+                        $key = mb_strtolower($username);
+                        $usersByRouter[(string) $router->router_name][$key] = true;
+                        $address = $session['address'] ?? $session['remote-address'] ?? null;
+                        $mac = $session['caller-id'] ?? $session['caller_id'] ?? null;
+                        $livePppDetails[(string) $router->router_name][$key] = [
+                            'ip' => is_string($address) && filter_var($address, FILTER_VALIDATE_IP) ? $address : null,
+                            'mac' => is_string($mac) && preg_match('/^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/i', $mac) ? strtoupper($mac) : null,
+                        ];
                     }
                 } catch (\Throwable $e) {
                     \Log::warning('Online Customers live session read failed for '.$router->router_name.': '.$e->getMessage());
@@ -193,6 +203,17 @@ class BroadbandController extends Controller
 
         $rows = min(max((int) $request->input('rows', 50), 10), 500);
         $customers = $query->latest('id')->paginate($rows)->withQueryString();
+
+        // Attach router-reported PPPoE IP/MAC to each online customer by the exact
+        // router + username pair. Never infer an active IP from a pool name or stale IP.
+        foreach ($customers as $customer) {
+            $ppp = $customer->pppUser;
+            $routerName = trim((string) ($ppp?->router_name ?? ''));
+            $username = mb_strtolower(trim((string) ($ppp?->username ?? '')));
+            $live = $livePppDetails[$routerName][$username] ?? [];
+            $customer->setAttribute('live_ppp_ip', $live['ip'] ?? null);
+            $customer->setAttribute('live_ppp_mac', $live['mac'] ?? null);
+        }
 
         return view('xlink.broadband.customer-list', [
             'customers' => $customers,

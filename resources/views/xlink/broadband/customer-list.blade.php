@@ -152,7 +152,7 @@
                             <th>Package</th><th>Server</th><th>Left Date</th><th>Products</th><th>Recovery</th><th>Status</th><th>Left Reason</th><th>Actions</th>
                         @else
                             <th>CID</th><th>Customer</th><th>Connection</th><th>Mobile</th><th>Package</th>
-                            <th>Router</th><th>Billing</th><th>Address / Area</th><th>Status</th><th>Actions</th>
+                            <th>Router</th><th>IP Address</th><th>MAC Address</th><th>Billing</th><th>Address / Area</th><th>Status</th><th>Actions</th>
                         @endif
                     </tr>
                 </thead>
@@ -213,6 +213,16 @@
                             </td>
                             <td>{{ $c->package->package ?? $c->pppUser->package_name ?? '—' }}</td>
                             <td>{{ $c->pppUser->router_name ?? '—' }}</td>
+                            <td class="text-nowrap">
+                                @php($displayPppIp = $mode === 'online' ? $c->live_ppp_ip : (filter_var($c->pppUser?->ppp_remote_ip, FILTER_VALIDATE_IP) ? $c->pppUser->ppp_remote_ip : null))
+                                {{ $displayPppIp ?: '—' }}
+                                @if($mode === 'online' && $displayPppIp)<div class="customer-meta text-success">Live</div>@endif
+                            </td>
+                            <td class="text-nowrap">
+                                @php($displayPppMac = $mode === 'online' ? ($c->live_ppp_mac ?: $c->pppUser?->last_caller_id ?: $c->pppUser?->caller_id) : ($c->pppUser?->caller_id ?: $c->pppUser?->last_caller_id))
+                                {{ $displayPppMac ?: '—' }}
+                                @if($mode === 'online' && $c->live_ppp_mac)<div class="customer-meta text-success">Live</div>@endif
+                            </td>
                             <td>
                                 <div>Bill: {{ number_format($c->billing?->total_amount ?? 0, 2) }} ৳</div>
                                 <div class="{{ ($c->billing?->due_amount ?? 0) > 0 ? 'text-danger' : 'text-success' }}">Due: {{ number_format($c->billing?->due_amount ?? 0, 2) }} ৳</div>
