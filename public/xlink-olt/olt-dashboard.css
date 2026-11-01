@@ -118,3 +118,144 @@ html[data-bs-theme="dark"] .content .olt-dash-onu-panel .olt-dash-filter .form-c
 html[data-bs-theme="dark"] .content .olt-dash-onu-panel .olt-dash-filter .btn-outline-secondary{color:#e0eafa!important;border-color:#657e9d!important}
 html[data-bs-theme="dark"] .content .olt-dash-onu-panel .olt-dash-pagination .page-link{color:#e0ebfa!important;background:#1c2d45!important;border-color:#435a77!important}
 html[data-bs-theme="dark"] .content .olt-dash-onu-panel .olt-dash-pagination .page-item.active .page-link{color:#fff!important;background:#245b96!important;border-color:#397dc2!important}
+
+/* OLT dashboard dark mode: replace legacy white cards before applying light text.
+   Scope is restricted to this page; Light Mode keeps the original white surfaces. */
+html[data-bs-theme="dark"] .content .olt-dash-page {
+    color: #e5edf8 !important;
+    --olt-dark-panel: #142238;
+    --olt-dark-panel-raised: #1a2b43;
+    --olt-dark-border: #3a506d;
+    --olt-dark-text: #edf4ff;
+    --olt-dark-muted: #c2d0e2;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page :is(.olt-dash-kpi,.olt-dash-chart-card,.olt-dash-panel,.olt-live-kpi,.olt-live-panel) {
+    color: var(--olt-dark-text) !important;
+    background: var(--olt-dark-panel) !important;
+    border-color: var(--olt-dark-border) !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,.18) !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page :is(.olt-dash-panel-title h3,.olt-dash-card-heading h3,.olt-dash-panel-title p,.olt-dash-card-heading p,.olt-dash-card-heading>strong,.olt-dash-card-heading>strong small,.olt-dash-kpi-label,.olt-dash-kpi-value,.olt-dash-kpi-foot,.olt-dash-panel-foot,.olt-dash-chart-foot,.olt-dash-chart-empty,.olt-dash-bandwidth-empty strong,.olt-dash-bandwidth-empty p,.olt-dash-bandwidth-empty small,.olt-dash-signal-legend,.olt-dash-signal-legend strong,.olt-dash-signal-legend small,.olt-dash-signal-note,.olt-dash-pon-label strong,.olt-dash-pon-label span,.olt-dash-alert strong,.olt-dash-alert p,.olt-dash-all-clear,.olt-dash-empty,.olt-dash-info-list dt,.olt-dash-info-list dd,.olt-dash-footer-note,.olt-live-kpi small,.olt-live-kpi strong,.olt-live-kpi em,.olt-live-panel-heading h3,.olt-live-panel-heading p,.olt-live-sample,.olt-live-hardware-grid small,.olt-live-hardware-grid strong,.olt-live-note,.olt-live-table,.olt-live-table thead th,.olt-live-table tbody td,.olt-live-table tbody td strong,.olt-live-table tbody td small,.olt-live-bandwidth-totals small,.olt-live-bandwidth-totals strong,.olt-live-uplink-list,.olt-live-uplink-list strong,.olt-live-uplink-list b) {
+    color: var(--olt-dark-text) !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page :is(.olt-dash-panel-title p,.olt-dash-card-heading p,.olt-dash-card-heading>strong small,.olt-dash-kpi-label,.olt-dash-kpi-foot,.olt-dash-panel-foot,.olt-dash-chart-foot,.olt-dash-chart-empty,.olt-dash-bandwidth-empty p,.olt-dash-bandwidth-empty small,.olt-dash-signal-legend small,.olt-dash-signal-note,.olt-dash-pon-label span,.olt-dash-alert p,.olt-dash-info-list dt,.olt-dash-footer-note,.olt-live-kpi small,.olt-live-kpi em,.olt-live-panel-heading p,.olt-live-sample,.olt-live-hardware-grid small,.olt-live-note,.olt-live-table tbody td small,.olt-live-bandwidth-totals small,.olt-live-uplink-list) {
+    color: var(--olt-dark-muted) !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page :is(.olt-dash-chart-card,.olt-dash-kpi,.olt-dash-panel) :is(.border,.border-top,.border-bottom,hr) {
+    border-color: var(--olt-dark-border) !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-donut:before {
+    background: var(--olt-dark-panel-raised) !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-donut strong {
+    color: #f5f8ff !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-donut small {
+    color: #c2d0e2 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page :is(.olt-dash-progress,.olt-dash-chart-empty) {
+    background-color: var(--olt-dark-panel-raised) !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-muted-tag {
+    color: #e0eafb !important;
+    background: #263a55 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-panel-icon {
+    color: #b9d7ff !important;
+    background: #203959 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-panel-icon.alert {
+    color: #ffc0ad !important;
+    background: #4b2b30 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page :is(.olt-dash-state.online,.olt-dash-pill.success,.olt-dash-configured.yes) {
+    color: #9af0ce !important;
+    background: #123e34 !important;
+    border: 1px solid #267c61 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page :is(.olt-dash-state.offline,.olt-dash-pill.danger) {
+    color: #ffc2c7 !important;
+    background: #4b252e !important;
+    border: 1px solid #87414c !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page :is(.olt-dash-state.unknown,.olt-dash-pill.warning,.olt-dash-configured.no) {
+    color: #ffdda0 !important;
+    background: #44351f !important;
+    border: 1px solid #816032 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-pill.neutral {
+    color: #e3ecf9 !important;
+    background: #263a55 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-filter .form-control,
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-filter .form-select,
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-filter .input-group-text {
+    color: #f1f6ff !important;
+    background: #0f1c2e !important;
+    border-color: #526984 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-filter .form-control::placeholder {
+    color: #c3d2e5 !important;
+    opacity: 1 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-table {
+    --bs-table-color: #e5edf8 !important;
+    --bs-table-bg: transparent !important;
+    --bs-table-border-color: #3a506d !important;
+    --bs-table-striped-color: #e5edf8 !important;
+    --bs-table-hover-color: #ffffff !important;
+    color: #e5edf8 !important;
+    background: transparent !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-table thead th {
+    color: #f5f8ff !important;
+    background: #20344f !important;
+    border-color: #435b78 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-table tbody td {
+    color: #e0eafa !important;
+    background: transparent !important;
+    border-color: #344a65 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-table tbody td strong {
+    color: #ffffff !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-table tbody td small {
+    color: #c2d0e2 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-pagination .page-link {
+    color: #eaf2ff !important;
+    background: #1c2d45 !important;
+    border-color: #435a77 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-pagination .page-item.active .page-link {
+    color: #ffffff !important;
+    background: #245b96 !important;
+    border-color: #397dc2 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-alert,
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-info-list>div {
+    border-color: #344a65 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-dash-signal-note {
+    border-color: #344a65 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-live-hardware-grid,
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-live-hardware-grid>div {
+    border-color: #3a506d !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-live-table {
+    --bs-table-color: #e0eafa !important;
+    --bs-table-bg: transparent !important;
+    --bs-table-border-color: #344a65 !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-live-table thead th {
+    color: #f2f6ff !important;
+    background: #20344f !important;
+}
+html[data-bs-theme="dark"] .content .olt-dash-page .olt-live-table tbody td {
+    color: #e0eafa !important;
+    background: transparent !important;
+    border-color: #344a65 !important;
+}
+/* End OLT-only dark surface corrections. */
