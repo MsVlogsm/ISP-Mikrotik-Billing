@@ -236,9 +236,9 @@ class NetworkTopology extends Component
             'traffic_mbps' => ['nullable', 'integer', 'min:0'],
             'latency_ms' => ['nullable', 'numeric', 'min:0'],
             'packet_loss' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'fiber_core' => ['nullable', 'integer', 'min:1'],
-            'source_core' => ['nullable', 'integer', 'min:1', 'max:864'],
-            'target_core' => ['nullable', 'integer', 'min:1', 'max:864'],
+            'fiber_core' => ['nullable', 'integer', 'min:1', 'max:144'],
+            'source_core' => ['nullable', 'integer', 'min:1', 'max:144'],
+            'target_core' => ['nullable', 'integer', 'min:1', 'max:144'],
             'fiberCoreColorOverride' => ['nullable', 'string', 'max:32'],
             'fiberCoreHexOverride' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'fiber_type' => ['nullable', Rule::in(['singlemode', 'multimode', 'drop', 'unknown'])],
@@ -275,16 +275,30 @@ class NetworkTopology extends Component
             if ($portNumber < 1 || ($capacity > 0 && $portNumber > $capacity)) { $this->addError($ep['field'], 'Port number exceeds this splitter configured port count.'); return; }
         }
 
-        $fiberSegment = collect([$data['source_key'], $data['target_key']])
-            ->filter(fn ($key) => str_starts_with($key, 'topology:'))
-            ->map(fn ($key) => NetworkTopologyNode::where('map_id', $this->mapId)->find((int) substr($key, 9)))
-            ->first(fn ($node) => $node && $node->type === 'fiber_segment');
-        $coreDetails = null;
-        if ($data['fiber_core']) {
-            if ($fiberSegment && $fiberSegment->fiber_core_count && (int) $data['fiber_core'] > (int) $fiberSegment->fiber_core_count) {
-                $this->addError('fiber_core', 'Selected core exceeds this cable segment capacity (' . $fiberSegment->fiber_core_count . ' cores).');
+        $endpointNodes = [];
+        foreach (['source' => $data['source_key'], 'target' => $data['target_key']] as $side => $key) {
+            $endpointNodes[$side] = str_starts_with($key, 'topology:')
+                ? NetworkTopologyNode::where('map_id', $this->mapId)->find((int) substr($key, 9))
+                : null;
+        }
+        $sourceFiber = ($endpointNodes['source']?->type === 'fiber_segment') ? $endpointNodes['source'] : null;
+        $targetFiber = ($endpointNodes['target']?->type === 'fiber_segment') ? $endpointNodes['target'] : null;
+        $fiberSegment = $sourceFiber ?: $targetFiber;
+
+        foreach ([
+            ['value' => $data['fiber_core'], 'field' => 'fiber_core', 'segment' => $fiberSegment],
+            ['value' => $data['source_core'], 'field' => 'source_core', 'segment' => $sourceFiber],
+            ['value' => $data['target_core'], 'field' => 'target_core', 'segment' => $targetFiber],
+        ] as $coreCheck) {
+            if ($coreCheck['value'] && $coreCheck['segment']?->fiber_core_count
+                && (int) $coreCheck['value'] > (int) $coreCheck['segment']->fiber_core_count) {
+                $this->addError($coreCheck['field'], 'Core number exceeds this cable segment capacity (' . $coreCheck['segment']->fiber_core_count . ' cores).');
                 return;
             }
+        }
+
+        $coreDetails = null;
+        if ($data['fiber_core']) {
             $coreDetails = $this->fiberCoreColour((int) $data['fiber_core'], $fiberSegment?->fiber_color_standard ?: 'tia_598');
             if (($coreDetails['standard'] ?? '') === 'manufacturer_custom') {
                 if (trim($this->fiberCoreColorOverride) === '') { $this->addError('fiberCoreColorOverride', 'Enter the core colour from the cable manufacturer chart.'); return; }
@@ -293,13 +307,10 @@ class NetworkTopology extends Component
             }
         }
 
-        $sourceCoreDetails = $data['source_core'] ? $this->fiberCoreColour((int)$data['source_core'], $fiberSegment?->fiber_color_standard ?: 'tia_598') : null;
-        $targetCoreDetails = $data['target_core'] ? $this->fiberCoreColour((int)$data['target_core'], $fiberSegment?->fiber_color_standard ?: 'tia_598') : null;
-        if ($fiberSegment?->fiber_core_count) {
-            foreach ([['value'=>$data['source_core'],'field'=>'source_core'],['value'=>$data['target_core'],'field'=>'target_core']] as $endpointCore) {
-                if ($endpointCore['value'] && (int)$endpointCore['value'] > (int)$fiberSegment->fiber_core_count) { $this->addError($endpointCore['field'], 'Core number exceeds this cable segment capacity (' . $fiberSegment->fiber_core_count . ').'); return; }
-            }
-        }
+        $sourceCoreDetails = $data['source_core']
+            ? $this->fiberCoreColour((int) $data['source_core'], $sourceFiber?->fiber_color_standard ?: 'tia_598') : null;
+        $targetCoreDetails = $data['target_core']
+            ? $this->fiberCoreColour((int) $data['target_core'], $targetFiber?->fiber_color_standard ?: 'tia_598') : null;
 
         NetworkTopologyLink::updateOrCreate(
             ['map_id' => $this->mapId, 'source_key' => $data['source_key'], 'target_key' => $data['target_key'], 'connection_type' => $data['connection_type']],
@@ -326,7 +337,7 @@ class NetworkTopology extends Component
             'port_reference' => ['nullable', 'string', 'max:80'],
             'input_ports' => ['nullable', 'integer', 'min:1', 'max:64'],
             'output_ports' => ['nullable', 'integer', 'min:1', 'max:64'],
-            'newNodeFiberCoreCount' => ['nullable', 'integer', 'min:1', 'max:864'],
+            'newNodeFiberCoreCount' => [$this->newNodeType === 'fiber_segment' ? 'required' : 'nullable', Rule::in([2, 4, 6, 12, 24, 48, 96, 144])],
             'newNodeFiberColorStandard' => ['required', Rule::in(['tia_598', 'manufacturer_custom'])],
         ]);
         NetworkTopologyNode::create([
