@@ -335,3 +335,66 @@ legend {
 .navbar-vertical .navbar-nav > .nav-link.dropdown-indicator::after {
     border-color: currentColor !important;
 }
+
+/* 2026-11-02: readable vertical navigation in both color modes.
+   Scope is limited to the left sidebar; no page/content styles are changed. */
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-content .navbar-nav .navbar-vertical-label {
+    color: #d5e2ef !important;
+    font-size: .76rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .025em;
+    line-height: 1.45;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-content .navbar-nav .nav-link,
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-content .navbar-nav .nav-link .nav-link-text {
+    color: #e4edf6 !important;
+    font-size: .9rem;
+    font-weight: 600;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-content .navbar-nav .nav-link .nav-link-icon,
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-content .navbar-nav .nav-link i,
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-content .navbar-nav .navbar-vertical-divider {
+    color: #c6d5e4 !important;
+    border-color: rgba(198, 213, 228, .32) !important;
+    opacity: 1 !important;
+}
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-content .navbar-nav .nav-link:hover,
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-content .navbar-nav .nav-link:focus,
+html[data-bs-theme="dark"] .navbar-vertical .navbar-vertical-content .navbar-nav .nav-link.active {
+    color: #ffffff !important;
+    background-color: rgba(148, 190, 225, .14);
+}
+
+/* Sidebar stays dark in BOTH dashboard themes; keep its text light in both. */
+.navbar-vertical .navbar-vertical-content .navbar-nav .navbar-vertical-label {
+    color: #d5e2ef !important;
+    font-weight: 700 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+.navbar-vertical .navbar-vertical-content .navbar-nav .nav-link,
+.navbar-vertical .navbar-vertical-content .navbar-nav .nav-link .nav-link-text,
+.navbar-vertical .navbar-vertical-content .navbar-nav > .nav-link,
+.navbar-vertical .navbar-vertical-content .navbar-nav > .collapse > .nav-link {
+    color: #e4edf6 !important;
+    font-weight: 600 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+.navbar-vertical .navbar-vertical-content .navbar-nav .nav-link .nav-link-icon,
+.navbar-vertical .navbar-vertical-content .navbar-nav .nav-link i,
+.navbar-vertical .navbar-vertical-content .navbar-nav .nav-link.dropdown-indicator::after {
+    color: #c6d5e4 !important;
+    border-color: currentColor !important;
+    opacity: 1 !important;
+}
+.navbar-vertical .navbar-vertical-content .navbar-nav .nav-link:hover,
+.navbar-vertical .navbar-vertical-content .navbar-nav .nav-link:focus,
+.navbar-vertical .navbar-vertical-content .navbar-nav .nav-link.active {
+    color: #ffffff !important;
+    background-color: rgba(148, 190, 225, .14) !important;
+}

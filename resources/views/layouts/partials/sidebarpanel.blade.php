@@ -334,7 +334,8 @@
             <li class="nav-item">
                 <!-- X-Link Billing parity modules -->
                 <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
-                    <div class="col-auto navbar-vertical-label">{{ __('Network Operations') }}</div>
+                    <div class="col-auto navbar-vertical-label">{{ __('Network Inventory') }}</div>
+                    <div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div>
                 </div>
                 <a class="nav-link dropdown-indicator collapsed" href="#networkInventoryMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="networkInventoryMenu">
                     <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-router"></i></span><span class="nav-link-text ps-1">{{ __('Devices Inventory') }}</span></div>
@@ -349,7 +350,8 @@
                     <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.switches') }}"><span class="nav-link-text ps-1">{{ __('Switch Management') }}</span></a>
                     <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.access-points') }}"><span class="nav-link-text ps-1">{{ __('Access Point Management') }}</span></a>
                 </div>
-            {{-- ── Billing & Finance ── --}}
+            </li>
+            {{-- ── Billing & Finance: independent finance workspace ── --}}
             <li class="nav-item">
                 <a class="nav-link dropdown-indicator collapsed" href="#billingFinanceMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="billingFinanceMenu">
                     <div class="d-flex align-items-center">
