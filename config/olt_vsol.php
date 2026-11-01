@@ -3,6 +3,17 @@
 return [
     // CLI provisioning profiles remain separate from the read-only SNMP MIB profiles.
     'profiles' => [
+        'v1601e04_dp_v1_0_2r' => [
+            'label' => 'VSOL V1601E04-DP / V1.0.2R ONU restart only',
+            'models' => ['V1601E04-DP'],
+            'transport' => 'ssh',
+            'firmware' => ['V1.0.2R'],
+            'commands' => [
+                // V-SOL V1600D-series CLI manual: enter the EPON PON interface,
+                // then issue the ONU CTC reset command for one numeric ONU ID.
+                'reboot_onu' => ['configure terminal', 'interface epon {{pon}}', 'onu {{onu}} ctc reset', 'exit', 'exit'],
+            ],
+        ],
         'v1600d_ep_series_v1_2' => [
             'label' => 'VSOL/UPLINK EP Series / V1600D CLI v1.2',
             'models' => ['V1600D'],

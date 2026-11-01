@@ -215,6 +215,31 @@ class BroadbandController extends Controller
             $customer->setAttribute('live_ppp_mac', $live['mac'] ?? null);
         }
 
+        // Join ONU optical readings only through the saved Customer ID mapping.
+        // A reading is considered current only when its OPM timestamp is <= 30 minutes old.
+        $pageCustomerIds = $customers->getCollection()->pluck('id')->filter()->unique()->values();
+        $opticalByCustomer = $pageCustomerIds->isNotEmpty()
+            ? \App\Models\OltOnuCustomerMapping::with('olt:id,name')
+                ->whereIn('customer_id', $pageCustomerIds)
+                ->whereNotNull('opm_last_seen_at')
+                ->where('opm_last_seen_at', '>=', now()->subMinutes(30))
+                ->whereNotNull('rx_power')
+                ->orderByDesc('opm_last_seen_at')
+                ->get(['id','olt_device_id','customer_id','onu_id','onu_mac','pon_port','rx_power','tx_power','opm_last_seen_at','status'])
+                ->unique('customer_id')->keyBy('customer_id')
+            : collect();
+
+        foreach ($customers as $customer) {
+            $optical = $opticalByCustomer->get($customer->id);
+            $customer->setAttribute('live_onu_rx_power', $optical?->rx_power !== null ? (float) $optical->rx_power : null);
+            $customer->setAttribute('live_onu_tx_power', $optical?->tx_power !== null ? (float) $optical->tx_power : null);
+            $customer->setAttribute('live_onu_id', $optical?->onu_id);
+            $customer->setAttribute('live_onu_mac', $optical?->onu_mac);
+            $customer->setAttribute('live_onu_pon', $optical?->pon_port);
+            $customer->setAttribute('live_onu_olt_name', $optical?->olt?->name);
+            $customer->setAttribute('live_onu_opm_at', $optical?->opm_last_seen_at);
+        }
+
         return view('xlink.broadband.customer-list', [
             'customers' => $customers,
             'mode' => $status ?: 'all',

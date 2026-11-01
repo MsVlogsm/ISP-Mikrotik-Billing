@@ -736,6 +736,8 @@ Route::middleware([
             return back()->with('inventory_message','ONU/customer mapping saved successfully.')->with('onu_sync_success',true);
         })->name('network-inventory.olt.customers.mapping');
         Route::get('/network-inventory/olt/{device}/provisioning', [\App\Http\Controllers\OltProvisioningController::class, 'index'])->name('network-inventory.olt.provisioning');
+        Route::post('/network-inventory/olt/{device}/cli-check', [\App\Http\Controllers\OltProvisioningController::class, 'checkCliAccess'])->middleware('throttle:5,1')->name('network-inventory.olt.cli-check');
+        Route::post('/network-inventory/olt/{device}/onu/{mapping}/reboot', [\App\Http\Controllers\OltProvisioningController::class, 'rebootOnu'])->middleware('throttle:2,5')->name('network-inventory.olt.onu.reboot');
         Route::post('/network-inventory/olt/{device}/provisioning/discover', [\App\Http\Controllers\OltProvisioningController::class, 'discover'])->name('network-inventory.olt.provisioning.discover');
         Route::post('/network-inventory/olt/{device}/provisioning/execute', [\App\Http\Controllers\OltProvisioningController::class, 'execute'])->name('network-inventory.olt.provisioning.execute');
         Route::post('/network-inventory/olt/{device}/discover', [\App\Http\Controllers\OltProvisioningController::class, 'discover'])->name('network-inventory.olt.discover');
@@ -747,13 +749,23 @@ Route::middleware([
             // OLT can otherwise hold PHP-FPM until Nginx returns 504. Render the
             // last saved read-only ONU/OPM snapshot; refresh telemetry separately.
             $storedMappings=\App\Models\OltOnuCustomerMapping::where('olt_device_id',$device->id)->get();
+            $opmFreshMinutes = 30;
+            $opmFreshCutoff = now()->subMinutes($opmFreshMinutes);
             $cachedRows=$storedMappings->map(fn($m)=>[
                 'onu_id'=>$m->onu_id, 'pon_port'=>$m->pon_port, 'onu_mac'=>$m->onu_mac,
+                'opm_last_seen_at'=>$m->opm_last_seen_at,
                 // A stored number without an OPM timestamp is historical/unknown,
                 // not a valid current signal reading. Never present it as live.
                 'tx_power'=>$m->opm_last_seen_at ? $m->tx_power : null,
                 'rx_power'=>$m->opm_last_seen_at ? $m->rx_power : null,
             ])->values()->all();
+            foreach ($cachedRows as &$opmRow) {
+                $measuredAt = $opmRow['opm_last_seen_at'] ?? null;
+                $fresh = $measuredAt && \Carbon\Carbon::parse($measuredAt)->greaterThanOrEqualTo($opmFreshCutoff);
+                $opmRow['opm_fresh'] = (bool) $fresh;
+                if (!$fresh) { $opmRow['tx_power'] = null; $opmRow['rx_power'] = null; }
+            }
+            unset($opmRow);
             $storedOpmCount=collect($cachedRows)->filter(fn($r)=>is_numeric($r['tx_power']??null)||is_numeric($r['rx_power']??null))->count();
             $opm=[
                 'status'=>$storedOpmCount > 0 ? 'stored' : 'not_ready',
@@ -784,10 +796,10 @@ Route::middleware([
                 if($stored){
                     // Only reuse a saved OPM value when its measurement timestamp exists.
                     // A historical number with no measurement time must never look live.
-                    if($stored->opm_last_seen_at && !is_numeric($liveRow['tx_power']??null) && is_numeric($stored->tx_power)) $liveRow['tx_power']=(float)$stored->tx_power;
-                    if($stored->opm_last_seen_at && !is_numeric($liveRow['rx_power']??null) && is_numeric($stored->rx_power)) $liveRow['rx_power']=(float)$stored->rx_power;
+                    if($stored->opm_last_seen_at && $stored->opm_last_seen_at->greaterThanOrEqualTo($opmFreshCutoff) && !is_numeric($liveRow['tx_power']??null) && is_numeric($stored->tx_power)) $liveRow['tx_power']=(float)$stored->tx_power;
+                    if($stored->opm_last_seen_at && $stored->opm_last_seen_at->greaterThanOrEqualTo($opmFreshCutoff) && !is_numeric($liveRow['rx_power']??null) && is_numeric($stored->rx_power)) $liveRow['rx_power']=(float)$stored->rx_power;
                     if(trim((string)($liveRow['onu_mac']??''))==='' && trim((string)$stored->onu_mac)!=='') $liveRow['onu_mac']=$stored->onu_mac;
-                    if($stored->opm_last_seen_at && (is_numeric($stored->tx_power) || is_numeric($stored->rx_power))) $liveRow['stored_opm']=true;
+                    if($stored->opm_last_seen_at && $stored->opm_last_seen_at->greaterThanOrEqualTo($opmFreshCutoff) && (is_numeric($stored->tx_power) || is_numeric($stored->rx_power))) $liveRow['stored_opm']=true;
                 }
             }
             unset($liveRow);
@@ -807,8 +819,12 @@ Route::middleware([
                 return stripos($hay,$q)!==false;
             })->values();
             $ponOptions=collect($opm['onus']??[])->pluck('pon_port')->filter(fn($v)=>(string)$v!=='')->map(fn($v)=>(string)$v)->unique()->sort(SORT_NATURAL)->values();
-            return view('xlink.olt-diagnostics',compact('device','opm','rows','ponOptions','q','pon'));
+            $liveMetricsSnapshot = \App\Models\OltLiveMetricSnapshot::with('ports')->where('olt_device_id',$device->id)->latest('sampled_at')->first();
+            $lastCliCheck = \App\Models\OltProvisioningAudit::where('olt_device_id',$device->id)->where('action','cli_health_check')->latest('id')->first();
+            $freshOpmCount = collect($opm['onus']??[])->filter(fn($r)=>!empty($r['opm_fresh']) && (is_numeric($r['rx_power']??null)||is_numeric($r['tx_power']??null)))->count();
+            return view('xlink.olt-diagnostics',compact('device','opm','rows','ponOptions','q','pon','opmFreshMinutes','freshOpmCount','liveMetricsSnapshot','lastCliCheck'));
         })->name('network-inventory.olt.diagnostics');
+        Route::post('/network-inventory/olt/{device}/diagnostics/metrics', [\App\Http\Controllers\OltDashboardController::class, 'pollDiagnosticsMetrics'])->name('network-inventory.olt.diagnostics.metrics');
         Route::post('/network-inventory/olt/{device}/diagnostic-check', function(\App\Models\NetworkInventoryDevice $device, \App\Services\NetworkInventoryHealthProbe $probe){
             abort_unless($device->type==='olt',404);
             $host=$device->ip_address ?: $device->host;
@@ -886,8 +902,8 @@ Route::middleware([
         Route::get('/network-inventory/onu-mac-ledger', [\App\Http\Controllers\OnuMacLedgerController::class, 'index'])
             ->name('network-inventory.onu-mac-ledger');
 
-        // FTTH ONU Management: database-backed subscriber/ONU ledger. This page
-        // never invents live telemetry and does not issue disruptive OLT commands.
+        // FTTH ONU Management: database-backed subscriber/ONU ledger. GET rendering remains
+        // read-only; the separate audited reboot POST is available only after fresh CLI verification.
         Route::get('/network-inventory/onu-management', function () {
             $query = \App\Models\OltOnuCustomerMapping::with(['customer','pppUser','olt'])->latest('id');
             $q = trim((string) request('q', ''));
@@ -908,6 +924,12 @@ Route::middleware([
             elseif ($signal === 'warning') $query->whereNotNull('opm_last_seen_at')->whereNotNull('rx_power')->whereBetween('rx_power',[-27,-20]);
             elseif ($signal === 'critical') $query->whereNotNull('opm_last_seen_at')->whereNotNull('rx_power')->where('rx_power','<',-27);
             $mappings = $query->paginate(25)->withQueryString();
+            $pageOltIds = $mappings->getCollection()->pluck('olt_device_id')->filter()->unique()->values();
+            $latestCliChecks = $pageOltIds->isNotEmpty()
+                ? \App\Models\OltProvisioningAudit::whereIn('olt_device_id',$pageOltIds)->where('action','cli_health_check')->latest('id')->get()->groupBy('olt_device_id')->map(fn($items)=>$items->first())
+                : collect();
+            // A CLI check must have passed recently before the restart button is enabled.
+            $rebootReadyOltIds = $latestCliChecks->filter(fn($check)=>$check->status==='success' && $check->created_at && $check->created_at->greaterThanOrEqualTo(now()->subMinutes(15)))->keys()->map(fn($id)=>(int)$id)->values()->all();
             $base = \App\Models\OltOnuCustomerMapping::query();
             $stats = [
                 'total' => (clone $base)->count(),
@@ -917,7 +939,7 @@ Route::middleware([
                 'mapped' => (clone $base)->whereNotNull('customer_id')->count(),
             ];
             $olts = \App\Models\NetworkInventoryDevice::type('olt')->orderBy('name')->get(['id','name','vendor','location']);
-            return view('xlink.onu-management', compact('mappings','stats','olts','q','oltId','status','signal'));
+            return view('xlink.onu-management', compact('mappings','stats','olts','q','oltId','status','signal','rebootReadyOltIds'));
         })->name('network-inventory.onu-management');
 
         Route::get('/network-inventory/onu-management/export.csv', function () {

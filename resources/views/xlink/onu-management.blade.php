@@ -57,6 +57,8 @@
   </div>
   @if(session('onu_sync_message'))<div class="alert alert-{{ session('onu_sync_success') ? 'success' : 'warning' }} py-2"><strong>Sync result:</strong> {{ session('onu_sync_message') }}</div>@endif
   @if(session('inventory_message'))<div class="alert alert-info py-2">{{ session('inventory_message') }}</div>@endif
+  @if(session('onu_reboot_message'))<div class="alert alert-{{ session('onu_reboot_success') ? 'success' : 'warning' }} py-2"><strong>ONU Reboot:</strong> {{ session('onu_reboot_message') }}</div>@endif
+  <div class="alert alert-warning py-2 small"><strong>ONU reboot safety:</strong> only Super Admin can restart a recently confirmed Online ONU. The OLT must pass <em>OLT Diagnostics → Test SSH CLI Connection</em> within 15 minutes. Restart sends a model-specific CLI reset command; it does not change ONU authorization or customer mapping.</div>
   @if($errors->any())<div class="alert alert-danger py-2">{{ $errors->first() }}</div>@endif
   <section class="onu-panel">
     <div class="onu-panel-head"><h3><i class="bi bi-list-ul me-2"></i>ONU / Customer Register</h3><span class="small text-secondary">{{ $mappings->total() }} matching records</span></div>
@@ -86,7 +88,15 @@
             <td><div class="onu-signal {{ $signalClass }}">RX {{ $rx!==null ? number_format($rx,2).' dBm' : '—' }}</div><div class="onu-secondary">TX {{ $tx!==null ? number_format($tx,2).' dBm' : '—' }}</div><div class="onu-secondary">OPM: {{ $m->opm_last_seen_at ? (($m->opm_source==='operator-supplied-olt-cli' ? 'CLI sample · ' : '').$m->opm_last_seen_at->format('d M Y H:i:s')) : (($m->rx_power !== null || $m->tx_power !== null) ? 'stale value hidden · no timestamp' : 'no reading') }}</div></td>
             <td><span class="onu-status {{ in_array($m->status,['online','offline'],true) ? $m->status : 'unknown' }}"><i class="bi {{ $m->status==='online'?'bi-check-circle-fill':($m->status==='offline'?'bi-x-circle-fill':'bi-question-circle-fill') }}"></i>{{ ucfirst($m->status ?: 'unknown') }}</span></td>
             <td>{{ $m->last_seen_at ? $m->last_seen_at->format('d M Y') : '—' }}<div class="onu-secondary">{{ $m->last_seen_at ? $m->last_seen_at->format('H:i:s') : 'No successful sync recorded' }}</div></td>
-            <td><div class="d-flex gap-1">
+            <td><div class="d-flex gap-1 flex-wrap">
+              @php($rebootReady = auth()->user()?->hasRole('Super Admin') && $m->olt && $m->olt->model==='V1601E04-DP' && strtoupper((string)$m->olt->firmware)==='V1.0.2R' && $m->olt->ssh_enabled && $m->olt->provisioning_enabled && in_array((int)$m->olt_device_id, $rebootReadyOltIds ?? [], true) && $m->status==='online' && $m->last_seen_at && $m->last_seen_at->greaterThanOrEqualTo(now()->subMinutes(10)))
+              @if($rebootReady)
+                <form method="POST" action="{{ route('network-inventory.olt.onu.reboot',['device'=>$m->olt_device_id,'mapping'=>$m->id]) }}" onsubmit="const token=prompt('Restarting ONU will interrupt this customer's connection temporarily. Type REBOOT to continue.');if(token!=='REBOOT')return false;this.querySelector('[name=confirmation]').value=token;return true;">
+                  @csrf<input type="hidden" name="confirmation" value=""><button class="btn btn-sm btn-outline-danger" type="submit" title="Restart this confirmed Online ONU"><i class="bi bi-arrow-clockwise"></i> Reboot</button>
+                </form>
+              @else
+                <button class="btn btn-sm btn-outline-secondary" type="button" disabled title="Requires supported V-SOL model, fresh Online status and a successful SSH CLI test within 15 minutes"><i class="bi bi-lock"></i> Reboot</button>
+              @endif
               <button type="button" class="btn btn-sm btn-outline-info js-onu-details" data-bs-toggle="modal" data-bs-target="#onuDetailsModal"
                 data-customer="{{ $m->customer?->customer_name ?: 'Unmapped customer' }}" data-cid="{{ $m->customer?->customer_unique_id ?: '—' }}"
                 data-pppoe="{{ $m->pppUser?->username ?: '—' }}" data-olt="{{ $m->olt?->name ?: 'OLT unavailable' }}" data-pon="{{ $m->pon_port ?: '—' }}"
@@ -112,7 +122,7 @@
   </section>
 </div>
 
-{{-- Read-only ONU details. No reboot/provision command is exposed from this ledger. --}}
+{{-- Subscriber identity and saved telemetry remain read-only. ONU reboot is a separate audited POST action with server-side confirmation and freshness guards. --}}
 <div class="modal fade" id="onuDetailsModal" tabindex="-1" aria-labelledby="onuDetailsTitle" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content border-0 shadow">

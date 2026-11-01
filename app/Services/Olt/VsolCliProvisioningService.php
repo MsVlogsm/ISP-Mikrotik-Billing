@@ -78,6 +78,27 @@ class VsolCliProvisioningService
         return $this->runMany($this->commands('static_ip', compact('pon','onu','ip','netmask','gateway','dns1','dns2')));
     }
 
+    /** Restart exactly one already-registered ONU using the selected model profile. */
+    public function rebootOnu(string $pon, string $onu): string
+    {
+        $this->validatePon($pon);
+        $this->validateOnu($onu);
+        $profileKey = (string) ($this->config['vsol_model_profile'] ?? '');
+        $profile = config('olt_vsol.profiles.'.$profileKey, []);
+        $allowedFirmware = (array) ($profile['firmware'] ?? []);
+        if ($profileKey !== 'v1601e04_dp_v1_0_2r' || ! in_array(strtoupper(trim((string) ($this->config['_validated_firmware'] ?? ''))), $allowedFirmware, true)) {
+            throw new RuntimeException('ONU reboot requires the exact V1601E04-DP V1.0.2R CLI profile.');
+        }
+        $output = trim($this->runMany($this->commands('reboot_onu', compact('pon', 'onu'))));
+        if ($output === '') {
+            throw new RuntimeException('OLT closed or returned no CLI response after the reset request. Command acceptance cannot be confirmed.');
+        }
+        if (preg_match('/(?:unknown command|incomplete command|ambiguous command|command failed|no such onu|invalid (?:onu|command)|%\s*error)/i', $output)) {
+            throw new RuntimeException('OLT rejected the ONU reset command: '.mb_substr($output, 0, 500));
+        }
+        return $output;
+    }
+
     public function disableOnu(string $pon, string $onu): string
     {
         $this->validatePon($pon); $this->validateOnu($onu);

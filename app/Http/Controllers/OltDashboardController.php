@@ -236,6 +236,25 @@ class OltDashboardController extends Controller
         }
     }
 
+    public function pollDiagnosticsMetrics(NetworkInventoryDevice $device, OltLiveMetricsService $service): RedirectResponse
+    {
+        abort_unless($device->type === 'olt', 404);
+        try {
+            $snapshot = $service->poll($device);
+            $message = 'Read-only live metrics saved at '.$snapshot->sampled_at->format('d M Y H:i:s')
+                .'. '.$snapshot->onu_online.'/'.$snapshot->onu_total.' ONU online; '
+                .$snapshot->pon_up.'/'.($snapshot->pon_up + $snapshot->pon_down).' PON up; '
+                .$snapshot->interface_count.' interfaces in '.$snapshot->poll_duration_ms.' ms.';
+            return redirect()->route('network-inventory.olt.diagnostics', $device)
+                ->with('diagnostic_metrics_success', true)->with('diagnostic_metrics_message', $message);
+        } catch (Throwable $exception) {
+            report($exception);
+            return redirect()->route('network-inventory.olt.diagnostics', $device)
+                ->with('diagnostic_metrics_success', false)
+                ->with('diagnostic_metrics_message', Str::limit($exception->getMessage(), 1200));
+        }
+    }
+
     private function buildChart(
         Collection $snapshots,
         string $field,
