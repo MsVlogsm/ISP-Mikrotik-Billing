@@ -7,6 +7,7 @@ use App\Models\CollectionSummary;
 use App\Models\CustomersAddress;
 use App\Models\CustomersInfo;
 use App\Models\OfficialInfo;
+use App\Models\PackageList;
 use App\Models\PaymentSummary;
 use App\Models\PPPSecrets;
 use Illuminate\Http\Request;
@@ -199,6 +200,9 @@ class CustomerBulkImportController extends Controller
                 $username = $item['username'];
                 $cid = $item['cid'];
                 $ppp = $item['ppp'];
+                $matchedPackageId = filled($ppp->profile) && filled($ppp->router_name)
+                    ? PackageList::query()->where('package', $ppp->profile)->where('router_name', $ppp->router_name)->value('id')
+                    : null;
                 $customer = CustomersInfo::where('ppp_user_id', $ppp->id)->first();
 
                 $name = trim((string)($row['customer_name'] ?? ''));
@@ -214,6 +218,7 @@ class CustomerBulkImportController extends Controller
                     if ($altMobile !== '') $customer->alternative_mobile = $altMobile;
                     if ($address !== '') $customer->address = $address;
                     if ($customer->status === 'pending') $customer->status = 'active';
+                    if ($customer->package_id === null && $matchedPackageId !== null) $customer->package_id = $matchedPackageId;
                     $customer->save();
 
                     if ($oldCid !== '' && $oldCid !== $cid) {
@@ -228,6 +233,7 @@ class CustomerBulkImportController extends Controller
                     CustomersInfo::create([
                         'customer_unique_id'=>$cid,
                         'ppp_user_id'=>$ppp->id,
+                        'package_id'=>$matchedPackageId,
                         'customer_name'=>$name !== '' ? $name : $username,
                         'address'=>$address !== '' ? $address : null,
                         'mobile'=>$mobile !== '' ? $mobile : null,

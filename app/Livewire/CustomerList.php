@@ -366,7 +366,10 @@ class CustomerList extends Component
                     .'<i class="bi bi-telephone-fill" aria-hidden="true"></i> <span>Call</span></a></span>';
             })
             ->addColumn('package_display', function ($row) {
-                $name = $row->package?->package ?: $row->package_name;
+                // package_name was removed from customers_infos when package_id became
+                // the canonical FK. Older imported customers can still have their real
+                // MikroTik package in PPPSecrets.profile until the FK is reconciled.
+                $name = $row->package?->package ?: $row->pppUser?->profile;
                 $price = $row->billing?->monthly_rent ?? $row->package?->price;
                 return '<div class="fw-semibold">'.e($name ?: 'N/A').'</div>'
                     .($price !== null ? '<small class="text-muted">'.number_format((float) $price, 2).' ৳</small>' : '');

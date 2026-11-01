@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\SimpleExcel\SimpleExcelReader;
 use App\Models\PPPSecrets;
+use App\Models\PackageList;
 use App\Models\CustomersInfo;
 use App\Models\BillingInfo;
 use App\Models\OfficialInfo;
@@ -99,6 +100,12 @@ class ImportController extends Controller
                     continue;
                 }
 
+                // Resolve the customer's package using the exact PPP profile + router pair.
+                // Package names can be duplicated across routers, so never use a global name-only match.
+                $matchedPackageId = filled($pppSecret->profile) && filled($pppSecret->router_name)
+                    ? PackageList::query()->where('package', $pppSecret->profile)->where('router_name', $pppSecret->router_name)->value('id')
+                    : null;
+
                 // Extract fields
                 $name = $normalizedRow['customername'] ?? $normalizedRow['name'] ?? $pppoeUsername;
                 $address = $normalizedRow['address'] ?? $normalizedRow['customeraddress'] ?? $normalizedRow['location'] ?? null;
@@ -117,6 +124,9 @@ class ImportController extends Controller
                     
                     if ($customer->status === 'pending') {
                         $customer->status = 'active';
+                    }
+                    if ($customer->package_id === null && $matchedPackageId !== null) {
+                        $customer->package_id = $matchedPackageId;
                     }
 
                     // Check if unique ID needs updating to match old ID in Excel
@@ -153,6 +163,7 @@ class ImportController extends Controller
                     CustomersInfo::create([
                         'customer_unique_id' => $newId,
                         'ppp_user_id' => $pppSecret->id,
+                        'package_id' => $matchedPackageId,
                         'customer_name' => $name,
                         'address' => $address,
                         'mobile' => $mobile,
