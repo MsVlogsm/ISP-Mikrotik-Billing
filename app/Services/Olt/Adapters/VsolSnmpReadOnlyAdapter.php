@@ -101,6 +101,7 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
                 'version' => strtoupper((string) ($config['version'] ?? $device->snmp_version ?? '2C')),
             ],
             'onus' => [],
+            'interfaces' => [],
             'meta' => [
                 'read_only' => true,
                 'writes_performed' => false,
@@ -138,10 +139,16 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
             $result['device'][$name] = $this->cleanSnmpValue($value);
         }
 
+        $result['interfaces'] = $this->discoverInterfaces($host, $community, $timeout, $retries);
+        $result['meta']['interface_count'] = count($result['interfaces']);
+        $result['meta']['pon_interface_count'] = count(array_filter($result['interfaces'], static fn ($i) => ($i['role'] ?? '') === 'pon'));
+        $result['meta']['uplink_interface_count'] = count(array_filter($result['interfaces'], static fn ($i) => str_starts_with((string) ($i['role'] ?? ''), 'uplink_')));
+
         if ($onuConfig) {
             $result['onus'] = $this->discoverOnus($host, $community, $onuConfig, $timeout, $retries);
             if ($opmOids && $result['onus']) {
                 $result['onus'] = $this->enrichOpticalPower($host, $community, $result['onus'], $opmOids, $timeout, $retries);
+                $result['onus'] = $this->enrichDistance($host, $community, $result['onus'], $opmOids['distance_m'] ?? null, $timeout, $retries);
             }
 
             $clientMacDiscovery = ($profile['client_mac_discovery'] ?? true)
@@ -266,6 +273,66 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
         }
 
         return null;
+    }
+
+    /** Read-only IF-MIB inventory; roles come from the live ifDescr string, not assumed ifIndex ranges. */
+    private function discoverInterfaces(string $host, string $community, int $timeout, int $retries): array
+    {
+        $bases = [
+            'description' => '1.3.6.1.2.1.2.2.1.2',
+            'oper_status' => '1.3.6.1.2.1.2.2.1.8',
+            'in_octets' => '1.3.6.1.2.1.2.2.1.10',
+            'out_octets' => '1.3.6.1.2.1.2.2.1.16',
+        ];
+        $rows = [];
+        foreach ($bases as $field => $oid) {
+            foreach ($this->walkWithRetry($host, $community, $oid, $timeout, $retries) as $returned => $value) {
+                $index = $this->oidIndex((string) $returned, $oid);
+                if ($index === null || !ctype_digit($index)) continue;
+                $rows[$index][$field] = $this->cleanSnmpValue($value);
+            }
+        }
+        foreach ($rows as $index => &$row) {
+            $description = trim((string) ($row['description'] ?? ''));
+            if (preg_match('/^EPON\d+\/\d+$/i', $description)) $role = 'pon';
+            elseif (preg_match('/^EPON\d+\/\d+:\d+$/i', $description)) $role = 'onu';
+            elseif (preg_match('/^(GE|GIGABITETHERNET)\d+\/\d+$/i', $description)) $role = 'uplink_ge';
+            elseif (preg_match('/^(XGE|10GE|SFP\+?)\d*\/\d+$/i', $description)) $role = 'uplink_sfp';
+            else $role = 'other';
+            $row['if_index'] = (int) $index;
+            $row['description'] = $description;
+            $row['role'] = $role;
+            $state = trim((string) ($row['oper_status'] ?? ''));
+            $row['oper_status'] = preg_match('/\b1\b/', $state) ? 'up' : (preg_match('/\b2\b/', $state) ? 'down' : 'unknown');
+            foreach (['in_octets', 'out_octets'] as $counter) {
+                $row[$counter] = $this->normalizeMetric($row[$counter] ?? null);
+            }
+        }
+        unset($row);
+        ksort($rows, SORT_NUMERIC);
+        return array_values($rows);
+    }
+
+    /** The V1.0.2R distance table is indexed by PON.ONU-ID, unlike authInfo's row suffix. */
+    private function enrichDistance(string $host, string $community, array $onus, mixed $distanceOid, int $timeout, int $retries): array
+    {
+        if (!is_string($distanceOid) || !$this->validOid($distanceOid)) return $onus;
+        $walkValues = [];
+        foreach ($this->walkWithRetry($host, $community, $distanceOid, $timeout, $retries) as $returned => $value) {
+            $index = $this->oidIndex((string) $returned, $distanceOid);
+            if ($index !== null && preg_match('/^\d+\.\d+$/', $index)) $walkValues[$index] = $this->normalizeMetric($this->cleanSnmpValue($value));
+        }
+        foreach ($onus as &$onu) {
+            $index = $this->opmIndexForOnu($onu);
+            $distance = $index !== null ? ($walkValues[$index] ?? null) : null;
+            if ($distance === null && $index !== null) {
+                $raw = @snmp2_get($host, $community, rtrim($distanceOid, '.').'.'.$index, max(250000, min(1000000, $timeout)), max(0, min(1, $retries)));
+                if ($raw !== false) $distance = $this->normalizeMetric($this->cleanSnmpValue($raw));
+            }
+            $onu['distance_m'] = $distance;
+        }
+        unset($onu);
+        return $onus;
     }
 
     private function discoverOnus(string $host, string $community, array $onuConfig, int $timeout, int $retries): array

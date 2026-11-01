@@ -49,6 +49,8 @@ return [
             'opm_oids' => [
                 'tx_power' => '1.3.6.1.4.1.37950.1.1.5.12.2.1.8.1.6',
                 'rx_power' => '1.3.6.1.4.1.37950.1.1.5.12.2.1.8.1.7',
+                // Live V1.0.2R distance table: index is .PON.ONU-ID, value is meters.
+                'distance_m' => '1.3.6.1.4.1.37950.1.1.5.12.1.25.1.17',
             ],
         ],
         'v1601e_epon_authinfo2' => [
