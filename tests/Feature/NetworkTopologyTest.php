@@ -51,7 +51,7 @@ class NetworkTopologyTest extends TestCase
         $link = NetworkTopologyLink::firstOrFail();
         $this->assertFalse($link->is_published);
 
-        Livewire::test(NetworkTopology::class, ['mode' => 'designer'])->call('publish', $link->id);
+        Livewire::test(NetworkTopology::class, ['mode' => 'designer'])->call('verifyLink', $link->id)->call('publish', $link->id);
         $this->assertDatabaseHas('network_topology_links', ['id' => $link->id, 'is_published' => 1, 'status' => 'active']);
     }
 
@@ -67,7 +67,7 @@ class NetworkTopologyTest extends TestCase
         ]);
 
         Livewire::test(NetworkTopology::class, ['mode' => 'designer'])
-            ->call('publishNode', $node->id);
+            ->call('verifyNode', $node->id)->call('publishNode', $node->id);
         $node->refresh();
         $this->assertTrue($node->is_published);
 
@@ -78,7 +78,7 @@ class NetworkTopologyTest extends TestCase
             ->call('saveLink');
 
         $link = NetworkTopologyLink::firstOrFail();
-        Livewire::test(NetworkTopology::class, ['mode' => 'designer'])->call('publish', $link->id);
+        Livewire::test(NetworkTopology::class, ['mode' => 'designer'])->call('verifyLink', $link->id)->call('publish', $link->id);
         $this->assertTrue($link->fresh()->is_published);
     }
 
@@ -103,7 +103,7 @@ class NetworkTopologyTest extends TestCase
         $this->assertSame($mapId, (int) $node->map_id);
 
         Livewire::test(NetworkTopology::class, ['mode' => 'designer'])
-            ->call('publishNode', $node->id);
+            ->call('verifyNode', $node->id)->call('publishNode', $node->id);
         $this->assertTrue($node->fresh()->is_published);
 
         $mapComponent = app(NetworkMap::class);
@@ -116,6 +116,27 @@ class NetworkTopologyTest extends TestCase
         $this->assertSame('unknown', $mappedAsset['status']);
         $this->assertEqualsWithDelta(23.8103, $mappedAsset['lat'], 0.000001);
         $this->assertEqualsWithDelta(90.4125, $mappedAsset['lng'], 0.000001);
+    }
+
+
+    public function test_pending_topology_assets_cannot_be_published_until_verified(): void
+    {
+        $mapId = (int) NetworkTopologyMap::where('is_default', true)->value('id');
+        $node = NetworkTopologyNode::create([
+            'map_id' => $mapId, 'type' => 'splitter', 'name' => 'SPL-PENDING-TEST',
+        ]);
+        Livewire::test(NetworkTopology::class, ['mode' => 'designer'])
+            ->call('publishNode', $node->id)
+            ->assertSee('Verify the real asset details before publishing this node.');
+        $this->assertFalse($node->fresh()->is_published);
+        $this->assertSame('pending', $node->fresh()->verification_status);
+
+        Livewire::test(NetworkTopology::class, ['mode' => 'designer'])
+            ->call('verifyNode', $node->id)
+            ->call('publishNode', $node->id);
+        $this->assertTrue($node->fresh()->is_published);
+        $this->assertSame('verified', $node->fresh()->verification_status);
+        $this->assertNotNull($node->fresh()->verified_at);
     }
 
     public function test_topology_and_optical_audit_routes_render_for_network_admin(): void
