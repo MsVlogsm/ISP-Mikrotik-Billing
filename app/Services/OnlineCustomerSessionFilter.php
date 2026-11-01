@@ -142,8 +142,11 @@ class OnlineCustomerSessionFilter
             return $query->whereRaw('1 = 0');
         }
 
+        // Free accounts are valid customer connections, but must not be treated
+        // as billable/paid customers. Online status is determined by the live
+        // router session plus an active PPP secret, independent of billing type.
         return $query
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'free'])
             ->whereHas('pppUser', function ($ppp) use ($pairs): void {
                 $ppp->where('status', 'active')
                     ->where(function ($match) use ($pairs): void {

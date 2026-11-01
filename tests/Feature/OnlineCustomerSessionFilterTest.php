@@ -48,18 +48,19 @@ class OnlineCustomerSessionFilterTest extends TestCase
 
         $online = $this->customer('CID-ONLINE', 'Alice', 'router-a');
         $numericUsername = $this->customer('CID-NUMERIC', '12345', 'router-a');
+        $freeOnline = $this->customer('CID-FREE-ONLINE', 'free-user', 'router-a', 'free', 'active');
         $this->customer('CID-OFFLINE', 'bob', 'router-a');
         $this->customer('CID-INACTIVE', 'charlie', 'router-a', 'inactive', 'active');
         $this->customer('CID-PPP-DISABLED', 'david', 'router-a', 'active', 'disabled');
         $this->customer('CID-WRONG-ROUTER', 'alice', 'router-b');
 
         $snapshot = [
-            'router-a' => ['alice' => true, '12345' => true, 'charlie' => true, 'david' => true],
+            'router-a' => ['alice' => true, '12345' => true, 'free-user' => true, 'charlie' => true, 'david' => true],
         ];
         $query = app(OnlineCustomerSessionFilter::class)->apply(CustomersInfo::query(), $snapshot, 1);
 
         $this->assertSame(
-            [$online->customer_unique_id, $numericUsername->customer_unique_id],
+            [$online->customer_unique_id, $numericUsername->customer_unique_id, $freeOnline->customer_unique_id],
             $query->orderBy('id')->pluck('customer_unique_id')->all()
         );
     }
