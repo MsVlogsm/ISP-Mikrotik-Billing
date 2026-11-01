@@ -224,6 +224,7 @@ Route::middleware([
         Route::get('customer/{id}/pos-print', [\App\Http\Controllers\CustomerActionsController::class, 'printPage'])->name('customer.actions.print');
         Route::get('customers/{id}', [CustomerDetailsController::class, 'show'])->name('customers.show');
         Route::get('/customer-details/{id}', [CustomerDetailsController::class, 'show'])->name('customer.details');
+        Route::get('customer/{id}/paid-ledger', [CustomerDetailsController::class, 'paidLedger'])->name('customer.paid-ledger');
         Route::get('customers', CustomerList::class)->name('customers.index');
 
         Route::get('/new/customers', CustomerList::class)->name('customers-new');

@@ -57,7 +57,7 @@
                 <div><span>Package</span><strong>{{ $customer->package?->package ?: '—' }}</strong></div>
                 <div><span>Profile</span><strong>{{ $ppp?->profile ?: '—' }}</strong></div>
             </div></div></div>
-            <div class="col-xl-7"><div class="info-card h-100"><div class="card-title">Billing Information</div><div class="info-grid">
+            <div class="col-xl-7"><div class="info-card h-100"><div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><div class="card-title mb-0">Billing Information</div><a class="btn btn-sm btn-outline-primary" href="{{ route('customer.paid-ledger', encrypt($customer->customer_unique_id)) }}"><i class="bi bi-journal-check me-1"></i>Paid Ledger</a></div><div class="info-grid">
                 <div><span>Package Plan</span><strong>{{ $customer->package?->package ?: '—' }}</strong></div>
                 <div><span>Monthly Bill</span><strong>{{ number_format((float)($billing?->monthly_rent??0),2) }} ৳</strong></div>
                 <div><span>Previous Due</span><strong>{{ number_format((float)($billing?->previous_due??0),2) }} ৳</strong></div>
