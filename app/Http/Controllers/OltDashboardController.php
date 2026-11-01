@@ -5,12 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\NetworkInventoryDevice;
 use App\Models\NetworkInventoryHealthCheck;
 use App\Models\OltMonitoringSnapshot;
+use App\Models\OltLiveMetricSnapshot;
+use App\Models\OltLiveMetricPort;
+use App\Services\Olt\OltLiveMetricsService;
 use App\Models\OltOnuCustomerMapping;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\View\View;
+use Illuminate\Support\Str;
+use Throwable;
 
 class OltDashboardController extends Controller
 {
@@ -25,6 +30,15 @@ class OltDashboardController extends Controller
         $latestHealth = NetworkInventoryHealthCheck::where('network_inventory_device_id', $device->id)
             ->latest('checked_at')
             ->first();
+
+        $liveMetricSnapshot = OltLiveMetricSnapshot::where('olt_device_id', $device->id)
+            ->latest('sampled_at')->first();
+        $livePorts = $liveMetricSnapshot
+            ? OltLiveMetricPort::where('snapshot_id', $liveMetricSnapshot->id)->orderByRaw("CASE role WHEN 'pon' THEN 0 WHEN 'uplink_ge' THEN 1 WHEN 'uplink_sfp' THEN 2 ELSE 3 END")->orderBy('if_index')->get()
+            : collect();
+        $liveMetrics = (array) ($liveMetricSnapshot?->metrics ?? []);
+        $ponLivePorts = $livePorts->where('role', 'pon')->values();
+        $uplinkLivePorts = $livePorts->filter(fn ($port) => str_starts_with((string) $port->role, 'uplink_'))->values();
 
         $mappingBase = OltOnuCustomerMapping::where('olt_device_id', $device->id);
         $mappingCounts = (clone $mappingBase)->selectRaw(
@@ -160,6 +174,7 @@ class OltDashboardController extends Controller
             'last_latency_ms' => $device->last_latency_ms,
             'location' => $device->location,
             'health_status' => $device->health_status ?: $device->status,
+            'hardware_version' => data_get($device->adapter_config, 'hardware_version'),
         ];
 
         return view('xlink.olt-dashboard', compact(
@@ -167,6 +182,11 @@ class OltDashboardController extends Controller
             'stats',
             'latestSnapshot',
             'latestHealth',
+            'liveMetricSnapshot',
+            'livePorts',
+            'liveMetrics',
+            'ponLivePorts',
+            'uplinkLivePorts',
             'signalTotal',
             'signalPercentages',
             'charts',
@@ -192,6 +212,28 @@ class OltDashboardController extends Controller
             ->route('network-inventory.olt.dashboard', $device)
             ->with('olt_sync_success', $exitCode === 0)
             ->with('olt_sync_message', $output !== '' ? $output : 'ONU synchronization finished without additional output.');
+    }
+
+    public function pollMetrics(Request $request, NetworkInventoryDevice $device, OltLiveMetricsService $service): RedirectResponse
+    {
+        abort_unless($device->type === 'olt', 404);
+        try {
+            $snapshot = $service->poll($device);
+            $focusIfIndex = (int) $request->input('focus_if_index', 0);
+            $focusMessage = $focusIfIndex > 0 ? ' Selected ifIndex '.$focusIfIndex.' was included in the full-device poll.' : '';
+            $message = 'Live metrics saved at '.$snapshot->sampled_at->format('d M Y H:i:s')
+                .'. Interfaces: '.$snapshot->interface_count
+                .'; PON up: '.$snapshot->pon_up.'/'.($snapshot->pon_up + $snapshot->pon_down)
+                .'; ONU: '.$snapshot->onu_online.'/'.$snapshot->onu_total.' online'
+                .'; poll duration: '.$snapshot->poll_duration_ms.' ms.';
+            return redirect()->route('network-inventory.olt.dashboard', $device)
+                ->with('olt_metrics_success', true)->with('olt_metrics_message', $message);
+        } catch (Throwable $exception) {
+            report($exception);
+            return redirect()->route('network-inventory.olt.dashboard', $device)
+                ->with('olt_metrics_success', false)
+                ->with('olt_metrics_message', Str::limit($exception->getMessage(), 1200));
+        }
     }
 
     private function buildChart(

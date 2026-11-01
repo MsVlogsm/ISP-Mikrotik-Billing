@@ -575,6 +575,11 @@ Route::middleware([
             if ($ponType !== '') $query->where('olt_type_id',$ponType);
             if (in_array(request('status'),['online','offline','unknown'],true)) $query->where('status',request('status'));
             $devices=$query->paginate(20)->withQueryString();
+            $pageDeviceIds = $devices->getCollection()->pluck('id')->all();
+            $latestLiveSnapshotIds = \App\Models\OltLiveMetricSnapshot::whereIn('olt_device_id', $pageDeviceIds)
+                ->selectRaw('MAX(id) as id')->groupBy('olt_device_id')->pluck('id')->all();
+            $liveSnapshotsByOlt = \App\Models\OltLiveMetricSnapshot::whereIn('id', $latestLiveSnapshotIds)->get()->keyBy('olt_device_id');
+            $livePortsByOlt = \App\Models\OltLiveMetricPort::whereIn('snapshot_id', $latestLiveSnapshotIds)->get()->groupBy('olt_device_id');
             $vendors = \App\Models\NetworkInventoryDevice::type('olt')->whereNotNull('vendor')->where('vendor','<>','')->distinct()->orderBy('vendor')->pluck('vendor');
             $ponTypes = \App\Models\NetworkInventoryDevice::type('olt')->whereNotNull('olt_type_id')->where('olt_type_id','<>','')->distinct()->orderBy('olt_type_id')->pluck('olt_type_id');
             $allOlts = \App\Models\NetworkInventoryDevice::type('olt');
@@ -601,13 +606,15 @@ Route::middleware([
                     'mapped' => $mapped,
                 ]];
             })->all();
-            return view('xlink.olts',['devices'=>$devices,'oltStats'=>$oltStats,'onuCountsByOlt'=>$onuCountsByOlt,'vendors'=>$vendors,'ponTypes'=>$ponTypes]);
+            return view('xlink.olts',['devices'=>$devices,'oltStats'=>$oltStats,'onuCountsByOlt'=>$onuCountsByOlt,'liveSnapshotsByOlt'=>$liveSnapshotsByOlt,'livePortsByOlt'=>$livePortsByOlt,'vendors'=>$vendors,'ponTypes'=>$ponTypes]);
         })->name('network-inventory.olt');
 
         Route::get('/network-inventory/olt/{device}/dashboard', [\App\Http\Controllers\OltDashboardController::class, 'show'])
             ->name('network-inventory.olt.dashboard');
         Route::post('/network-inventory/olt/{device}/dashboard/sync', [\App\Http\Controllers\OltDashboardController::class, 'sync'])
             ->name('network-inventory.olt.dashboard.sync');
+        Route::post('/network-inventory/olt/{device}/dashboard/metrics', [\App\Http\Controllers\OltDashboardController::class, 'pollMetrics'])
+            ->name('network-inventory.olt.dashboard.metrics');
 
         Route::get('/olts', fn () => redirect()->route('network-inventory.olt'))->name('olts');
         Route::get('/network-inventory/olt/add', fn () => view('xlink.olt-form',['device'=>new \App\Models\NetworkInventoryDevice(['type'=>'olt','status'=>'unknown','is_active'=>true]),'edit'=>false]))->name('network-inventory.olt.add');

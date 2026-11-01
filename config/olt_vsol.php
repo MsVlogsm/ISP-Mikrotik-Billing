@@ -34,6 +34,13 @@ return [
                 'sysDescr' => '1.3.6.1.2.1.1.1.0',
                 'sysUpTime' => '1.3.6.1.2.1.1.3.0',
             ],
+            // Optional chassis probes. V1.0.2R is polled but these three
+            // instances are not exposed by the currently configured SNMP view.
+            'hardware_oids' => [
+                'cpu_percent' => '1.3.6.1.4.1.37950.1.1.5.10.1.1.1.0',
+                'memory_percent' => '1.3.6.1.4.1.37950.1.1.5.10.1.1.2.0',
+                'chassis_temp_c' => '1.3.6.1.4.1.37950.1.1.5.10.1.1.3.0',
+            ],
             'onu_oids' => [
                 // Live V1.0.2R authInfoTable is the exact MAC↔ONU-ID source.
                 // Columns: authInfoPonNo=.2, authInfoOnuNo=.3, LLID=.4,

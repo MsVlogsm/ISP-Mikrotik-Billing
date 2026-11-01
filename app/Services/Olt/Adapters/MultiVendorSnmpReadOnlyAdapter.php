@@ -57,6 +57,7 @@ class MultiVendorSnmpReadOnlyAdapter implements OltReadOnlyAdapter
             'message' => 'Read-only multi-vendor SNMP probe completed.',
             'device' => ['id'=>$device->id,'host'=>$address,'vendor'=>$device->vendor,'model'=>$device->model,'transport'=>'snmp','snmp_port'=>$snmpPort,'version'=>strtoupper((string)($config['version'] ?? $device->snmp_version ?? '2C'))],
             'onus' => [],
+            'interfaces' => [],
             'meta' => ['read_only'=>true,'writes_performed'=>false,'profile'=>$profile['key'],'enterprise_oid'=>$profile['enterprise_oid'],'oid_count'=>0,'onu_count'=>0,'failed_oids'=>[],'oid_source'=>$profile['source']],
         ];
 
@@ -67,6 +68,28 @@ class MultiVendorSnmpReadOnlyAdapter implements OltReadOnlyAdapter
             if ($value === false) { $result['meta']['failed_oids'][] = $name; continue; }
             $result['device'][$name] = $this->clean($value);
         }
+
+        $result['interfaces'] = $this->discoverInterfaces($host, $community, $onuTimeout, $onuRetries);
+        $result['meta']['interface_count'] = count($result['interfaces']);
+        $result['meta']['pon_interface_count'] = count(array_filter($result['interfaces'], static fn ($i) => ($i['role'] ?? '') === 'pon'));
+        $result['meta']['uplink_interface_count'] = count(array_filter($result['interfaces'], static fn ($i) => str_starts_with((string) ($i['role'] ?? ''), 'uplink_')));
+
+        // Vendor/model-specific hardware OIDs must be explicitly configured;
+        // no guessed enterprise OIDs are used for chassis metrics.
+        $hardwareOids = is_array($config['hardware_oids'] ?? null) ? $config['hardware_oids'] : [];
+        $hardwareAvailability = [];
+        foreach (['cpu_percent','memory_percent','chassis_temp_c'] as $metric) {
+            $oid = $hardwareOids[$metric] ?? null;
+            $raw = is_string($oid) && preg_match('/^\.?\d+(?:\.\d+)*$/', trim($oid))
+                ? @snmp2_get($host, $community, trim($oid), $timeout, $retries)
+                : false;
+            $value = $raw === false ? null : $this->numeric($this->clean($raw));
+            if (in_array($metric, ['cpu_percent','memory_percent'], true) && ($value === null || $value < 0 || $value > 100)) $value = null;
+            if ($metric === 'chassis_temp_c' && ($value === null || $value < -20 || $value > 150)) $value = null;
+            $result['device'][$metric] = $value;
+            $hardwareAvailability[$metric] = $value !== null;
+        }
+        $result['meta']['hardware_metric_availability'] = $hardwareAvailability;
 
         $onuConfig = $config['onu_oids'] ?? ($profile['onu_oids'] ?? []);
         if (is_array($onuConfig) && $onuConfig) {
@@ -119,6 +142,62 @@ class MultiVendorSnmpReadOnlyAdapter implements OltReadOnlyAdapter
     private function mergedOids(array $profile, array $config): array
     {
         return array_merge($profile['oids'] ?? [], is_array($config['oids'] ?? null) ? $config['oids'] : []);
+    }
+
+    /** Generic interface inventory from standard IF-MIB. */
+    private function discoverInterfaces(string $host, string $community, int $timeout, int $retries): array
+    {
+        if (!function_exists('snmp2_real_walk')) return [];
+        $bases = [
+            'description'=>'1.3.6.1.2.1.2.2.1.2','oper_status'=>'1.3.6.1.2.1.2.2.1.8',
+            'in_octets'=>'1.3.6.1.2.1.2.2.1.10','out_octets'=>'1.3.6.1.2.1.2.2.1.16',
+            'in_octets_hc'=>'1.3.6.1.2.1.31.1.1.1.6','out_octets_hc'=>'1.3.6.1.2.1.31.1.1.1.10',
+            'in_errors'=>'1.3.6.1.2.1.2.2.1.14','out_errors'=>'1.3.6.1.2.1.2.2.1.20',
+            'in_discards'=>'1.3.6.1.2.1.2.2.1.13','out_discards'=>'1.3.6.1.2.1.2.2.1.19',
+            'in_ucast'=>'1.3.6.1.2.1.2.2.1.11','in_nucast'=>'1.3.6.1.2.1.2.2.1.12',
+            'out_ucast'=>'1.3.6.1.2.1.2.2.1.17','out_nucast'=>'1.3.6.1.2.1.2.2.1.18',
+        ];
+        $rows=[];
+        foreach ($bases as $field=>$oid) {
+            $walk=@snmp2_real_walk($host,$community,$oid,$timeout,$retries);
+            if (!is_array($walk)) continue;
+            foreach ($walk as $returned=>$value) {
+                $index=$this->oidIndex((string)$returned,$oid);
+                if ($index!==null && ctype_digit($index)) $rows[$index][$field]=$this->clean($value);
+            }
+        }
+        foreach ($rows as $index=>&$row) {
+            $description=trim((string)($row['description']??''));
+            if (preg_match('/^EPON\d+\/\d+$/i',$description)) $role='pon';
+            elseif (preg_match('/^EPON\d+\/\d+:\d+$/i',$description)) $role='onu';
+            elseif (preg_match('/^(GE|GIGABITETHERNET)\d+\/\d+$/i',$description)) $role='uplink_ge';
+            elseif (preg_match('/^(XGE|10GE|SFP\+?)\d*\/\d+$/i',$description)) $role='uplink_sfp';
+            else $role='other';
+            $row['if_index']=(int)$index;$row['description']=$description;$row['role']=$role;
+            $state=trim((string)($row['oper_status']??''));
+            $row['oper_status']=preg_match('/\b1\b/',$state)?'up':(preg_match('/\b2\b/',$state)?'down':'unknown');
+            $row['in_octets']=$this->counterValue($row['in_octets_hc']??$row['in_octets']??null);
+            $row['out_octets']=$this->counterValue($row['out_octets_hc']??$row['out_octets']??null);
+            foreach(['in_errors','out_errors','in_discards','out_discards'] as $counter)$row[$counter]=$this->counterValue($row[$counter]??null);
+            $inU=$this->counterValue($row['in_ucast']??null);$inN=$this->counterValue($row['in_nucast']??null);$outU=$this->counterValue($row['out_ucast']??null);$outN=$this->counterValue($row['out_nucast']??null);
+            $row['in_packets']=($inU!==null||$inN!==null)?($inU??0)+($inN??0):null;$row['out_packets']=($outU!==null||$outN!==null)?($outU??0)+($outN??0):null;
+            unset($row['in_octets_hc'],$row['out_octets_hc'],$row['in_ucast'],$row['in_nucast'],$row['out_ucast'],$row['out_nucast']);
+        }
+        unset($row);ksort($rows,SORT_NUMERIC);return array_values($rows);
+    }
+
+    private function counterValue(mixed $value): ?int
+    {
+        if($value===null||$value==='')return null;if(is_int($value))return $value>=0?$value:null;
+        if(preg_match('/\d+/',(string)$value,$m))return (int)$m[0];return null;
+    }
+
+    private function numeric(mixed $value): ?float
+    {
+        if ($value===null || $value==='') return null;
+        if (is_numeric($value)) return (float)$value;
+        if (preg_match('/-?\\d+(?:\\.\\d+)?/',(string)$value,$m)) return (float)$m[0];
+        return null;
     }
 
     private function discoverOnus(string $host, string $community, array $onuConfig, int $timeout, int $retries): array

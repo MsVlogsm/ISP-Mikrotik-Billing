@@ -139,6 +139,23 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
             $result['device'][$name] = $this->cleanSnmpValue($value);
         }
 
+        // Hardware metrics are optional: unsupported OIDs stay null and do not
+        // fail otherwise healthy inventory polling.
+        $hardwareOids = array_merge((array) ($profile['hardware_oids'] ?? []), (array) ($config['hardware_oids'] ?? []));
+        $hardwareAvailability = [];
+        foreach (['cpu_percent', 'memory_percent', 'chassis_temp_c'] as $metric) {
+            $oid = $hardwareOids[$metric] ?? null;
+            $raw = is_string($oid) && $this->validOid($oid)
+                ? @snmp2_get($host, $community, trim($oid), $timeout, $retries)
+                : false;
+            $value = $raw === false ? null : $this->normalizeMetric($this->cleanSnmpValue($raw));
+            if (in_array($metric, ['cpu_percent', 'memory_percent'], true) && ($value === null || $value < 0 || $value > 100)) $value = null;
+            if ($metric === 'chassis_temp_c' && ($value === null || $value < -20 || $value > 150)) $value = null;
+            $result['device'][$metric] = $value;
+            $hardwareAvailability[$metric] = $value !== null;
+        }
+        $result['meta']['hardware_metric_availability'] = $hardwareAvailability;
+
         $result['interfaces'] = $this->discoverInterfaces($host, $community, $timeout, $retries);
         $result['meta']['interface_count'] = count($result['interfaces']);
         $result['meta']['pon_interface_count'] = count(array_filter($result['interfaces'], static fn ($i) => ($i['role'] ?? '') === 'pon'));
@@ -283,6 +300,16 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
             'oper_status' => '1.3.6.1.2.1.2.2.1.8',
             'in_octets' => '1.3.6.1.2.1.2.2.1.10',
             'out_octets' => '1.3.6.1.2.1.2.2.1.16',
+            'in_octets_hc' => '1.3.6.1.2.1.31.1.1.1.6',
+            'out_octets_hc' => '1.3.6.1.2.1.31.1.1.1.10',
+            'in_errors' => '1.3.6.1.2.1.2.2.1.14',
+            'out_errors' => '1.3.6.1.2.1.2.2.1.20',
+            'in_discards' => '1.3.6.1.2.1.2.2.1.13',
+            'out_discards' => '1.3.6.1.2.1.2.2.1.19',
+            'in_ucast' => '1.3.6.1.2.1.2.2.1.11',
+            'in_nucast' => '1.3.6.1.2.1.2.2.1.12',
+            'out_ucast' => '1.3.6.1.2.1.2.2.1.17',
+            'out_nucast' => '1.3.6.1.2.1.2.2.1.18',
         ];
         $rows = [];
         foreach ($bases as $field => $oid) {
@@ -304,9 +331,14 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
             $row['role'] = $role;
             $state = trim((string) ($row['oper_status'] ?? ''));
             $row['oper_status'] = preg_match('/\b1\b/', $state) ? 'up' : (preg_match('/\b2\b/', $state) ? 'down' : 'unknown');
-            foreach (['in_octets', 'out_octets'] as $counter) {
-                $row[$counter] = $this->normalizeMetric($row[$counter] ?? null);
-            }
+            $row['in_octets'] = $this->normalizeCounter($row['in_octets_hc'] ?? $row['in_octets'] ?? null);
+            $row['out_octets'] = $this->normalizeCounter($row['out_octets_hc'] ?? $row['out_octets'] ?? null);
+            foreach (['in_errors','out_errors','in_discards','out_discards'] as $counter) $row[$counter] = $this->normalizeCounter($row[$counter] ?? null);
+            $inUcast = $this->normalizeCounter($row['in_ucast'] ?? null); $inNUcast = $this->normalizeCounter($row['in_nucast'] ?? null);
+            $outUcast = $this->normalizeCounter($row['out_ucast'] ?? null); $outNUcast = $this->normalizeCounter($row['out_nucast'] ?? null);
+            $row['in_packets'] = ($inUcast !== null || $inNUcast !== null) ? ($inUcast ?? 0) + ($inNUcast ?? 0) : null;
+            $row['out_packets'] = ($outUcast !== null || $outNUcast !== null) ? ($outUcast ?? 0) + ($outNUcast ?? 0) : null;
+            unset($row['in_octets_hc'],$row['out_octets_hc'],$row['in_ucast'],$row['in_nucast'],$row['out_ucast'],$row['out_nucast']);
         }
         unset($row);
         ksort($rows, SORT_NUMERIC);
@@ -687,6 +719,14 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
         }
 
         return is_numeric($value) ? (float) $value : null;
+    }
+
+    private function normalizeCounter(mixed $value): ?int
+    {
+        if ($value === null || $value === '') return null;
+        if (is_int($value)) return $value >= 0 ? $value : null;
+        if (preg_match('/\d+/', (string) $value, $matches)) return (int) $matches[0];
+        return null;
     }
 
     private function normalizeMetric(mixed $value): ?float

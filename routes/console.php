@@ -141,6 +141,13 @@ Schedule::call(fn () => $runCommand(
 ))->everyMinute()->timezone($timezone)->name('onu-mapping-sync')->withoutOverlapping()->onOneServer();
 
 Schedule::call(fn () => $runCommand(
+    'olt-live-metrics-sync',
+    'OLT Live Metrics / IF-MIB / Hardware Telemetry',
+    'Every 5 minutes',
+    'olt:poll-live-metrics'
+))->everyFiveMinutes()->timezone($timezone)->name('olt-live-metrics-sync')->withoutOverlapping();
+
+Schedule::call(fn () => $runCommand(
     'customer-connection-snapshots',
     'Customer Online / Offline Snapshots',
     'Every 5 minutes',
