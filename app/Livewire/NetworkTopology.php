@@ -150,7 +150,7 @@ class NetworkTopology extends Component
                     'traffic_mbps' => $link->traffic_mbps,
                     'latency_ms' => $link->latency_ms,
                     'packet_loss' => $link->packet_loss,
-                    'fiber_core' => $link->fiber_core, 'source_core'=>$link->source_core, 'source_core_color'=>$link->source_core_color, 'source_core_hex'=>$link->source_core_hex, 'target_core'=>$link->target_core, 'target_core_color'=>$link->target_core_color, 'target_core_hex'=>$link->target_core_hex,
+                    'fiber_core' => $link->fiber_core,
                     'source_core' => $link->source_core, 'source_core_color' => $link->source_core_color, 'source_core_hex' => $link->source_core_hex,
                     'target_core' => $link->target_core, 'target_core_color' => $link->target_core_color, 'target_core_hex' => $link->target_core_hex,
                     'fiber_type' => $link->fiber_type,
@@ -213,7 +213,7 @@ class NetworkTopology extends Component
             foreach ($links as $l) {
                 if (!is_array($l) || empty($l['source_key']) || empty($l['target_key']) || empty($l['connection_type'])) continue;
                 $source = $keyMap[$l['source_key']] ?? $l['source_key']; $target = $keyMap[$l['target_key']] ?? $l['target_key'];
-                NetworkTopologyLink::create(['map_id'=>$map->id,'source_key'=>$source,'target_key'=>$target,'connection_type'=>$l['connection_type'],'label'=>$l['label']??null,'capacity_mbps'=>$l['capacity_mbps']??null,'traffic_mbps'=>$l['traffic_mbps']??null,'latency_ms'=>$l['latency_ms']??null,'packet_loss'=>$l['packet_loss']??null,'fiber_core'=>$l['fiber_core']??null,'fiber_type'=>$l['fiber_type']??null,'fiber_color_standard'=>$l['fiber_color_standard']??null,'fiber_core_color'=>$l['fiber_core_color']??null,'fiber_core_color_hex'=>$l['fiber_core_color_hex']??null,'fiber_tube_number'=>$l['fiber_tube_number']??null,'fiber_tube_color'=>$l['fiber_tube_color']??null,'source_port'=>$l['source_port']??null,'target_port'=>$l['target_port']??null,'status'=>$l['status']??'unknown','is_published'=>(bool)($l['is_published']??false),'created_by'=>auth()->id()]);
+                NetworkTopologyLink::create(['map_id'=>$map->id,'source_key'=>$source,'target_key'=>$target,'connection_type'=>$l['connection_type'],'label'=>$l['label']??null,'capacity_mbps'=>$l['capacity_mbps']??null,'traffic_mbps'=>$l['traffic_mbps']??null,'latency_ms'=>$l['latency_ms']??null,'packet_loss'=>$l['packet_loss']??null,'fiber_core'=>$l['fiber_core']??null,'source_core'=>$l['source_core']??null,'source_core_color'=>$l['source_core_color']??null,'source_core_hex'=>$l['source_core_hex']??null,'target_core'=>$l['target_core']??null,'target_core_color'=>$l['target_core_color']??null,'target_core_hex'=>$l['target_core_hex']??null,'fiber_type'=>$l['fiber_type']??null,'fiber_color_standard'=>$l['fiber_color_standard']??null,'fiber_core_color'=>$l['fiber_core_color']??null,'fiber_core_color_hex'=>$l['fiber_core_color_hex']??null,'fiber_tube_number'=>$l['fiber_tube_number']??null,'fiber_tube_color'=>$l['fiber_tube_color']??null,'source_port'=>$l['source_port']??null,'target_port'=>$l['target_port']??null,'status'=>$l['status']??'unknown','is_published'=>(bool)($l['is_published']??false),'created_by'=>auth()->id()]);
             }
         });
         $this->reset('topologyImportFile');
