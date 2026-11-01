@@ -398,22 +398,77 @@
         .customer-row-actions .dropdown-toggle { border-radius: 9px; font-size: .78rem; font-weight: 700; white-space: nowrap; }
         .customer-row-actions .dropdown-menu { min-width: 235px; max-height: 70vh; overflow-y: auto; padding: .45rem; border: 1px solid #e7ebf3; border-radius: 12px; z-index: 1085; }
         .customer-row-actions .dropdown-item { border-radius: 7px; padding: .48rem .65rem; font-size: .82rem; }
-        /* Anchor actions are permitted menu items, not disabled links. Explicitly override
-           inherited theme link colors so they remain readable like the button actions. */
-        .customer-row-actions .dropdown-menu a.dropdown-item {
+        /* Customer row action submenu: explicit, readable surfaces in both themes. */
+        .customer-row-actions .dropdown-menu {
+            --bs-dropdown-bg: #ffffff;
+            --bs-dropdown-color: #25364d;
+            --bs-dropdown-link-color: #25364d;
+            --bs-dropdown-link-hover-color: #14243a;
+            --bs-dropdown-link-hover-bg: #eaf0ff;
+            --bs-dropdown-link-active-color: #ffffff;
+            --bs-dropdown-link-active-bg: #2457a6;
+            --bs-dropdown-divider-bg: #d5deeb;
             color: #25364d !important;
+            background: #ffffff !important;
+            border-color: #c4d0df !important;
+            box-shadow: 0 .65rem 1.5rem rgba(15, 23, 42, .18) !important;
+        }
+        .customer-row-actions .dropdown-menu :is(a.dropdown-item, button.dropdown-item) {
+            color: #25364d !important;
+            background: transparent !important;
             opacity: 1 !important;
             pointer-events: auto !important;
             cursor: pointer !important;
             text-decoration: none !important;
+            font-weight: 600 !important;
+            text-align: left;
         }
-        .customer-row-actions .dropdown-menu a.dropdown-item:hover,
-        .customer-row-actions .dropdown-menu a.dropdown-item:focus {
+        .customer-row-actions .dropdown-menu :is(a.dropdown-item, button.dropdown-item):hover,
+        .customer-row-actions .dropdown-menu :is(a.dropdown-item, button.dropdown-item):focus-visible {
             color: #14243a !important;
             background: #eaf0ff !important;
+            outline: none;
         }
-        .customer-row-actions .dropdown-menu a.dropdown-item i { opacity: 1 !important; }
-        .customer-row-actions .dropdown-item:hover { background: #f2f5ff; }
+        .customer-row-actions .dropdown-menu :is(a.dropdown-item, button.dropdown-item):active,
+        .customer-row-actions .dropdown-menu :is(a.dropdown-item, button.dropdown-item).active {
+            color: #ffffff !important;
+            background: #2457a6 !important;
+        }
+        .customer-row-actions .dropdown-menu .dropdown-divider { border-top-color: #d5deeb !important; opacity: 1; }
+        .customer-row-actions .dropdown-menu .dropdown-item i { color: #315b9a !important; opacity: 1 !important; }
+        .customer-row-actions .dropdown-menu .dropdown-item .text-primary { color: #2457a6 !important; }
+
+        html[data-bs-theme="dark"] .customer-row-actions .dropdown-menu {
+            --bs-dropdown-bg: #17263b;
+            --bs-dropdown-color: #edf4ff;
+            --bs-dropdown-link-color: #edf4ff;
+            --bs-dropdown-link-hover-color: #ffffff;
+            --bs-dropdown-link-hover-bg: #29415f;
+            --bs-dropdown-link-active-color: #ffffff;
+            --bs-dropdown-link-active-bg: #245b96;
+            --bs-dropdown-divider-bg: #405773;
+            color: #edf4ff !important;
+            background: #17263b !important;
+            border-color: #49627f !important;
+            box-shadow: 0 .75rem 1.8rem rgba(0, 0, 0, .42) !important;
+        }
+        html[data-bs-theme="dark"] .customer-row-actions .dropdown-menu :is(a.dropdown-item, button.dropdown-item) {
+            color: #eaf2ff !important;
+            background: transparent !important;
+        }
+        html[data-bs-theme="dark"] .customer-row-actions .dropdown-menu :is(a.dropdown-item, button.dropdown-item):hover,
+        html[data-bs-theme="dark"] .customer-row-actions .dropdown-menu :is(a.dropdown-item, button.dropdown-item):focus-visible {
+            color: #ffffff !important;
+            background: #29415f !important;
+        }
+        html[data-bs-theme="dark"] .customer-row-actions .dropdown-menu :is(a.dropdown-item, button.dropdown-item):active,
+        html[data-bs-theme="dark"] .customer-row-actions .dropdown-menu :is(a.dropdown-item, button.dropdown-item).active {
+            color: #ffffff !important;
+            background: #245b96 !important;
+        }
+        html[data-bs-theme="dark"] .customer-row-actions .dropdown-menu .dropdown-divider { border-top-color: #405773 !important; }
+        html[data-bs-theme="dark"] .customer-row-actions .dropdown-menu .dropdown-item i,
+        html[data-bs-theme="dark"] .customer-row-actions .dropdown-menu .dropdown-item .text-primary { color: #9fc8ff !important; opacity: 1 !important; }
         .customer-filter-card,
         .customer-table-card {
             border-radius: 14px !important;
