@@ -1,6 +1,6 @@
 <x-app-layout>
 @push('styles')
-<link rel="stylesheet" href="{{ asset('xlink-olt/olt-dashboard.css') }}">
+<link rel="stylesheet" href="{{ asset('xlink-olt/olt-dashboard.css') }}?v={{ filemtime(public_path('xlink-olt/olt-dashboard.css')) }}">
 @endpush
 
 <div class="container-fluid olt-dash-page px-2 px-xl-3">
