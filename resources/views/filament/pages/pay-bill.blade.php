@@ -344,6 +344,44 @@
                 </div>
 
             </div>
+
+            @if($stripeSubscriptionHasActive || $stripeSubscriptionAvailable)
+                <div class="cp-mt-6 cp-p-5 cp-bg-white dark:cp-bg-slate-900/60 cp-border cp-border-gray-100 dark:cp-border-white/5 cp-rounded-3xl cp-shadow-xl">
+                    <div class="cp-flex cp-flex-wrap cp-items-center cp-justify-between cp-gap-4">
+                        <div>
+                            <h3 class="cp-text-base cp-font-bold cp-text-gray-900 dark:cp-text-white">Automatic recurring payment</h3>
+                            <p class="cp-text-sm cp-text-gray-500 dark:cp-text-slate-400 cp-mt-1">
+                                Secure recurring billing through Stripe for your mapped internet package. Existing one-time gateways remain available.
+                            </p>
+                            @if($stripeSubscriptionHasActive)
+                                <span class="cp-inline-flex cp-mt-2 cp-px-2.5 cp-py-1 cp-rounded-full cp-text-xs cp-font-bold cp-bg-emerald-500/10 cp-text-emerald-600 dark:cp-text-emerald-400">
+                                    Stripe status: {{ str_replace('_', ' ', $stripeSubscriptionStatus) }}
+                                </span>
+                            @endif
+                        </div>
+                        <div class="cp-flex cp-flex-wrap cp-gap-2">
+                            @if($stripeSubscriptionHasActive && $stripeSubscriptionConfigured)
+                                <button type="button" wire:click="manageStripeSubscription" wire:loading.attr="disabled"
+                                    class="cp-px-4 cp-py-2.5 cp-rounded-xl cp-bg-indigo-600 hover:cp-bg-indigo-500 cp-text-white cp-font-semibold cp-text-sm">
+                                    Manage Subscription
+                                </button>
+                            @elseif($stripeSubscriptionHasActive)
+                                <span class="cp-text-xs cp-text-amber-600 dark:cp-text-amber-400">Subscription management is not configured. Contact support.</span>
+                            @elseif($stripeSubscriptionAvailable)
+                                <button type="button" wire:click="startStripeSubscription" wire:loading.attr="disabled"
+                                    class="cp-px-4 cp-py-2.5 cp-rounded-xl cp-bg-indigo-600 hover:cp-bg-indigo-500 cp-text-white cp-font-semibold cp-text-sm">
+                                    Enable Auto-renew with Stripe
+                                </button>
+                            @endif
+                        </div>
+                    </div>
+                    @if(in_array($stripeSubscriptionStatus, ['past_due', 'unpaid'], true))
+                        <p class="cp-text-xs cp-text-amber-600 dark:cp-text-amber-400 cp-mt-3">Your latest recurring payment needs attention. Open Manage Subscription to update your payment method.</p>
+                    @elseif($stripeSubscriptionStatus === 'paused')
+                        <p class="cp-text-xs cp-text-amber-600 dark:cp-text-amber-400 cp-mt-3">Your recurring subscription is paused. Open Manage Subscription to review it.</p>
+                    @endif
+                </div>
+            @endif
         @endif
 
     </div>

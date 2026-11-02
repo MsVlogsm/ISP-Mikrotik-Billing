@@ -43,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
             '/payment/nagad/callback',
             '/payment/sslcommerz/callback',
             '/payment/mock/submit',
+            '/payment/stripe/webhook',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

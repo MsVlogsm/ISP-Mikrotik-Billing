@@ -11,15 +11,18 @@ class MobileBankingController extends Controller
     public function index()
     {
         $this->authorizeModule('payment-collection');
-        $online = CollectionSummary::query()->where(function ($q) {
-            $q->where('payment_type', 'online')
-                ->orWhereIn('payment_method', ['bkash', 'nagad', 'rocket', 'upay', 'sslcommerz']);
-        });
+        $mfs = CollectionSummary::query()
+            ->whereIn('payment_method', ['bkash', 'nagad', 'rocket', 'upay', 'sslcommerz']);
+        $stripe = CollectionSummary::query()
+            ->where('payment_method', 'stripe')
+            ->where('payment_type', 'online');
+
         return view('mobile-banking.index', [
             'tab' => 'overview',
             'stats' => [
-                ['label' => 'MFS Collections (30d)', 'value' => number_format((clone $online)->where('collection_date', '>=', now()->subDays(30))->sum('collection_amount'), 2)],
-                ['label' => 'Online Transactions (30d)', 'value' => (clone $online)->where('collection_date', '>=', now()->subDays(30))->count()],
+                ['label' => 'MFS Collections (30d)', 'value' => number_format((clone $mfs)->where('collection_date', '>=', now()->subDays(30))->sum('collection_amount'), 2)],
+                ['label' => 'MFS Transactions (30d)', 'value' => (clone $mfs)->where('collection_date', '>=', now()->subDays(30))->count()],
+                ['label' => 'Stripe Subscription Collections (30d)', 'value' => number_format((clone $stripe)->where('collection_date', '>=', now()->subDays(30))->sum('collection_amount'), 2)],
                 ['label' => 'bKash', 'value' => MainSiteData::getValue('payment_bkash_enabled', 0) ? 'Enabled' : 'Disabled'],
                 ['label' => 'Nagad', 'value' => MainSiteData::getValue('payment_nagad_enabled', 0) ? 'Enabled' : 'Disabled'],
             ],
@@ -56,6 +59,7 @@ class MobileBankingController extends Controller
             ['code' => 'bkash', 'name' => 'bKash', 'enabled' => (bool) MainSiteData::getValue('payment_bkash_enabled', 0), 'type' => MainSiteData::getValue('payment_bkash_api_type', 'tokenized'), 'endpoint' => MainSiteData::getValue('payment_bkash_base_url', config('services.bkash.base_url'))],
             ['code' => 'nagad', 'name' => 'Nagad', 'enabled' => (bool) MainSiteData::getValue('payment_nagad_enabled', 0), 'type' => 'DFS Checkout', 'endpoint' => MainSiteData::getValue('payment_nagad_base_url', config('services.nagad.base_url'))],
             ['code' => 'sslcommerz', 'name' => 'SSLCommerz', 'enabled' => (bool) MainSiteData::getValue('payment_sslcommerz_enabled', 0), 'type' => MainSiteData::getValue('payment_sslcommerz_sandbox', true) ? 'Sandbox' : 'Live', 'endpoint' => null],
+            ['code' => 'stripe', 'name' => 'Stripe Subscriptions', 'enabled' => app(\App\Services\StripeSubscriptionService::class)->enabled() && app(\App\Services\StripeSubscriptionService::class)->configured(), 'type' => 'Recurring Checkout', 'endpoint' => null],
         ];
         return view('mobile-banking.index', ['tab' => 'gateways', 'gateways' => $gateways]);
     }
@@ -86,6 +90,25 @@ class MobileBankingController extends Controller
         MainSiteData::setValue('payment_default_provider', $data['default_provider']);
         MainSiteData::setValue('payment_default_number', $data['default_number'] ?? '');
         return back()->with('success', 'Mobile Banking sync settings updated.');
+    }
+
+    public function subscriptions(\Illuminate\Http\Request $request, \App\Services\StripeSubscriptionService $stripe)
+    {
+        $this->authorizeModule('payment-setup');
+
+        return view('mobile-banking.index', [
+            'tab' => 'subscriptions',
+            'stripeEnabled' => $stripe->enabled(),
+            'stripeConfigured' => $stripe->configured(),
+            'stripeMode' => config('services.stripe.mode', 'test'),
+            'stripeCurrency' => strtoupper(config('services.stripe.currency', 'BDT')),
+            'packages' => \App\Models\PackageList::query()->orderBy('package')->get(),
+            'priceMappings' => \App\Models\StripePackagePrice::with('package')->orderBy('package_id')->get(),
+            'activeSubscriptions' => \App\Models\StripeSubscription::whereIn('status', ['active', 'trialing'])->count(),
+            'pastDueSubscriptions' => \App\Models\StripeSubscription::where('status', 'past_due')->count(),
+            'webhookFailures' => \App\Models\StripeWebhookEvent::where('processing_status', 'failed')->count(),
+            'recentSubscriptions' => \App\Models\StripeSubscription::with('package')->latest()->limit(25)->get(),
+        ]);
     }
 
     public function methods()

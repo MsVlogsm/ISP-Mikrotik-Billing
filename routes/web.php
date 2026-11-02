@@ -1526,6 +1526,10 @@ Route::middleware([
         Route::post('/mobile-banking/methods', [\App\Http\Controllers\MobileBankingController::class, 'saveMethod'])->name('mobile-banking.methods.save');
         Route::get('/mobile-banking/settings', [\App\Http\Controllers\MobileBankingController::class, 'settings'])->name('mobile-banking.settings');
         Route::post('/mobile-banking/settings', [\App\Http\Controllers\MobileBankingController::class, 'updateSettings'])->name('mobile-banking.settings.update');
+        Route::get('/mobile-banking/subscriptions', [\App\Http\Controllers\MobileBankingController::class, 'subscriptions'])->name('mobile-banking.subscriptions');
+        Route::post('/mobile-banking/subscriptions/prices', [\App\Http\Controllers\Payment\StripeSubscriptionController::class, 'savePriceMapping'])->name('mobile-banking.subscriptions.prices.save');
+        Route::post('/mobile-banking/subscriptions/prices/{mapping}/toggle', [\App\Http\Controllers\Payment\StripeSubscriptionController::class, 'togglePriceMapping'])->name('mobile-banking.subscriptions.prices.toggle');
+        Route::delete('/mobile-banking/subscriptions/prices/{mapping}', [\App\Http\Controllers\Payment\StripeSubscriptionController::class, 'deletePriceMapping'])->name('mobile-banking.subscriptions.prices.delete');
         Route::get('/bandwidth-reseller', [\App\Http\Controllers\Admin\BandwidthResellerController::class, 'index'])->name('xlink.bandwidth-reseller');
         Route::get('/bandwidth-resellers', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'index'])->name('bandwidth-resellers');
         Route::post('/bandwidth-resellers', [\App\Http\Controllers\Admin\BandwidthResellerController::class,'store'])->name('bandwidth-resellers.store');
@@ -1668,9 +1672,16 @@ Route::middleware(EnsurePortalPort::class)->group(function () {
         Route::get('/payment/bkash/initiate', [BkashPaymentController::class, 'initiate'])->name('payment.bkash.initiate');
         Route::get('/payment/nagad/initiate', [NagadPaymentController::class, 'initiate'])->name('payment.nagad.initiate');
         Route::get('/payment/sslcommerz/initiate', [SslCommerzPaymentController::class, 'initiate'])->name('payment.sslcommerz.initiate');
+        Route::get('/payment/stripe/subscribe', [\App\Http\Controllers\Payment\StripeSubscriptionController::class, 'checkout'])->name('payment.stripe.checkout');
+        Route::get('/payment/stripe/portal', [\App\Http\Controllers\Payment\StripeSubscriptionController::class, 'portal'])->name('payment.stripe.portal');
+        Route::get('/payment/stripe/success', [\App\Http\Controllers\Payment\StripeSubscriptionController::class, 'success'])->name('payment.stripe.success');
+        Route::get('/payment/stripe/cancel', [\App\Http\Controllers\Payment\StripeSubscriptionController::class, 'cancel'])->name('payment.stripe.cancel');
     });
 
-    // Public payment callback routes (Gateways redirect here, CSRF is disabled for POSTs)
+    // Stripe server-to-server webhook, authenticated by Stripe signature instead of a portal session.
+    Route::post('/payment/stripe/webhook', \App\Http\Controllers\Payment\StripeWebhookController::class)->name('payment.stripe.webhook');
+
+    // Public payment callback routes
     Route::any('/payment/bkash/callback', [BkashPaymentController::class, 'callback'])->name('payment.bkash.callback');
     Route::any('/payment/nagad/callback', [NagadPaymentController::class, 'callback'])->name('payment.nagad.callback');
     Route::any('/payment/sslcommerz/callback', [SslCommerzPaymentController::class, 'callback'])->name('payment.sslcommerz.callback');

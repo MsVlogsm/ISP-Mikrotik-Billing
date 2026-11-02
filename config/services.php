@@ -59,6 +59,16 @@ return [
         'app_secret' => env('BKASH_APP_SECRET'),
     ],
 
+    // Stripe recurring billing is isolated from the existing local payment gateways.
+    // Keep disabled until both server-side API and webhook secrets are configured.
+    'stripe' => [
+        'enabled' => env('STRIPE_ENABLED', false),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'currency' => strtolower(env('STRIPE_CURRENCY', 'bdt')),
+        'mode' => env('STRIPE_MODE', 'test'),
+    ],
+
     'android_api' => [
         // Keep payment writes disabled until a trusted backend verifies provider transactions.
         'payment_writes_enabled' => env('ANDROID_API_PAYMENT_WRITES_ENABLED', false),

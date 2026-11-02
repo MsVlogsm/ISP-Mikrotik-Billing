@@ -3,6 +3,9 @@
 namespace App\Filament\Pages;
 
 use App\Http\Controllers\MikrotikController;
+use App\Models\StripePackagePrice;
+use App\Models\StripeSubscription;
+use App\Services\StripeSubscriptionService;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
 
@@ -30,6 +33,14 @@ class PayBill extends Page
 
     public ?string $connectionStatus = 'checking...';
 
+    public bool $stripeSubscriptionAvailable = false;
+
+    public bool $stripeSubscriptionConfigured = false;
+
+    public bool $stripeSubscriptionHasActive = false;
+
+    public ?string $stripeSubscriptionStatus = null;
+
     public static function shouldRegisterNavigation(): bool
     {
         return auth()->guard('ppp')->check();
@@ -56,6 +67,25 @@ class PayBill extends Page
             return;
         }
 
+        $stripeService = app(StripeSubscriptionService::class);
+        $this->stripeSubscriptionConfigured = $stripeService->configured();
+        $this->stripeSubscriptionAvailable = $stripeService->enabled()
+            && $stripeService->configured()
+            && StripePackagePrice::where('package_id', $this->customer->package_id)
+                ->where('is_active', true)
+                ->exists();
+
+        $this->stripeSubscriptionStatus = StripeSubscription::where('customer_unique_id', $this->customer->customer_unique_id)
+            ->whereNotNull('stripe_subscription_id')
+            ->latest('id')
+            ->value('status');
+
+        $this->stripeSubscriptionHasActive = in_array(
+            $this->stripeSubscriptionStatus,
+            ['active', 'trialing', 'past_due', 'incomplete', 'paused', 'unpaid'],
+            true
+        );
+
         // Set amount to pay, defaulting to outstanding due amount if any, otherwise monthly rent
         $due = (float) $this->billing->due_amount;
         $this->amount = $due > 0 ? $due : (float) $this->billing->monthly_rent;
@@ -70,6 +100,26 @@ class PayBill extends Page
         }
 
         $this->connectionStatus = 'checking...';
+    }
+
+    public function startStripeSubscription()
+    {
+        if (! $this->stripeSubscriptionAvailable) {
+            session()->flash('error', 'Automatic Stripe subscription is not enabled for your current package.');
+            return;
+        }
+
+        return redirect()->route('payment.stripe.checkout');
+    }
+
+    public function manageStripeSubscription()
+    {
+        if (! $this->stripeSubscriptionHasActive) {
+            session()->flash('error', 'No active Stripe subscription is linked to this account.');
+            return;
+        }
+
+        return redirect()->route('payment.stripe.portal');
     }
 
     public function checkLiveStatus()
