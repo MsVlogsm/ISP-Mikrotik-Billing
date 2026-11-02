@@ -548,7 +548,7 @@
                         <span class="nav-link-icon">
                             <i class="bi bi-buildings"></i>
                         </span>
-                        <span class="nav-link-text ps-1">{{ __('Address Setup') }}</span>
+                        <span class="nav-link-text ps-1">{{ __('Address Field Configuration') }}</span>
                     </div>
                 </a>
                 <!-- parent pages-->

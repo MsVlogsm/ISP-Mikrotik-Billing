@@ -365,35 +365,45 @@ class CompanyAreaZoneController extends Controller
 
     private function addressOptionIsUsed(string $label, string $value): bool
     {
+        $labels = $label === 'Thana / Upazila'
+            ? ['Thana / Upazila', 'Other Thana / Upazila']
+            : [$label];
+
         return DB::table('customers_addresses')
-            ->where('label_name', $label)
+            ->whereIn('label_name', $labels)
             ->where('input_type_dropdown', $value)
             ->exists();
     }
 
     private function syncAddressOption(string $label, ?string $newName, ?string $oldName = null, bool $remove = false): void
     {
-        $field = DB::table('address_fields')->where('label', $label)->first();
-        if (! $field) {
-            return;
-        }
+        $fieldLabels = $label === 'Thana / Upazila'
+            ? ['Thana / Upazila', 'Other Thana / Upazila']
+            : [$label];
 
-        $values = json_decode($field->dropdown_list ?: '[]', true);
-        if (! is_array($values)) {
-            $values = [];
-        }
+        foreach ($fieldLabels as $fieldLabel) {
+            $field = DB::table('address_fields')->where('label', $fieldLabel)->first();
+            if (! $field) {
+                continue;
+            }
 
-        if ($oldName !== null && $remove) {
-            $values = array_values(array_filter($values, fn ($value) => (string) $value !== $oldName));
-        }
-        if (! $remove && $newName !== null && ! in_array($newName, $values, true)) {
-            $values[] = $newName;
-        }
+            $values = json_decode($field->dropdown_list ?: '[]', true);
+            if (! is_array($values)) {
+                $values = [];
+            }
 
-        DB::table('address_fields')->where('id', $field->id)->update([
-            'input_type' => 'dropdown',
-            'dropdown_list' => json_encode(array_values($values), JSON_UNESCAPED_UNICODE),
-            'updated_at' => now(),
-        ]);
+            if ($oldName !== null && ($remove || ! $this->addressOptionIsUsed($label, $oldName))) {
+                $values = array_values(array_filter($values, fn ($value) => (string) $value !== $oldName));
+            }
+            if (! $remove && $newName !== null && ! in_array($newName, $values, true)) {
+                $values[] = $newName;
+            }
+
+            DB::table('address_fields')->where('id', $field->id)->update([
+                'input_type' => 'dropdown',
+                'dropdown_list' => json_encode(array_values($values), JSON_UNESCAPED_UNICODE),
+                'updated_at' => now(),
+            ]);
+        }
     }
 }

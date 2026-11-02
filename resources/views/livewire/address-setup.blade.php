@@ -1,9 +1,16 @@
 <div class="px-md-4 zoom-in">
     <x-slot name="header">
         <h2 class="h4 font-weight-bold text-dark mb-0">
-            <i class="bi bi-geo-alt me-2 text-success"></i>{{ __('Address Setup') }}
+            <i class="bi bi-geo-alt me-2 text-success"></i>{{ __('Address Field Configuration') }}
         </h2>
     </x-slot>
+
+    <div class="alert alert-light border d-flex align-items-start gap-2 mb-3">
+        <i class="bi bi-info-circle text-primary mt-1"></i>
+        <div class="small">
+            <strong>{{ __('Customer address fields') }}</strong> — {{ __('Configure field type, required status and display order here. Zone, District and Upazila dropdown values are controlled only from Area/Zone Setup.') }}
+        </div>
+    </div>
 
     <div class="row g-3">
         <!-- Edit / Create Form Panel -->
@@ -52,40 +59,63 @@
                             </div>
 
                             <div class="mb-3 bg-light p-3 rounded-3 border">
-                                <x-mikrotik.form-group
-                                    x-model="input_type"
-                                    column="col-12 mb-2"
-                                    label="{{ __('Field Input Type') }}"
-                                    type="dropdownKey"
-                                    name="input_type"
-                                    placeholder="{{ __('Select Type') }}"
-                                    :options="['dropdown' => __('Dropdown / List'), 'text' => __('Input Text (Single Line)'), 'textarea' => __('Input Box (Multi Line)')]"
-                                />
-
-                                <!-- Dropdown options manager -->
-                                <div class="mt-3" x-show="input_type === 'dropdown'" x-cloak>
-                                    <label for="dropdown_input" class="form-label fw-semibold text-dark mb-1" style="font-size: 0.85rem;">{{ __('List Options') }}</label>
-                                    <div class="input-group input-group-sm mb-2 shadow-sm">
-                                        <input type="text" wire:model="dropdown_input" id="dropdown_input" class="form-control" placeholder="{{ __('Add option item') }}">
-                                        <button type="button" class="btn btn-success" wire:click="addTypeToList">
-                                            <i class="bi bi-plus-lg"></i>
-                                        </button>
+                                @if($managedDropdown)
+                                    <label class="form-label fw-semibold text-dark mb-2">{{ __('Field Input Type') }}</label>
+                                    <div class="form-control bg-light text-muted mb-3" aria-readonly="true">
+                                        <i class="bi bi-list-ul me-1"></i>{{ __('Dropdown / List') }}
+                                        <span class="badge bg-primary-subtle text-primary ms-2">{{ __('Managed') }}</span>
                                     </div>
-                                    <x-input-error for='dropdown_input' />
-
-                                    <!-- Added options chips list -->
-                                    @if (!empty($dropdown_list))
+                                    <div class="alert alert-info py-2 small mb-2">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        {{ __('Zone, District and Upazila values are managed centrally in Area/Zone Setup.') }}
+                                        <a class="d-inline-block fw-semibold ms-1" href="{{ route('company-settings.area-zone-setup', ['tab' => $label === 'Zone' ? 'zones' : ($label === 'District' ? 'districts' : 'upazilas')]) }}">
+                                            {{ __('Open Area/Zone Setup') }} <i class="bi bi-box-arrow-up-right"></i>
+                                        </a>
+                                    </div>
+                                    @if(!empty($dropdown_list))
                                         <div class="d-flex flex-wrap gap-1 mt-2">
-                                            @foreach ($dropdown_list as $index => $type)
-                                                <span class="badge bg-success-subtle text-success border d-flex align-items-center gap-1 py-1 px-2 rounded-pill" style="font-size: 0.78rem;">
-                                                    {{ $type }}
-                                                    <i class="bi bi-x-circle-fill text-danger" style="cursor: pointer;" wire:click="removeTypeFromList({{ $index }})"></i>
-                                                </span>
+                                            @foreach($dropdown_list as $type)
+                                                <span class="badge bg-success-subtle text-success border py-1 px-2 rounded-pill">{{ $type }}</span>
                                             @endforeach
                                         </div>
+                                    @else
+                                        <div class="small text-muted">{{ __('No values configured yet. Add them in Area/Zone Setup.') }}</div>
                                     @endif
-                                    <x-input-error for='dropdown_list' />
-                                </div>
+                                @else
+                                    <x-mikrotik.form-group
+                                        x-model="input_type"
+                                        column="col-12 mb-2"
+                                        label="{{ __('Field Input Type') }}"
+                                        type="dropdownKey"
+                                        name="input_type"
+                                        placeholder="{{ __('Select Type') }}"
+                                        :options="['dropdown' => __('Dropdown / List'), 'text' => __('Input Text (Single Line)'), 'textarea' => __('Input Box (Multi Line)')]"
+                                    />
+
+                                    <!-- Dropdown options manager -->
+                                    <div class="mt-3" x-show="input_type === 'dropdown'" x-cloak>
+                                        <label for="dropdown_input" class="form-label fw-semibold text-dark mb-1" style="font-size: 0.85rem;">{{ __('List Options') }}</label>
+                                        <div class="input-group input-group-sm mb-2 shadow-sm">
+                                            <input type="text" wire:model="dropdown_input" id="dropdown_input" class="form-control" placeholder="{{ __('Add option item') }}">
+                                            <button type="button" class="btn btn-success" wire:click="addTypeToList">
+                                                <i class="bi bi-plus-lg"></i>
+                                            </button>
+                                        </div>
+                                        <x-input-error for='dropdown_input' />
+
+                                        @if (!empty($dropdown_list))
+                                            <div class="d-flex flex-wrap gap-1 mt-2">
+                                                @foreach ($dropdown_list as $index => $type)
+                                                    <span class="badge bg-success-subtle text-success border d-flex align-items-center gap-1 py-1 px-2 rounded-pill" style="font-size: 0.78rem;">
+                                                        {{ $type }}
+                                                        <i class="bi bi-x-circle-fill text-danger" style="cursor: pointer;" wire:click="removeTypeFromList({{ $index }})"></i>
+                                                    </span>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                        <x-input-error for='dropdown_list' />
+                                    </div>
+                                @endif
                             </div>
 
                             <div class="d-flex justify-content-end gap-2 pt-2 border-top">
@@ -102,7 +132,7 @@
                     @else
                         <div class="text-center text-muted py-4">
                             <i class="bi bi-shield-lock fs-2 d-block mb-2"></i>
-                            {{ __('You do not have permission to manage Address Setup.') }}
+                            {{ __('You do not have permission to manage Address Field Configuration.') }}
                         </div>
                     @endif
                 </x-slot>
@@ -126,6 +156,9 @@
                                             <div class="col-md-5 d-flex align-items-center gap-2">
                                                 <i wire:sortable.handle class="bi bi-grid-3x2-gap text-muted" style="cursor: move;"></i>
                                                 <span class="fw-bold text-dark">{{ $field['label'] }}</span>
+                                                @if(in_array($field['label'], ['Zone', 'District', 'Thana / Upazila', 'Other Thana / Upazila'], true))
+                                                    <span class="badge bg-primary-subtle text-primary" title="{{ __('Dropdown values are managed from Area/Zone Setup') }}">{{ __('Area/Zone managed') }}</span>
+                                                @endif
                                                 @if ($field['required'] == 1)
                                                     <span class="text-danger">*</span>
                                                 @endif
@@ -134,7 +167,7 @@
                                             <div class="col-md-4">
                                                 @if ($field['input_type'] == 'dropdown')
                                                     <select class="form-select form-select-sm" disabled style="background-color: #fff;">
-                                                        @foreach (json_decode($field['dropdown_list']) as $type)
+                                                        @foreach ((json_decode($field['dropdown_list'] ?: '[]', true) ?: []) as $type)
                                                             <option value="{{ $type }}">{{ $type }}</option>
                                                         @endforeach
                                                     </select>
@@ -150,11 +183,15 @@
                                                     </button>
                                                 @endcan
 
-                                                @can('address-setup-delete')
-                                                    <button type="button" class="btn btn-xs btn-outline-danger p-1" style="border-radius: 4px;" wire:click="delete({{ $field['id'] }})" title="{{ __('Delete') }}">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                @endcan
+                                                @if(in_array($field['label'], $standardAddressLabels, true))
+                                                    <span class="badge bg-light text-muted border" title="{{ __('Standard customer address fields are protected') }}"><i class="bi bi-lock"></i></span>
+                                                @else
+                                                    @can('address-setup-delete')
+                                                        <button type="button" class="btn btn-xs btn-outline-danger p-1" style="border-radius: 4px;" wire:click="delete({{ $field['id'] }})" title="{{ __('Delete') }}">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    @endcan
+                                                @endif
 
                                                 @if ($field['print_preview'] == 1)
                                                     <span class="badge bg-light text-success border d-inline-flex align-items-center p-1" title="{{ __('Prints in receipt') }}">

@@ -156,7 +156,7 @@
             <li class="nav-item">
                 <!-- parent pages-->
                 <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('address-setup') }}"
-                    role="button">{{ __('Address') }}</a>
+                    role="button">{{ __('Address Field Configuration') }}</a>
             </li>
             <li class="nav-item">
                 <!-- parent pages-->

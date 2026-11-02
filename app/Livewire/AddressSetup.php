@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\AddressField;
 use App\Models\CustomersAddress;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
@@ -29,6 +30,29 @@ class AddressSetup extends Component
 
     public $addressFieldId; // Track the ID of the AddressField being edited
 
+    public bool $managedDropdown = false;
+
+    private function isManagedDropdownLabel(?string $label = null): bool
+    {
+        return in_array($label ?? $this->label, ['Zone', 'District', 'Thana / Upazila', 'Other Thana / Upazila'], true);
+    }
+
+    private function managedDropdownOptions(string $label): array
+    {
+        $table = match ($label) {
+            'Zone' => 'service_zones',
+            'District' => 'service_districts',
+            'Thana / Upazila', 'Other Thana / Upazila' => 'service_upazilas',
+            default => null,
+        };
+
+        if ($table === null || ! DB::getSchemaBuilder()->hasTable($table)) {
+            return [];
+        }
+
+        return DB::table($table)->orderBy('name')->pluck('name')->map(fn ($value) => (string) $value)->all();
+    }
+
     public array $standardAddressLabels = [
         'Present Address',
         'Floor / Flat',
@@ -51,9 +75,11 @@ class AddressSetup extends Component
         }
 
         $this->label = $label;
+        $this->dropdown_input = null;
+        $this->managedDropdown = $this->isManagedDropdownLabel($label);
 
-        // If the standard field already exists, load it for option management
-        // instead of creating a duplicate record.
+        // If the standard field already exists, load its field settings
+        // instead of creating a duplicate record. Master-managed values stay read-only here.
         $existing = AddressField::where('label', $label)->first();
         $this->addressFieldId = $existing?->id;
         $this->required = (bool) ($existing?->required ?? false);
@@ -74,7 +100,11 @@ class AddressSetup extends Component
             $this->input_type = 'text';
         }
 
-        if ($label === 'Distribution Location Point') {
+        if ($this->managedDropdown) {
+            // The Area/Zone master tables are the sole source for these dropdown values.
+            $this->input_type = 'dropdown';
+            $this->dropdown_list = $this->managedDropdownOptions($label);
+        } elseif ($label === 'Distribution Location Point') {
             $this->dropdown_list = ['DC', 'NOC', 'POP'];
         } elseif ($label === 'Network Location') {
             $this->dropdown_list = [];
@@ -101,8 +131,12 @@ class AddressSetup extends Component
         return [
             'label' => 'required|string|max:255|unique:address_fields,label,'.$this->addressFieldId,
             'input_type' => 'required|in:dropdown,text,textarea',
-            'dropdown_list' => 'required_if:input_type,dropdown|array',
-            'dropdown_input' => $this->shouldRequireTypeInput() ? 'required|string' : 'nullable',
+            'dropdown_list' => $this->isManagedDropdownLabel()
+                ? 'nullable|array'
+                : 'required_if:input_type,dropdown|array',
+            'dropdown_input' => $this->isManagedDropdownLabel() || ! $this->shouldRequireTypeInput()
+                ? 'nullable'
+                : 'required|string',
         ];
     }
 
@@ -113,6 +147,12 @@ class AddressSetup extends Component
 
     public function addTypeToList()
     {
+        if ($this->isManagedDropdownLabel()) {
+            throw ValidationException::withMessages([
+                'dropdown_input' => 'Manage Zone, District and Upazila options from Area/Zone Setup.',
+            ]);
+        }
+
         if (! empty($this->dropdown_input)) {
             // Check if the input is already in the list
             if (! in_array($this->dropdown_input, $this->dropdown_list)) {
@@ -128,12 +168,23 @@ class AddressSetup extends Component
 
     public function isTypeInUse($type)
     {
-        // Check if the type is being used in the customers_address table
-        return CustomersAddress::where('input_type_dropdown', $type)->exists();
+        // A dropdown value belongs to its field; identical text in another field is unrelated.
+        return CustomersAddress::where('label_name', $this->label)
+            ->where('input_type_dropdown', $type)
+            ->exists();
     }
 
     public function removeTypeFromList($index)
     {
+        if ($this->isManagedDropdownLabel()) {
+            flash()->error('Manage Zone, District and Upazila options from Area/Zone Setup.');
+            return;
+        }
+
+        if (! array_key_exists($index, $this->dropdown_list)) {
+            return;
+        }
+
         $type = $this->dropdown_list[$index];
 
         // Check if the type is in use before removing
@@ -148,6 +199,11 @@ class AddressSetup extends Component
     // Create or update the address field
     public function submit()
     {
+        if ($this->isManagedDropdownLabel()) {
+            $this->input_type = 'dropdown';
+            $this->dropdown_list = $this->managedDropdownOptions((string) $this->label);
+        }
+
         $this->validate();
         try {
             AddressField::updateOrCreate(
@@ -168,6 +224,7 @@ class AddressSetup extends Component
             flash()->error('Error saving data. Please try again.');
         }
         $this->reset();
+        $this->dataRender();
     }
 
     // Edit the address field by loading its data into the form
@@ -178,8 +235,12 @@ class AddressSetup extends Component
         if ($addressField) {
             $this->addressFieldId = $id;
             $this->label = $addressField->label;
-            $this->input_type = $addressField->input_type;
-            $this->dropdown_list = json_decode($addressField->dropdown_list); // Clear the input field
+            $this->managedDropdown = $this->isManagedDropdownLabel($addressField->label);
+            $this->dropdown_input = null;
+            $this->input_type = $this->managedDropdown ? 'dropdown' : $addressField->input_type;
+            $this->dropdown_list = $this->managedDropdown
+                ? $this->managedDropdownOptions($addressField->label)
+                : (json_decode($addressField->dropdown_list ?: '[]', true) ?: []);
             $this->print_preview = $addressField->print_preview == 1;
             $this->required = $addressField->required == 1;
             $this->complain_preview = $addressField->complain_preview == 1;
@@ -191,10 +252,23 @@ class AddressSetup extends Component
     {
         $addressField = AddressField::find($id);
 
-        if ($addressField) {
-            $addressField->delete();
-            flash()->success('Address Field deleted successfully!');
+        if (! $addressField) {
+            return;
         }
+
+        if (in_array($addressField->label, $this->standardAddressLabels, true)) {
+            flash()->error('Standard customer address fields are protected.');
+            return;
+        }
+
+        if (CustomersAddress::where('label_name', $addressField->label)->exists()) {
+            flash()->error('This address field is used by existing customer records and cannot be deleted.');
+            return;
+        }
+
+        $addressField->delete();
+        flash()->success('Address Field deleted successfully!');
+        $this->dataRender();
     }
 
     public function updateSortOrderAddress($reorder)

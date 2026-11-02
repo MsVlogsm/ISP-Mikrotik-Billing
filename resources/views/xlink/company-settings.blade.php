@@ -3,7 +3,7 @@
 <div class="row g-3">
 @foreach([
 ['Area & Zone Setup','Manage service zones, sub-zones, TJ distribution boxes, districts and upazilas.','company-settings.area-zone-setup','bi-geo-alt'],
-['Address Field Setup','Manage customer address fields and existing dropdown option lists.','address-setup','bi-signpost-split'],
+['Address Field Configuration','Manage customer address field types, required settings, form order and receipt order. Area/Zone values are managed centrally.','address-setup','bi-signpost-split'],
 ['Service Configuration','Manage connection types, network protocols, customer types, billing statuses and bandwidth types.','company-settings.service-configuration','bi-sliders'],
 ['Billing & Operation','Configure the active disconnect checks, expired profile, invoice prefix and currency.','company-settings.billing-operations','bi-receipt'],
 ['Due Customer Auto Call','Schedule voice-call reminders for customers with outstanding bills and review call history.','due-call-reminders.index','bi-telephone-outbound'],
