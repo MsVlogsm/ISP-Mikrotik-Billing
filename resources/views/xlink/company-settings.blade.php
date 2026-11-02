@@ -2,8 +2,9 @@
 <div class="container-fluid px-1"><div class="mb-4"><div class="text-uppercase small text-muted fw-semibold">Administration</div><h3 class="mb-1">Company Settings</h3><p class="text-muted">Company identity, service configuration, billing operations, messaging and payment setup.</p></div>
 <div class="row g-3">
 @foreach([
-['Area & Zone Setup','Manage service address dropdowns and location values.','address-setup','bi-geo-alt'],
-['Service Configuration','Manage connection types, protocols, customer types, billing statuses and bandwidth types.','company-settings.service-configuration','bi-sliders'],
+['Area & Zone Setup','Manage service zones, sub-zones, TJ distribution boxes, districts and upazilas.','company-settings.area-zone-setup','bi-geo-alt'],
+['Address Field Setup','Manage customer address fields and existing dropdown option lists.','address-setup','bi-signpost-split'],
+['Service Configuration','Manage connection types, network protocols, customer types, billing statuses and bandwidth types.','company-settings.service-configuration','bi-sliders'],
 ['Billing & Operation','Configure the active disconnect checks, expired profile, invoice prefix and currency.','company-settings.billing-operations','bi-receipt'],
 ['Due Customer Auto Call','Schedule voice-call reminders for customers with outstanding bills and review call history.','due-call-reminders.index','bi-telephone-outbound'],
 ['Company Setup','Company identity, branding and invoice/document settings.','site-settings','bi-building'],

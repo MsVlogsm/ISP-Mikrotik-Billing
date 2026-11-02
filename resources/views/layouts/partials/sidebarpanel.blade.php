@@ -510,6 +510,8 @@
                         <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route($route) }}">{{ __('Overview') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('site-settings') }}">{{ __('Master Setup') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('company-settings') }}">{{ __('Company Settings') }}</a>
+                        <a wire:navigate.hover class="nav-link" href="{{ route('company-settings.area-zone-setup') }}">{{ __('Area/Zone Setup') }}</a>
+                        <a wire:navigate.hover class="nav-link" href="{{ route('company-settings.service-configuration', ['category'=>'connection_type']) }}">{{ __('Service Configuration') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('sms-setup') }}">{{ __('SMS Setup') }}</a>
                         <a wire:navigate.hover class="nav-link" href="{{ route('main-site-setup') }}">{{ __('Main Site Setup') }}</a>
                     </div>

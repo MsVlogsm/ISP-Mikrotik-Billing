@@ -1328,6 +1328,11 @@ Route::middleware([
             ];
             return view('xlink.company-billing-operations',compact('settings'));
         })->name('company-settings.billing-operations');
+        Route::get('/company-settings/area-zone-setup', [\App\Http\Controllers\CompanyAreaZoneController::class, 'index'])->name('company-settings.area-zone-setup');
+        Route::post('/company-settings/area-zone-setup', [\App\Http\Controllers\CompanyAreaZoneController::class, 'store'])->name('company-settings.area-zone-setup.store');
+        Route::put('/company-settings/area-zone-setup/{tab}/{id}', [\App\Http\Controllers\CompanyAreaZoneController::class, 'update'])->name('company-settings.area-zone-setup.update');
+        Route::post('/company-settings/area-zone-setup/{tab}/{id}/toggle', [\App\Http\Controllers\CompanyAreaZoneController::class, 'toggle'])->name('company-settings.area-zone-setup.toggle');
+        Route::delete('/company-settings/area-zone-setup/{tab}/{id}', [\App\Http\Controllers\CompanyAreaZoneController::class, 'destroy'])->name('company-settings.area-zone-setup.delete');
         Route::post('/company-settings/billing-operations', function (\Illuminate\Http\Request $request) {
             $data=$request->validate([
                 'disable_check_no'=>'required|integer|min:0|max:30',
@@ -1341,12 +1346,48 @@ Route::middleware([
             return redirect()->route('company-settings.billing-operations')->with('company_settings_message','Billing operations settings saved. The existing scheduled billing/disconnect jobs read these operational values.');
         })->name('company-settings.billing-operations.save');
         Route::get('/company-settings/service-configuration', function () {
-            $category=trim((string)request('category','connection_type'));
-            $categories=['connection_type'=>'Connection Types','protocol'=>'Network Protocols','customer_type'=>'Customer Types','billing_status'=>'Billing Statuses','bandwidth_type'=>'Bandwidth Types'];
-            if(!array_key_exists($category,$categories))$category='connection_type';
-            $options=\App\Models\CompanyServiceOption::where('category',$category)->orderBy('name')->paginate(20)->withQueryString();
-            $counts=\App\Models\CompanyServiceOption::selectRaw('category,count(*) as total,sum(case when is_active = 1 then 1 else 0 end) as active_total')->groupBy('category')->get()->keyBy('category');
-            return view('xlink.company-service-configuration',compact('category','categories','options','counts'));
+            $category = trim((string) request('category', 'connection_type'));
+            $categories = [
+                'connection_type' => 'Connection Types',
+                'protocol' => 'Protocols',
+                'customer_type' => 'Customer Types',
+                'billing_status' => 'Billing Status',
+                'bandwidth_type' => 'Bandwidth Types',
+            ];
+            if (! array_key_exists($category, $categories)) {
+                $category = 'connection_type';
+            }
+
+            $search = trim((string) request('q', ''));
+            $status = (string) request('status', 'all');
+            $query = \App\Models\CompanyServiceOption::query()->where('category', $category);
+
+            if ($search !== '') {
+                $query->where(function ($builder) use ($search) {
+                    $builder->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('code', 'like', '%' . $search . '%')
+                        ->orWhere('description', 'like', '%' . $search . '%');
+                });
+            }
+            if ($status === 'active') {
+                $query->where('is_active', true);
+            } elseif ($status === 'inactive') {
+                $query->where('is_active', false);
+            }
+
+            $options = $query
+                ->when($category === 'bandwidth_type', fn ($builder) => $builder->orderBy('sort_order')->orderBy('name'))
+                ->when($category !== 'bandwidth_type', fn ($builder) => $builder->orderBy('name'))
+                ->paginate(10)
+                ->withQueryString();
+
+            $counts = \App\Models\CompanyServiceOption::query()
+                ->selectRaw('category, count(*) as total, sum(case when is_active = 1 then 1 else 0 end) as active_total, sum(case when is_system = 1 then 1 else 0 end) as system_total')
+                ->groupBy('category')
+                ->get()
+                ->keyBy('category');
+
+            return view('xlink.company-service-configuration', compact('category', 'categories', 'options', 'counts', 'search', 'status'));
         })->name('company-settings.service-configuration');
         Route::post('/company-settings/service-configuration', function (\Illuminate\Http\Request $request) {
             $data=$request->validate([
@@ -1354,8 +1395,10 @@ Route::middleware([
                 'code'=>'required|string|max:80|regex:/^[A-Za-z0-9_-]+$/',
                 'name'=>'required|string|max:120',
                 'description'=>'nullable|string|max:500',
+                'sort_order'=>'nullable|integer|min:0|max:9999',
             ]);
             $data['code']=trim($data['code']);
+            $data['sort_order']=(int)($data['sort_order']??0);
             $data['name']=trim($data['name']);
             \Illuminate\Support\Facades\Validator::make($data,[
                 'code'=>['required','string','max:80',\Illuminate\Validation\Rule::unique('company_service_options','code')->where(fn($q)=>$q->where('category',$data['category']))],
@@ -1364,7 +1407,11 @@ Route::middleware([
             return redirect()->route('company-settings.service-configuration',['category'=>$data['category']])->with('company_settings_message','Service option added.');
         })->name('company-settings.service-configuration.store');
         Route::put('/company-settings/service-configuration/{option}', function (\Illuminate\Http\Request $request, \App\Models\CompanyServiceOption $option) {
-            $data=$request->validate(['name'=>'required|string|max:120','description'=>'nullable|string|max:500']);
+            $data = $request->validate([
+                'name' => 'required|string|max:120',
+                'description' => 'nullable|string|max:500',
+                'sort_order' => 'nullable|integer|min:0|max:9999',
+            ]);
             $option->update($data);
             return back()->with('company_settings_message','Service option updated.');
         })->name('company-settings.service-configuration.update');
@@ -1373,6 +1420,7 @@ Route::middleware([
             return back()->with('company_settings_message','Service option status updated.');
         })->name('company-settings.service-configuration.toggle');
         Route::delete('/company-settings/service-configuration/{option}', function (\App\Models\CompanyServiceOption $option) {
+            abort_if($option->category === 'billing_status' && $option->is_system, 403, 'System billing statuses are protected. Disable them instead of deleting them.');
             $used=false;
             if($option->category==='connection_type')$used=\App\Models\OfficialInfo::where('connection_type',$option->code)->exists();
             elseif($option->category==='customer_type')$used=\App\Models\OfficialInfo::where('client_type',$option->code)->exists();
