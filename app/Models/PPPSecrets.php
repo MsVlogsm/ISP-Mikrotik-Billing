@@ -21,6 +21,10 @@ class PPPSecrets extends Authenticatable implements FilamentUser, HasAvatar
         'caller_id',
         'comment',
         'ppp_remote_ip',
+        'ip_address',
+        'interface',
+        'subnet_prefix',
+        'gateway',
         'bandwidth',
         'uptime',
         'downtime',
@@ -148,3 +152,5 @@ class PPPSecrets extends Authenticatable implements FilamentUser, HasAvatar
     }
 }
 
+
+[executed on device: bill (d46e2bb3-ca74-4b6d-b341-ee3299469042)]

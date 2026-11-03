@@ -109,13 +109,30 @@
                             placeholder="{{ __('Customer Name (eg. Mr. John Doe)') }}"
                             required="true"
                         />
-                        <x-mikrotik.form-group
-                            label="{{ __('Customer Unique Id') }}"
-                            name="customer_unique_id"
-                            type="text"
-                            placeholder="{{ __('Enter Customer Unique Id manually') }}"
-                            required="true"
-                        />
+                        <div class="form-group input-group-sm col-md-6 col-sm-12">
+                            <label for="customer_unique_id" class="form-label">{{ __('Customer Unique Id') }} <span class="text-danger">*</span></label>
+                            <input
+                                id="customer_unique_id"
+                                name="customer_unique_id"
+                                type="text"
+                                class="form-control @error('customer_unique_id') is-invalid @enderror"
+                                placeholder="{{ __('Enter Customer Unique Id manually') }}"
+                                autocomplete="off"
+                                wire:model.live.debounce.400ms="customer_unique_id"
+                                required
+                                aria-describedby="customer-cid-availability"
+                            >
+                            <div id="customer-cid-availability" class="small mt-1" aria-live="polite">
+                                @if($customerUniqueIdAvailability === 'available')
+                                    <span class="text-success"><i class="bi bi-check-circle me-1"></i>{{ __('CID is available') }}</span>
+                                @elseif($customerUniqueIdAvailability === 'taken')
+                                    <span class="text-danger"><i class="bi bi-x-circle me-1"></i>{{ __('This CID is already in use') }}</span>
+                                @else
+                                    <span class="text-muted">{{ __('Enter a CID to check availability. IDs are never generated automatically.') }}</span>
+                                @endif
+                            </div>
+                            <x-error name="customer_unique_id" />
+                        </div>
                         <x-mikrotik.form-group
                             label="{{ __('Email Address') }}"
                             name="email"
@@ -161,30 +178,42 @@
                             </div>
                         @endif
                     </x-slot>
-                    <div class="row g-3 mt-1">
-                        <div class="col-lg-4">
-                            <div class="mb-3">
-                                <label for="new-customer-latitude" class="form-label">Latitude</label>
-                                <input id="new-customer-latitude" type="text" class="form-control" wire:model="latitude" placeholder="23.8103" inputmode="decimal">
-                                @error('latitude') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
-                            </div>
-                            <div class="mb-3">
-                                <label for="new-customer-longitude" class="form-label">Longitude</label>
-                                <input id="new-customer-longitude" type="text" class="form-control" wire:model="longitude" placeholder="90.4125" inputmode="decimal">
-                                @error('longitude') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
-                            </div>
-                            <div class="alert alert-info small mb-0">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Click anywhere on the map to set the customer's exact Network Location.
-                            </div>
-                        </div>
-                        <div class="col-lg-8">
-                            <div id="new-customer-network-map" wire:ignore style="height:360px;border:1px solid #dee2e6;border-radius:10px;overflow:hidden;background:#f8f9fa;"></div>
-                        </div>
-                    </div>
-                    <small class="text-muted d-block mt-2">The selected coordinates will be stored with this customer and used by Network Monitoring / Map views.</small>
-                    <x-section-border/>
                 </x-mikrotik.section-form>
+                <div class="card border-0 shadow-sm mt-3" style="border-radius: 12px;">
+                    <div class="card-header bg-white border-bottom px-4 py-3">
+                        <h5 class="card-title fw-semibold mb-0"><i class="bi bi-geo-alt me-2 text-success"></i>{{ __('Network Location') }}</h5>
+                    </div>
+                    <div class="card-body p-3 p-lg-4">
+                        <div class="row g-3 align-items-start">
+                            <div class="col-lg-4">
+                                <div class="mb-3">
+                                    <label for="new-customer-latitude" class="form-label">{{ __('Latitude') }}</label>
+                                    <input id="new-customer-latitude" type="text" class="form-control" wire:model="latitude" placeholder="23.8103" inputmode="decimal">
+                                    @error('latitude') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
+                                </div>
+                                <div class="mb-3">
+                                    <label for="new-customer-longitude" class="form-label">{{ __('Longitude') }}</label>
+                                    <input id="new-customer-longitude" type="text" class="form-control" wire:model="longitude" placeholder="90.4125" inputmode="decimal">
+                                    @error('longitude') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
+                                </div>
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="new-customer-use-location">
+                                        <i class="bi bi-crosshair me-1"></i>{{ __('Use My Location') }}
+                                    </button>
+                                    <span id="new-customer-location-status" class="small text-muted" role="status" aria-live="polite"></span>
+                                </div>
+                                <div class="alert alert-info small mt-2 mb-0">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    {{ __('Allow location access only when prompted. You can also click the map or enter coordinates manually.') }}
+                                </div>
+                            </div>
+                            <div class="col-lg-8">
+                                <div id="new-customer-network-map" wire:ignore style="height:360px;min-height:280px;border:1px solid #dee2e6;border-radius:10px;overflow:hidden;background:#f8f9fa;"></div>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-3">{{ __('The selected coordinates will be stored with this customer and used by Network Monitoring / Map views.') }}</small>
+                    </div>
+                </div>
             </div>
 
             <!-- Step 2: Customer Address -->
@@ -303,13 +332,28 @@
                                 :groupstyle="$service == 'static' ? '' : 'display: none;'"
                             />
                             <x-mikrotik.form-group
-                                label="{{ __('IP Address') }}"
+                                label="{{ __('Static IP Address') }}"
                                 type="text"
                                 name="ip_address"
+                                placeholder="192.0.2.10"
                                 :groupstyle="($router_name && $service == 'static') || !$router_name ? '' : 'display: none;'"
                             />
                             <x-mikrotik.form-group
-                                label="{{ __('MAC Address') }}"
+                                label="{{ __('Subnet / Prefix') }}"
+                                type="text"
+                                name="subnet_prefix"
+                                placeholder="24 or 255.255.255.0"
+                                :groupstyle="$service == 'static' ? '' : 'display: none;'"
+                            />
+                            <x-mikrotik.form-group
+                                label="{{ __('Gateway') }}"
+                                type="text"
+                                name="gateway"
+                                placeholder="192.0.2.1"
+                                :groupstyle="$service == 'static' ? '' : 'display: none;'"
+                            />
+                            <x-mikrotik.form-group
+                                label="{{ __('MAC Address (Optional)') }}"
                                 type="text"
                                 name="caller_id"
                                 placeholder="(eg. 00:11:22:33:44:55)"
@@ -541,6 +585,8 @@
     const mapEl = root.querySelector('#new-customer-network-map');
     const latEl = root.querySelector('#new-customer-latitude');
     const lngEl = root.querySelector('#new-customer-longitude');
+    const locateButton = root.querySelector('#new-customer-use-location');
+    const locateStatus = root.querySelector('#new-customer-location-status');
 
     if (!mapEl || !latEl || !lngEl || typeof L === 'undefined' || mapEl.dataset.initialized === '1') return;
 
@@ -567,13 +613,42 @@
         if (recenter) map.setView(point, Math.max(map.getZoom(), 16));
     };
 
-    map.on('click', (event) => {
-        latEl.value = event.latlng.lat.toFixed(7);
-        lngEl.value = event.latlng.lng.toFixed(7);
+    const setCoordinates = (latitude, longitude) => {
+        latEl.value = Number(latitude).toFixed(7);
+        lngEl.value = Number(longitude).toFixed(7);
         latEl.dispatchEvent(new Event('input', { bubbles: true }));
         lngEl.dispatchEvent(new Event('input', { bubbles: true }));
-        syncMarker(false);
-    });
+        syncMarker(true);
+    };
+
+    map.on('click', (event) => setCoordinates(event.latlng.lat, event.latlng.lng));
+
+    if (locateButton) {
+        locateButton.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                if (locateStatus) locateStatus.textContent = 'Location is not supported by this browser.';
+                return;
+            }
+
+            locateButton.disabled = true;
+            if (locateStatus) locateStatus.textContent = 'Requesting your location…';
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setCoordinates(position.coords.latitude, position.coords.longitude);
+                    if (locateStatus) locateStatus.textContent = 'Location captured. Verify the pin before saving.';
+                    locateButton.disabled = false;
+                },
+                (error) => {
+                    const message = error.code === 1
+                        ? 'Location permission was not granted.'
+                        : 'Could not determine your location. Use the map or enter coordinates.';
+                    if (locateStatus) locateStatus.textContent = message;
+                    locateButton.disabled = false;
+                },
+                { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+            );
+        });
+    }
 
     latEl.addEventListener('input', () => syncMarker(true));
     lngEl.addEventListener('input', () => syncMarker(true));
@@ -613,3 +688,5 @@
         });
     </script>
 @endpush
+
+[executed on device: bill (d46e2bb3-ca74-4b6d-b341-ee3299469042)]

@@ -300,6 +300,7 @@ class EditCustomer extends Component
                     'caller_id' => $customer->pppUser->caller_id ?? '',
                     'comment' => $customer->pppUser->comment ?? '',
                     'ppp_remote_ip' => $customer->pppUser->ppp_remote_ip ?? '',
+                    'ip_address' => \Illuminate\Support\Facades\Schema::hasColumn('p_p_p_secrets', 'ip_address') ? ($customer->pppUser->ip_address ?? '') : '',
                     'bandwidth' => $customer->pppUser->bandwidth ?? '',
                     'interface' => \Illuminate\Support\Facades\Schema::hasColumn('p_p_p_secrets', 'interface') ? ($customer->pppUser->interface ?? '') : '',
                     'subnet_prefix' => \Illuminate\Support\Facades\Schema::hasColumn('p_p_p_secrets', 'subnet_prefix') ? ($customer->pppUser->subnet_prefix ?? '') : '',
@@ -383,6 +384,10 @@ class EditCustomer extends Component
             'fields.pppUser.username' => 'nullable|string|max:25',
             'fields.pppUser.password' => 'nullable|string|max:255',
             'fields.pppUser.ppp_remote_ip' => 'nullable|ip',
+            'fields.pppUser.ip_address' => 'nullable|ip',
+            'fields.pppUser.interface' => 'nullable|string|max:255',
+            'fields.pppUser.subnet_prefix' => 'nullable|string|max:45',
+            'fields.pppUser.gateway' => 'nullable|ip',
             'fields.pppUser.caller_id' => 'nullable|mac_address',
             'fields.billing.monthly_rent' => 'required|numeric',
         ]);
@@ -705,9 +710,11 @@ class EditCustomer extends Component
         return [
             'router_name' => 'required|required_with:service',
             'service' => 'nullable|required_with:router_name',
-            'interface' => 'nullable|required_if:service,static',
+            'interface' => 'nullable|required_if:service,static|string|max:255',
             'ip_address' => 'nullable|required_if:service,static|ip',
-            'bandwidth' => 'nullable|required_if:service,static|regex:/^\d+(M|K)\/\d+(M|K)$/',
+            'subnet_prefix' => 'nullable|string|max:45',
+            'gateway' => 'nullable|ip',
+            'bandwidth' => ['nullable', 'required_if:service,static', 'regex:/^\d+(?:M|K)\/\d+(?:M|K)$/'],
             'caller_id' => 'nullable|mac_address',
             'queue_name' => 'nullable|required_if:service,static|string|max:25',
             'profile' => 'nullable|required_if:service,pppoe|string|max:25',
@@ -1034,7 +1041,7 @@ class EditCustomer extends Component
             'service' => 'nullable|required_with:router_name',
             'interface' => 'nullable|required_if:service,static',
             'ip_address' => 'nullable|required_if:service,static|ip',
-            'bandwidth' => 'nullable|required_if:service,static|regex:/^\d+(M|K)\/\d+(M|K)$/',
+            'bandwidth' => ['nullable', 'required_if:service,static', 'regex:/^\d+(?:M|K)\/\d+(?:M|K)$/'],
             'caller_id' => 'nullable|mac_address',
             'queue_name' => 'nullable|required_if:service,static|string|max:25',
             'profile' => 'nullable|required_if:service,pppoe|string|max:25',
@@ -1350,3 +1357,5 @@ class EditCustomer extends Component
         return view('livewire.edit-customer')->layout('layouts.app');
     }
 }
+
+[executed on device: bill (d46e2bb3-ca74-4b6d-b341-ee3299469042)]
