@@ -75,6 +75,10 @@ class CustomerAddEditEnableWorkflowTest extends TestCase
             ->set('customer_unique_id', 'MANUAL-CID-101')
             ->set('mobile', '')
             ->set('identification_no', 'NID7')
+            ->set('contact_person', 'Emergency contact')
+            ->set('parents_name', 'Parent or guardian')
+            ->set('spouse_name', 'Spouse example')
+            ->set('address.Permanent Address', 'House 12, Road 4, Dhaka')
             ->set('monthly_rent', 500)
             ->set('total_amount', 500)
             ->call('save')
@@ -85,6 +89,14 @@ class CustomerAddEditEnableWorkflowTest extends TestCase
             'customer_name' => 'Manual ID Customer',
             'mobile' => null,
             'identification_no' => 'NID7',
+            'contact_person' => 'Emergency contact',
+            'parents_name' => 'Parent or guardian',
+            'spouse_name' => 'Spouse example',
+        ]);
+        $this->assertDatabaseHas('customers_addresses', [
+            'customer_address_unique_id' => 'MANUAL-CID-101',
+            'label_name' => 'Permanent Address',
+            'input_type_textarea' => 'House 12, Road 4, Dhaka',
         ]);
         $this->assertDatabaseHas('billing_infos', [
             'customer_bill_unique_id' => 'MANUAL-CID-101',
@@ -348,5 +360,3 @@ class CustomerAddEditEnableWorkflowTest extends TestCase
         ]);
     }
 }
-
-[executed on device: bill (d46e2bb3-ca74-4b6d-b341-ee3299469042)]
