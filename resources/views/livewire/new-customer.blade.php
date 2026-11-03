@@ -156,6 +156,22 @@
                             name="alternative_mobile"
                         />
                         <x-mikrotik.form-group
+                            label="{{ __('Contact Person') }}"
+                            type="text"
+                            name="contact_person"
+                            placeholder="{{ __('Optional guardian or alternate contact person') }}"
+                        />
+                        <x-mikrotik.form-group
+                            label="{{ __('Parent / Guardian Name') }}"
+                            type="text"
+                            name="parents_name"
+                        />
+                        <x-mikrotik.form-group
+                            label="{{ __('Spouse Name') }}"
+                            type="text"
+                            name="spouse_name"
+                        />
+                        <x-mikrotik.form-group
                             label="{{ __('Profession Details') }}"
                             type="text"
                             name="profession"
