@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BandwidthInvoice;
+use App\Models\BandwidthReseller;
 use App\Models\BillingInfo;
 use App\Models\CollectionSummary;
 use App\Models\CustomersInfo;
@@ -208,6 +210,16 @@ class DashboardController extends Controller
             $onlineSessionSnapshot['successful_routers']
         )->count();
 
+        $telemetryRouterCount = (int) ($livePppTelemetry['router_count'] ?? 0);
+        $telemetrySuccessfulRouterCount = (int) ($livePppTelemetry['successful_routers'] ?? 0);
+        // Only derive a customer offline count from a complete router poll.
+        // Partial telemetry must never turn an unreachable router into false offline customers.
+        $offlineNow = $livePppSessions !== null
+            && $telemetryRouterCount > 0
+            && $telemetrySuccessfulRouterCount === $telemetryRouterCount
+                ? max(0, ($onlineCompany + $onlineReseller) - $onlineNow)
+                : null;
+
         // Expired means active accounts whose billing disable/expiry date has passed.
         $expired = BillingInfo::join('customers_infos', 'billing_infos.customer_bill_unique_id', '=', 'customers_infos.customer_unique_id')
             ->whereNull('customers_infos.deleted_at')
@@ -389,6 +401,14 @@ class DashboardController extends Controller
             })->sum('collection_amount');
 
         $resellerDue = max(0, (float) Reseller::sum('balance'));
+        $bandwidthResellerDue = (float) BandwidthInvoice::query()
+            ->whereNotIn('status', ['paid', 'cancelled'])
+            ->whereColumn('total_amount', '>', 'paid_amount')
+            ->get(['total_amount', 'paid_amount'])
+            ->sum(fn ($invoice) => max(0, (float) $invoice->total_amount - (float) $invoice->paid_amount));
+        $bandwidthMonthlyCommitment = (float) BandwidthReseller::query()
+            ->where('status', 'active')
+            ->sum('monthly_due');
         $recentTransactions = CollectionSummary::with('customer')->latest('collection_date')->latest('id')->limit(8)->get();
         $newConnections = CustomersInfo::where('created_at', '>=', Carbon::now()->subMonths(11)->startOfMonth())
             ->get(['created_at'])
@@ -422,8 +442,8 @@ class DashboardController extends Controller
 
         return view('dashboard', compact(
             'results', 'customersData', 'billInformationData', 'systemOverview', 'resellerData',
-            'onlineNow', 'onlineCompany', 'onlineReseller', 'livePppSessions', 'livePppSessionsByRouter', 'livePppTelemetry', 'expired', 'lockedDisabled', 'runningDue', 'monthCollection', 'weekCollection',
-            'todayCollection', 'mfsCollection', 'resellerDue', 'activeCustomerTotal', 'activeCompany', 'activeReseller',
+            'onlineNow', 'offlineNow', 'onlineCompany', 'onlineReseller', 'livePppSessions', 'livePppSessionsByRouter', 'livePppTelemetry', 'expired', 'lockedDisabled', 'runningDue', 'monthCollection', 'weekCollection',
+            'todayCollection', 'mfsCollection', 'resellerDue', 'bandwidthResellerDue', 'bandwidthMonthlyCommitment', 'activeCustomerTotal', 'activeCompany', 'activeReseller',
             'billingToday', 'customersExpiringToday', 'customersExpiringTodayCount', 'autoDisableToday', 'autoDisableTodayCount', 'autoDisableResultsToday', 'autoDisableResultsTodayCount',
             'openTickets', 'overdueTickets', 'ticketsToday', 'openSalesLeads', 'salesFollowUpsDue', 'newSalesLeadsToday', 'pendingKyc', 'kycApprovedMonth', 'mfsPending',
             'recentTransactions', 'newConnections', 'hotspotCustomers', 'hotspotCardStock', 'attendanceTotal', 'attendanceToday', 'deviceStats', 'monthCollectionPppoe', 'monthCollectionHotspot', 'todayPppoe', 'todayHotspot', 'weekPppoe', 'weekHotspot'
