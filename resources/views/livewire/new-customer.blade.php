@@ -704,5 +704,3 @@
         });
     </script>
 @endpush
-
-[executed on device: bill (d46e2bb3-ca74-4b6d-b341-ee3299469042)]
