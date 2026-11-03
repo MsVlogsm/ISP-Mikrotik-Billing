@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\MikrotikController;
+use App\Models\BandwidthInvoice;
+use App\Models\BandwidthReseller;
 use App\Models\NetworkInventoryDevice;
 use App\Models\SalesQuery;
 use App\Models\TeamAttendanceRecord;
@@ -65,6 +67,27 @@ class DashboardLiveMetricsTest extends TestCase
             'onu_online' => 31,
         ]);
 
+        $bandwidthReseller = BandwidthReseller::create([
+            'code' => 'BW-DASH-001',
+            'company' => 'Dashboard Bandwidth Test',
+            'contact_name' => 'Test Contact',
+            'phone' => '01700000003',
+            'monthly_due' => 2500,
+            'credit_balance' => 0,
+            'billing_day' => 10,
+            'status' => 'active',
+        ]);
+
+        BandwidthInvoice::create([
+            'bandwidth_reseller_id' => $bandwidthReseller->id,
+            'invoice_no' => 'BW-TEST-0001',
+            'billing_month' => now()->startOfMonth()->toDateString(),
+            'due_date' => today()->toDateString(),
+            'total_amount' => 5000,
+            'paid_amount' => 3500,
+            'status' => 'partial',
+        ]);
+
         $response = $this->get(route('dashboard'));
 
         $response->assertOk()
@@ -76,6 +99,13 @@ class DashboardLiveMetricsTest extends TestCase
             ->assertSee('data-card-key="new_sales_leads_today"', false)
             ->assertSee('data-card-key="olt_health"', false)
             ->assertSee('data-card-key="onu_health"', false)
-            ->assertSee('31 / 40');
+            ->assertSee('31 / 40')
+            ->assertSee('data-card-key="offline_now"', false)
+            ->assertSee('Offline Now')
+            ->assertSee('Unavailable')
+            ->assertSee('data-card-key="bandwidth_reseller_due"', false)
+            ->assertSee('1,500.00')
+            ->assertSee('data-card-key="bandwidth_reseller_monthly_bill"', false)
+            ->assertSee('2,500.00');
     }
 }
