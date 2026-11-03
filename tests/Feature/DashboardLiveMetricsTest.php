@@ -5,7 +5,10 @@ namespace Tests\Feature;
 use App\Http\Controllers\MikrotikController;
 use App\Models\BandwidthInvoice;
 use App\Models\BandwidthReseller;
+use App\Models\CustomersInfo;
 use App\Models\NetworkInventoryDevice;
+use App\Models\PPPSecrets;
+use App\Models\RouterList;
 use App\Models\SalesQuery;
 use App\Models\TeamAttendanceRecord;
 use App\Models\User;
@@ -107,5 +110,63 @@ class DashboardLiveMetricsTest extends TestCase
             ->assertSee('1,500.00')
             ->assertSee('data-card-key="bandwidth_reseller_monthly_bill"', false)
             ->assertSee('2,500.00');
+    }
+
+    public function test_offline_now_subtracts_live_online_sessions_only_after_a_complete_router_poll(): void
+    {
+        $admin = User::factory()->create(['email_verified_at' => now()]);
+        $admin->assignRole(Role::findOrCreate('Super Admin', 'web'));
+        $this->actingAs($admin);
+
+        $this->mock(MikrotikController::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('systemOverview')->once()->andReturn([]);
+            $mock->shouldReceive('getLivePppTelemetry')->once()->andReturn([
+                'status' => 'ok',
+                'total' => 1,
+                'successful_routers' => 1,
+                'router_count' => 1,
+                'routers' => [
+                    'router-a' => [
+                        'status' => 'ok',
+                        'count' => 1,
+                        'usernames' => ['online-user'],
+                        'synced_at' => now()->toISOString(),
+                    ],
+                ],
+            ]);
+        });
+
+        RouterList::create([
+            'router_name' => 'router-a',
+            'ip_address' => '127.0.0.1',
+            'username' => 'test-user',
+            'password' => 'test-password',
+            'action' => 'connected',
+        ]);
+
+        $ppp = PPPSecrets::create([
+            'router_name' => 'router-a',
+            'username' => 'online-user',
+            'service' => 'pppoe',
+            'status' => 'active',
+        ]);
+
+        CustomersInfo::create([
+            'customer_unique_id' => 'OFFLINE-METRIC-001',
+            'customer_name' => 'Offline Metric Test',
+            'status' => 'active',
+            'ppp_user_id' => $ppp->id,
+        ]);
+
+        $response = $this->get(route('dashboard'));
+        $response->assertOk()->assertSee('data-card-key="offline_now"', false);
+
+        preg_match(
+            '/data-card-key="offline_now"[^>]*>.*?<strong class="dashboard-card-value">([^<]+)<\/strong>/s',
+            $response->getContent(),
+            $matches
+        );
+
+        $this->assertSame('0', trim($matches[1] ?? 'missing'), 'A live online PPPoE session must not be counted as offline.');
     }
 }
