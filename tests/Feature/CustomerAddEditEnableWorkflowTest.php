@@ -98,6 +98,79 @@ class CustomerAddEditEnableWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_customer_unique_id_shows_live_availability_without_generating_an_id(): void
+    {
+        $this->createCustomer('CID-ALREADY-USED', 'active');
+
+        Livewire::test(NewCustomer::class)
+            ->assertSee('Use My Location')
+            ->assertSee('Static IP Address')
+            ->assertSee('Subnet / Prefix')
+            ->assertSee('Gateway')
+            ->set('customer_unique_id', 'CID-ALREADY-USED')
+            ->assertSet('customerUniqueIdAvailability', 'taken')
+            ->assertSee('This CID is already in use')
+            ->set('customer_unique_id', 'CID-AVAILABLE-2026')
+            ->assertSet('customerUniqueIdAvailability', 'available')
+            ->assertSee('CID is available');
+
+        $this->assertDatabaseMissing('customers_infos', ['customer_unique_id' => 'CID-AVAILABLE-2026']);
+    }
+
+    public function test_static_network_fields_are_saved_and_available_to_customer_edit(): void
+    {
+        $router = RouterList::create([
+            'router_name' => 'static-network-fields-router',
+            'ip_address' => '127.0.0.1',
+            'username' => 'static-user',
+            'password' => 'static-password',
+            'action' => 'connected',
+        ]);
+
+        $permission = \Spatie\Permission\Models\Permission::findOrCreate('mikrotik-user-create', 'web');
+        $this->superAdmin->givePermissionTo($permission);
+
+        $this->partialMock(MikrotikController::class, function ($mock): void {
+            $mock->shouldReceive('singleWrite')->once()->andReturn('OK');
+        });
+
+        Livewire::test(NewCustomer::class)
+            ->set('customer_name', 'Static Network Customer')
+            ->set('customer_unique_id', 'STATIC-NETWORK-CID-001')
+            ->set('router_name', $router->router_name)
+            ->set('service', 'static')
+            ->assertSet('service', 'static')
+            ->set('interface', 'ether1')
+            ->set('queue_name', 'static-cid-001')
+            ->set('ip_address', '192.0.2.10')
+            ->set('subnet_prefix', '24')
+            ->set('gateway', '192.0.2.1')
+            ->set('caller_id', '00:11:22:33:44:55')
+            ->set('bandwidth', '10M/10M')
+            ->set('package_name', 'Free Customer')
+            ->call('save')
+            ->assertRedirect('/customers');
+
+        $customer = CustomersInfo::where('customer_unique_id', 'STATIC-NETWORK-CID-001')->firstOrFail();
+        $this->assertNotNull($customer->pppUser);
+        $this->assertDatabaseHas('p_p_p_secrets', [
+            'id' => $customer->pppUser->id,
+            'service' => 'static',
+            'interface' => 'ether1',
+            'ip_address' => '192.0.2.10',
+            'subnet_prefix' => '24',
+            'gateway' => '192.0.2.1',
+            'caller_id' => '00:11:22:33:44:55',
+        ]);
+        $this->assertSame('-', $customer->pppUser->fresh()->password);
+
+        Livewire::test(EditCustomer::class, ['customerId' => encrypt($customer->customer_unique_id)])
+            ->assertSet('fields.pppUser.interface', 'ether1')
+            ->assertSet('fields.pppUser.ip_address', '192.0.2.10')
+            ->assertSet('fields.pppUser.subnet_prefix', '24')
+            ->assertSet('fields.pppUser.gateway', '192.0.2.1');
+    }
+
     public function test_edit_customer_saves_customer_and_billing_fields_without_changing_the_manual_id(): void
     {
         $customer = $this->createCustomer('MANUAL-CID-EDIT', 'active');
@@ -275,3 +348,5 @@ class CustomerAddEditEnableWorkflowTest extends TestCase
         ]);
     }
 }
+
+[executed on device: bill (d46e2bb3-ca74-4b6d-b341-ee3299469042)]
