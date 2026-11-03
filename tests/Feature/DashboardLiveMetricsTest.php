@@ -1,16 +1,16 @@
 <?php
 
-namespace Tests\\Feature;
+namespace Tests\Feature;
 
-use App\\Http\\Controllers\\MikrotikController;
-use App\\Models\\NetworkInventoryDevice;
-use App\\Models\\SalesQuery;
-use App\\Models\\TeamAttendanceRecord;
-use App\\Models\\User;
-use Illuminate\\Foundation\\Testing\\RefreshDatabase;
-use Mockery\\MockInterface;
-use Spatie\\Permission\\Models\\Role;
-use Tests\\TestCase;
+use App\Http\Controllers\MikrotikController;
+use App\Models\NetworkInventoryDevice;
+use App\Models\SalesQuery;
+use App\Models\TeamAttendanceRecord;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery\MockInterface;
+use Spatie\Permission\Models\Role;
+use Tests\TestCase;
 
 class DashboardLiveMetricsTest extends TestCase
 {
