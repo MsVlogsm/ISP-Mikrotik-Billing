@@ -56,6 +56,7 @@ class CollectionSummary extends Model
         'payment_type',
         'payment_method',
         'transaction_id',
+        'payment_attempt_key',
         'details',
         'payment_status',
         'bill_month',

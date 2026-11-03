@@ -373,7 +373,9 @@ function bootNetworkMap() {
     let initialized = false;
     let pitchEnabled = false;
     let filteredNodes = [...allNodes];
+    let renderedNodes = [...allNodes];
     let filteredEdges = [...allEdges];
+    const mapLayers = { connections: true, customers: true, labels: true };
     let featuresByKey = new Map();
     const popup = new Popup({
         closeButton: true,
@@ -451,9 +453,9 @@ function bootNetworkMap() {
     const updateCount = () => {
         const result = document.getElementById('map-result-count');
         if (result) {
-            result.textContent = `${filteredNodes.length} node${filteredNodes.length === 1 ? '' : 's'} shown`;
+            result.textContent = `${renderedNodes.length} node${renderedNodes.length === 1 ? '' : 's'} on map`;
         }
-        const countByStatus = (status) => filteredNodes.filter((node) => String(node.status || 'unknown').toLowerCase() === status).length;
+        const countByStatus = (status) => renderedNodes.filter((node) => String(node.status || 'unknown').toLowerCase() === status).length;
         const online = document.getElementById('map-visible-online');
         const offline = document.getElementById('map-visible-offline');
         const unknown = document.getElementById('map-visible-unknown');
@@ -462,8 +464,8 @@ function bootNetworkMap() {
         if (online) online.textContent = countByStatus('online').toLocaleString();
         if (offline) offline.textContent = countByStatus('offline').toLocaleString();
         if (unknown) unknown.textContent = countByStatus('unknown').toLocaleString();
-        if (visibleNodes) visibleNodes.textContent = filteredNodes.length.toLocaleString();
-        if (visibleLinks) visibleLinks.textContent = filteredEdges.length.toLocaleString();
+        if (visibleNodes) visibleNodes.textContent = renderedNodes.length.toLocaleString();
+        if (visibleLinks) visibleLinks.textContent = (mapLayers.connections ? filteredEdges.length : 0).toLocaleString();
         renderNodeDirectory();
     };
 
@@ -471,22 +473,25 @@ function bootNetworkMap() {
         if (!map || !map.isStyleLoaded()) return;
 
         filteredNodes = allNodes.filter((node) => matchNode(node, currentFilters()));
-        const visibleKeys = new Set(filteredNodes.map(toKey));
+        renderedNodes = filteredNodes.filter((node) => mapLayers.customers || node.kind !== 'customer');
+        const visibleKeys = new Set(renderedNodes.map(toKey));
         filteredEdges = allEdges.filter(
             (edge) => edge.fromKey && edge.toKey &&
                 visibleKeys.has(edge.fromKey) && visibleKeys.has(edge.toKey),
         );
 
+        // Keep all filtered nodes available to the directory, while the map source
+        // respects the visual layer toggles selected by the operator.
         featuresByKey = new Map(filteredNodes.map((node) => [toKey(node), node]));
 
         const nodeSource = map.getSource('xlink-network-nodes');
         if (nodeSource) {
-            nodeSource.setData(asFeatureCollection(filteredNodes.map(pointFeature)));
+            nodeSource.setData(asFeatureCollection(renderedNodes.map(pointFeature)));
         }
 
         const edgeSource = map.getSource('xlink-network-edges');
         if (edgeSource) {
-            edgeSource.setData(asFeatureCollection(filteredEdges.map(lineFeature)));
+            edgeSource.setData(asFeatureCollection((mapLayers.connections ? filteredEdges : []).map(lineFeature)));
         }
 
         updateCount();
@@ -674,6 +679,10 @@ function bootNetworkMap() {
             });
         }
 
+        if (map.getLayer('xlink-network-labels')) {
+            map.setLayoutProperty('xlink-network-labels', 'visibility', mapLayers.labels ? 'visible' : 'none');
+        }
+
         updateSources(false);
     };
 
@@ -681,6 +690,11 @@ function bootNetworkMap() {
         if (!map || !['street', 'satellite', 'dark'].includes(mode)) return;
         activeMode = mode;
         setButtonState(mode);
+        document.querySelectorAll('[data-map-tools-basemap]').forEach((button) => {
+            const active = button.dataset.mapToolsBasemap === mode;
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-pressed', String(active));
+        });
         const requestId = ++styleVersion;
         const loading = document.getElementById('map-loading-state');
         if (loading) {
@@ -815,6 +829,28 @@ function bootNetworkMap() {
             updateSources(true);
         });
 
+        const bindLayerToggle = (id, key) => {
+            const button = document.getElementById(id);
+            if (!button) return;
+            button.addEventListener('click', () => {
+                mapLayers[key] = !mapLayers[key];
+                button.classList.toggle('active', mapLayers[key]);
+                button.setAttribute('aria-pressed', String(mapLayers[key]));
+                const toolsKey = key === 'connections' ? 'links' : key;
+                document.querySelectorAll(`[data-map-tools-layer="${toolsKey}"]`).forEach((toolsButton) => {
+                    toolsButton.setAttribute('aria-pressed', String(mapLayers[key]));
+                    toolsButton.classList.toggle('is-active', mapLayers[key]);
+                });
+                if (key === 'labels' && map?.getLayer('xlink-network-labels')) {
+                    map.setLayoutProperty('xlink-network-labels', 'visibility', mapLayers.labels ? 'visible' : 'none');
+                }
+                updateSources(false);
+            });
+        };
+        bindLayerToggle('map-toggle-links', 'connections');
+        bindLayerToggle('map-toggle-customers', 'customers');
+        bindLayerToggle('map-toggle-labels', 'labels');
+
         ['street', 'satellite', 'dark'].forEach((mode) => {
             document.getElementById(`map-base-${mode}`)?.addEventListener('click', () => {
                 void setBasemap(mode);
@@ -851,6 +887,246 @@ function bootNetworkMap() {
         });
     };
 
+    const createMapToolsControl = () => {
+        let controlElement = null;
+
+        return {
+            onAdd: (activeMap) => {
+                const urls = data.tools || {};
+                const container = document.createElement('div');
+                container.className = 'maplibregl-ctrl xlink-map-tools';
+                container.innerHTML = `
+                    <button class="xlink-map-tools__toggle" type="button" title="Show map tools"
+                        aria-label="Show map tools" aria-haspopup="true" aria-expanded="false"
+                        aria-controls="xlink-map-tools-panel">
+                        <i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>
+                    </button>
+                    <section id="xlink-map-tools-panel" class="xlink-map-tools__panel" hidden aria-label="Map tools">
+                        <header class="xlink-map-tools__header">
+                            <strong><i class="bi bi-compass me-1" aria-hidden="true"></i>Map tools</strong>
+                            <button type="button" class="xlink-map-tools__close" data-map-tools-action="close" aria-label="Close map tools">×</button>
+                        </header>
+                        <div class="xlink-map-tools__section">
+                            <span class="xlink-map-tools__label">Navigate</span>
+                            <div class="xlink-map-tools__grid">
+                                <button type="button" data-map-tools-action="zoom-in"><i class="bi bi-plus-lg"></i>Zoom in</button>
+                                <button type="button" data-map-tools-action="zoom-out"><i class="bi bi-dash-lg"></i>Zoom out</button>
+                                <button type="button" data-map-tools-action="fit"><i class="bi bi-bounding-box"></i>Fit visible</button>
+                                <button type="button" data-map-tools-action="north"><i class="bi bi-compass"></i>Reset north</button>
+                                <button type="button" data-map-tools-action="locate"><i class="bi bi-crosshair"></i>My location</button>
+                                <button type="button" data-map-tools-action="fullscreen"><i class="bi bi-arrows-fullscreen"></i>Fullscreen</button>
+                                <button type="button" data-map-tools-action="3d"><i class="bi bi-boxes"></i>3D view</button>
+                                <button type="button" data-map-tools-action="find"><i class="bi bi-search"></i>Find node</button>
+                                <button type="button" data-map-tools-action="racks"><i class="bi bi-server"></i>Show racks</button>
+                            </div>
+                        </div>
+                        <div class="xlink-map-tools__section">
+                            <span class="xlink-map-tools__label">Map style</span>
+                            <div class="xlink-map-tools__styles">
+                                <button type="button" data-map-tools-basemap="street" class="is-active">Street</button>
+                                <button type="button" data-map-tools-basemap="satellite">Satellite</button>
+                                <button type="button" data-map-tools-basemap="dark">Dark</button>
+                            </div>
+                        </div>
+                        <div class="xlink-map-tools__section">
+                            <span class="xlink-map-tools__label">Visible layers</span>
+                            <div class="xlink-map-tools__layers">
+                                <button type="button" data-map-tools-layer="links" aria-pressed="true"><i class="bi bi-bezier2"></i>Connections</button>
+                                <button type="button" data-map-tools-layer="customers" aria-pressed="true"><i class="bi bi-people"></i>Customers</button>
+                                <button type="button" data-map-tools-layer="labels" aria-pressed="true"><i class="bi bi-tag"></i>Labels</button>
+                            </div>
+                        </div>
+                        <div class="xlink-map-tools__section">
+                            <span class="xlink-map-tools__label">Network operations</span>
+                            <nav class="xlink-map-tools__links" aria-label="Network operations">
+                                <a href="${escapeHtml(urls.designer || '#')}"><i class="bi bi-pencil-square"></i><span><strong>Edit map / Add node</strong><small>Create and verify splitter, OLT/PON, ODF, rack, POP, fiber, cabinet, pole, splice or server assets</small></span></a>
+                                <a href="${escapeHtml(urls.designer || '#')}"><i class="bi bi-bezier2"></i><span><strong>Draw / Advanced Link</strong><small>Manage endpoints, ports, fiber cores and draft connections</small></span></a>
+                                <a href="${escapeHtml(urls.live || '#')}"><i class="bi bi-diagram-3"></i><span><strong>Live topology</strong><small>Trace published OLT → splitter → ONU paths</small></span></a>
+                                <a href="${escapeHtml(urls.fiber || '#')}"><i class="bi bi-bezier"></i><span><strong>Manual fiber mapping</strong><small>Cable, splice, splitter ports, GPS and ONU mapping register</small></span></a>
+                                <a href="${escapeHtml(urls.history || '#')}"><i class="bi bi-clock-history"></i><span><strong>Device health history</strong><small>Review saved network device checks</small></span></a>
+                            </nav>
+                            <p class="xlink-map-tools__note">Router, OLT, ONU, switch, AP and customer markers are inventory-linked to prevent duplicate records. Custom topology edits remain drafts until verified and published.</p>
+                        </div>
+                        <div class="xlink-map-tools__section">
+                            <span class="xlink-map-tools__label">Data</span>
+                            <button type="button" class="xlink-map-tools__export" data-map-tools-action="export"><i class="bi bi-download"></i>Export visible data (GeoJSON)</button>
+                            <small class="xlink-map-tools__note">Exports filtered nodes and links. Background map tiles are not included.</small>
+                        </div>
+                        <p class="xlink-map-tools__status" role="status" aria-live="polite"></p>
+                    </section>
+                `;
+
+                const toggle = container.querySelector('.xlink-map-tools__toggle');
+                const panel = container.querySelector('.xlink-map-tools__panel');
+                const status = container.querySelector('.xlink-map-tools__status');
+                const setOpen = (open) => {
+                    panel.hidden = !open;
+                    toggle.setAttribute('aria-expanded', String(open));
+                    toggle.title = open ? 'Hide map tools' : 'Show map tools';
+                    toggle.setAttribute('aria-label', toggle.title);
+                };
+                const setStatus = (message) => {
+                    if (status && container.isConnected) status.textContent = message;
+                };
+
+                container.querySelectorAll('[data-map-tools-basemap]').forEach((button) => {
+                    const active = button.dataset.mapToolsBasemap === activeMode;
+                    button.classList.toggle('is-active', active);
+                    button.setAttribute('aria-pressed', String(active));
+                });
+                container.querySelectorAll('[data-map-tools-layer]').forEach((button) => {
+                    const key = button.dataset.mapToolsLayer === 'links' ? 'connections' : button.dataset.mapToolsLayer;
+                    button.setAttribute('aria-pressed', String(mapLayers[key]));
+                    button.classList.toggle('is-active', Boolean(mapLayers[key]));
+                });
+
+                toggle.addEventListener('click', () => setOpen(panel.hidden));
+                container.addEventListener('click', (event) => {
+                    const layerButton = event.target.closest('[data-map-tools-layer]');
+                    if (layerButton) {
+                        const key = layerButton.dataset.mapToolsLayer;
+                        const sourceId = key === 'links' ? 'map-toggle-links' : `map-toggle-${key}`;
+                        document.getElementById(sourceId)?.click();
+                        const sourceButton = document.getElementById(sourceId);
+                        layerButton.setAttribute('aria-pressed', String(sourceButton?.getAttribute('aria-pressed') === 'true'));
+                        layerButton.classList.toggle('is-active', sourceButton?.getAttribute('aria-pressed') === 'true');
+                        return;
+                    }
+
+                    const styleButton = event.target.closest('[data-map-tools-basemap]');
+                    if (styleButton) {
+                        const mode = styleButton.dataset.mapToolsBasemap;
+                        void setBasemap(mode);
+                        container.querySelectorAll('[data-map-tools-basemap]').forEach((button) => {
+                            const active = button.dataset.mapToolsBasemap === mode;
+                            button.classList.toggle('is-active', active);
+                            button.setAttribute('aria-pressed', String(active));
+                        });
+                        return;
+                    }
+
+                    const actionButton = event.target.closest('[data-map-tools-action]');
+                    if (!actionButton) return;
+                    switch (actionButton.dataset.mapToolsAction) {
+                        case 'close':
+                            setOpen(false);
+                            toggle.focus();
+                            break;
+                        case 'zoom-in':
+                            activeMap.zoomIn({ duration: 250 });
+                            break;
+                        case 'zoom-out':
+                            activeMap.zoomOut({ duration: 250 });
+                            break;
+                        case 'fit':
+                            document.getElementById('map-fit')?.click();
+                            break;
+                        case 'north':
+                            activeMap.easeTo({ bearing: 0, pitch: 0, duration: 350 });
+                            pitchEnabled = false;
+                            const pitchButton = document.getElementById('map-pitch-toggle');
+                            if (pitchButton) {
+                                pitchButton.classList.remove('active');
+                                pitchButton.setAttribute('aria-pressed', 'false');
+                                pitchButton.innerHTML = '<i class="bi bi-boxes me-1"></i>3D view';
+                            }
+                            break;
+                        case '3d':
+                            document.getElementById('map-pitch-toggle')?.click();
+                            break;
+                        case 'find':
+                            document.getElementById('map-customer-search')?.focus();
+                            setOpen(false);
+                            break;
+                        case 'racks': {
+                            const typeFilter = document.getElementById('map-type-filter');
+                            if (typeFilter) {
+                                typeFilter.value = 'rack';
+                                typeFilter.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                            setStatus('Showing rack records in the current map view.');
+                            break;
+                        }
+                        case 'locate':
+                            if (!navigator.geolocation) {
+                                setStatus('Location is not available in this browser.');
+                                break;
+                            }
+                            setStatus('Requesting location permission…');
+                            navigator.geolocation.getCurrentPosition(
+                                (position) => {
+                                    if (!container.isConnected) return;
+                                    activeMap.flyTo({
+                                        center: [position.coords.longitude, position.coords.latitude],
+                                        zoom: 16,
+                                        duration: 700,
+                                    });
+                                    setStatus('Map centered on your current browser location.');
+                                },
+                                (error) => {
+                                    const messages = {
+                                        1: 'Location permission was denied.',
+                                        2: 'Your current location is unavailable.',
+                                        3: 'Location request timed out.',
+                                    };
+                                    setStatus(messages[error.code] || 'Could not determine your location.');
+                                },
+                                { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+                            );
+                            break;
+                        case 'fullscreen':
+                            if (document.fullscreenElement) {
+                                void document.exitFullscreen().catch(() => setStatus('Could not exit fullscreen.'));
+                            } else if (activeMap.getContainer().requestFullscreen) {
+                                void activeMap.getContainer().requestFullscreen().catch(() => setStatus('Fullscreen is unavailable.'));
+                            } else {
+                                setStatus('Fullscreen is not supported in this browser.');
+                            }
+                            break;
+                        case 'export': {
+                            const features = [
+                                ...filteredNodes.map(pointFeature),
+                                ...filteredEdges.map(lineFeature),
+                            ];
+                            const exportData = {
+                                type: 'FeatureCollection',
+                                name: 'X-Link Network Map',
+                                exported_at: new Date().toISOString(),
+                                metadata: {
+                                    node_count: filteredNodes.length,
+                                    link_count: filteredEdges.length,
+                                    basemap: activeMode,
+                                    note: 'Map data only; background map tiles are not included.',
+                                },
+                                features,
+                            };
+                            const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+                                type: 'application/geo+json;charset=utf-8',
+                            });
+                            const url = URL.createObjectURL(blob);
+                            const download = document.createElement('a');
+                            download.href = url;
+                            download.download = `xlink-network-map-${new Date().toISOString().slice(0, 10)}.geojson`;
+                            document.body.appendChild(download);
+                            download.click();
+                            download.remove();
+                            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                            setStatus(`Exported ${filteredNodes.length} nodes and ${filteredEdges.length} links.`);
+                            break;
+                        }
+                    }
+                });
+
+                controlElement = container;
+                return container;
+            },
+            onRemove: () => {
+                controlElement?.remove();
+                controlElement = null;
+            },
+        };
+    };
+
     setButtonState(activeMode);
 
     const loading = document.getElementById('map-loading-state');
@@ -879,6 +1155,7 @@ function bootNetworkMap() {
             element._maplibreMap = map;
             map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
             map.addControl(new FullscreenControl(), 'top-right');
+            map.addControl(createMapToolsControl(), 'top-left');
             map.addControl(new ScaleControl({ unit: 'metric', maxWidth: 120 }), 'bottom-left');
 
             map.once('load', () => {

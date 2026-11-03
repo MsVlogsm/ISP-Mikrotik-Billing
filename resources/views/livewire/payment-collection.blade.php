@@ -152,7 +152,7 @@
                             <form wire:submit.prevent="savePayment" class="row g-3 align-items-end">
                                 <div class="col-md-3 col-sm-6">
                                     <label class="form-label small fw-semibold">{{ __('Amount Received') }}</label>
-                                    <input type="number" step="0.01" class="form-control form-control-sm" name="paid_amount" id="paid_amount" wire:model="paid_amount" wire:keyup="calculatePayment" min="0.01" max="99999999" autofocus placeholder="{{ __('Pay Amount') }}" required>
+                                    <input type="number" step="0.01" class="form-control form-control-sm" name="paid_amount" id="paid_amount" wire:model.live.debounce.250ms="paid_amount" wire:input.debounce.300ms="calculatePayment" min="0.01" max="99999999" autofocus placeholder="{{ __('Pay Amount') }}" required>
                                     @error('paid_amount') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
                                 <div class="col-md-3 col-sm-6">
@@ -174,7 +174,7 @@
                                 </div>
                                 <div class="col-md-4 col-sm-6">
                                     <label class="form-label small fw-semibold">{{ __('New Expiry Date') }}</label>
-                                    <input type="date" class="form-control form-control-sm" wire:model.live="expire_date" required>
+                                    <input type="date" class="form-control form-control-sm" wire:model.live="expire_date" @if($info_data->billing->billing_type === 'prepaid') readonly @endif required>
                                     @error('expire_date') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
                                 <div class="col-md-5 col-sm-8">
@@ -185,6 +185,11 @@
                                 <div class="col-md-3 col-sm-4">
                                     <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="send_payment_sms" wire:model="send_sms"><label class="form-check-label small" for="send_payment_sms">{{ __('Send SMS receipt') }}</label></div>
                                     <button class="btn btn-sm btn-success w-100" wire:loading.attr="disabled" wire:target="savePayment"><span wire:loading.remove wire:target="savePayment"><i class="bi bi-check-circle me-1"></i>{{ __('Collect Payment') }}</span><span wire:loading wire:target="savePayment">Saving…</span></button>
+                                    @if(in_array($info_data->status, ['pending', 'disable'], true))
+                                        <button type="button" class="btn btn-sm btn-outline-primary w-100 mt-2" wire:click="enableSelectedCustomerWithoutPayment" wire:loading.attr="disabled" wire:target="enableSelectedCustomerWithoutPayment">
+                                            <i class="bi bi-router me-1"></i>Retry Enable (No Payment)
+                                        </button>
+                                    @endif
                                 </div>
                             </form>
                         </div>

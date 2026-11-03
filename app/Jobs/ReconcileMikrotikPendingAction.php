@@ -48,15 +48,68 @@ class ReconcileMikrotikPendingAction implements ShouldQueue, ShouldBeUnique
             return;
         }
 
+        // Recheck the desired state immediately before touching the router.
+        // A queued Disable must not undo a payment/Enable completed after it queued.
+        $latestCustomer = CustomersInfo::with('billing')
+            ->where('customer_unique_id', $action->customer_unique_id)
+            ->first();
+
+        $staleAction = false;
+        if (in_array($action->action, ['disable', 'enable'], true)) {
+            $staleAction = ! $latestCustomer;
+        }
+
+        if ($latestCustomer && $action->action === 'disable') {
+            $staleAction = $latestCustomer->status !== 'active';
+            if (! $staleAction && $latestCustomer->billing?->billing_type === 'prepaid') {
+                $expiry = $latestCustomer->billing->auto_disable_date;
+                if (! $expiry && $latestCustomer->connection_date) {
+                    $expiry = \App\Services\PrepaidBillingCycle::nextExpiryDate(
+                        $latestCustomer->connection_date,
+                        $latestCustomer->connection_date
+                    )->toDateString();
+                }
+
+                $staleAction = ! $expiry
+                    || \Carbon\Carbon::parse($expiry)->startOfDay()->gt(today());
+            }
+        } elseif ($latestCustomer && $action->action === 'enable') {
+            $staleAction = $latestCustomer->status !== 'active';
+        }
+
+        if ($staleAction) {
+            DB::table('mikrotik_pending_actions')->where('id', $action->id)->where('status', 'pending')->update([
+                'status' => 'superseded',
+                'last_error' => 'Skipped because the current customer state no longer matches this queued action.',
+                'processed_at' => now(),
+                'updated_at' => now(),
+            ]);
+            return;
+        }
+
         DB::table('mikrotik_pending_actions')->where('id', $action->id)->increment('attempts');
 
         try {
             if ($action->action === 'disable') {
                 $mikrotik->disablePPPSecret($action->customer_unique_id ?: $action->id, $action->router_name, $action->username, false, true);
 
-                DB::transaction(function () use ($action) {
-                    $customer = CustomersInfo::where('customer_unique_id', $action->customer_unique_id)->lockForUpdate()->first();
+                $restoreEnable = false;
+                DB::transaction(function () use ($action, &$restoreEnable) {
+                    $customer = CustomersInfo::with('billing')
+                        ->where('customer_unique_id', $action->customer_unique_id)
+                        ->lockForUpdate()
+                        ->first();
+
                     if ($customer && $customer->status === 'active') {
+                        $billing = $customer->billing;
+                        if ($billing?->billing_type === 'prepaid'
+                            && $billing->auto_disable_date
+                            && \Carbon\Carbon::parse($billing->auto_disable_date)->startOfDay()->gt(today())) {
+                            // Payment landed while the network write was in flight.
+                            $restoreEnable = true;
+                            return;
+                        }
+
                         $customer->status = 'disable';
                         $customer->disable_count = (int) $customer->disable_count + 1;
                         $customer->save();
@@ -64,8 +117,24 @@ class ReconcileMikrotikPendingAction implements ShouldQueue, ShouldBeUnique
 
                     PPPSecrets::where('router_name', $action->router_name)
                         ->where('username', $action->username)
-                        ->update(['status' => 'disable']);
+                        ->update(['status' => $restoreEnable ? 'active' : 'disable']);
                 });
+
+                if ($restoreEnable) {
+                    DB::table('mikrotik_pending_actions')->where('id', $action->id)->update([
+                        'status' => 'superseded',
+                        'last_error' => 'Payment renewed prepaid validity while Disable was running; queued Enable to restore router state.',
+                        'processed_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    app(\App\Services\MikrotikPendingActionQueue::class)->queue(
+                        $action->customer_unique_id,
+                        $action->router_name,
+                        $action->username,
+                        'enable'
+                    );
+                    return;
+                }
             } elseif ($action->action === 'enable') {
                 $ppp = PPPSecrets::where('router_name', $action->router_name)
                     ->where('username', $action->username)

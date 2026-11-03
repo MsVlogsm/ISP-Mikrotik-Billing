@@ -8,6 +8,8 @@ use App\Models\OltOnuCustomerMapping;
 use App\Models\NetworkTopologyLink;
 use App\Models\NetworkTopologyNode;
 use App\Models\MainSiteData;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 class NetworkMap extends Component
 {
@@ -90,11 +92,37 @@ class NetworkMap extends Component
         ])->values()->toArray();
 
         $customers = CustomersInfo::whereNull('deleted_at')->count();
+
+        // Queue only customers that do not have a complete, valid Network Location.
+        // Coordinates are entered by an operator in the existing Customer Edit map;
+        // no approximate or generated GPS values are introduced here.
+        $unlocatedCustomerRecords = CustomersInfo::query()
+            ->whereNull('customers_infos.deleted_at')
+            ->whereNotExists(function ($query) {
+                $query->selectRaw('1')
+                    ->from('customers_addresses as ca')
+                    ->whereColumn('ca.customer_address_unique_id', 'customers_infos.customer_unique_id')
+                    ->where('ca.label_name', 'Network Location')
+                    ->whereNotNull('ca.latitude')
+                    ->whereNotNull('ca.longitude')
+                    ->where('ca.latitude', '!=', '')
+                    ->where('ca.longitude', '!=', '')
+                    ->whereBetween('ca.latitude', [-90, 90])
+                    ->whereBetween('ca.longitude', [-180, 180]);
+            })
+            ->orderBy('customers_infos.customer_unique_id')
+            ->limit(100)
+            ->get([
+                'customers_infos.customer_unique_id',
+                'customers_infos.customer_name',
+            ]);
+
         $nodes = CustomersAddress::query()
             ->leftJoin('customers_infos as ci', 'ci.customer_unique_id', '=', 'customers_addresses.customer_address_unique_id')
             ->leftJoin('p_p_p_secrets as ps', 'ps.id', '=', 'ci.ppp_user_id')
             ->where('customers_addresses.label_name', 'Network Location')
             ->whereNull('ci.deleted_at')
+            ->whereNotNull('ci.customer_unique_id')
             ->whereNotNull('customers_addresses.latitude')
             ->whereNotNull('customers_addresses.longitude')
             ->where('customers_addresses.latitude', '!=', '')
@@ -228,6 +256,55 @@ class NetworkMap extends Component
         ];
         $mapKindCounts = $nodes->groupBy('kind')->map(fn ($items) => $items->count())->toArray();
 
+        // Read-only snapshot of the dedicated field-verified fiber register.
+        // These tables remain the source of truth; this page never creates or guesses mappings.
+        $fiberStats = [
+            'cables' => 0,
+            'verified_cables' => 0,
+            'splitters' => 0,
+            'closures' => 0,
+            'splices' => 0,
+            'verified_splices' => 0,
+            'customer_mappings' => 0,
+            'verified_customer_mappings' => 0,
+            'pending_records' => 0,
+        ];
+
+        $fiberTables = [
+            'fiber_cables', 'fiber_olt_pon_mappings', 'fiber_splice_records',
+            'fiber_splitters', 'fiber_splitter_ports', 'fiber_customer_locations',
+            'fiber_customer_mappings',
+        ];
+        foreach ($fiberTables as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+
+            $fiberStats['pending_records'] += DB::table($table)
+                ->where(function ($query) {
+                    $query->whereNull('status')->orWhere('status', '!=', 'verified');
+                })->count();
+        }
+
+        if (Schema::hasTable('fiber_cables')) {
+            $fiberStats['cables'] = DB::table('fiber_cables')->count();
+            $fiberStats['verified_cables'] = DB::table('fiber_cables')->where('status', 'verified')->count();
+        }
+        if (Schema::hasTable('fiber_splitters')) {
+            $fiberStats['splitters'] = DB::table('fiber_splitters')->count();
+        }
+        if (Schema::hasTable('fiber_splice_closures')) {
+            $fiberStats['closures'] = DB::table('fiber_splice_closures')->count();
+        }
+        if (Schema::hasTable('fiber_splice_records')) {
+            $fiberStats['splices'] = DB::table('fiber_splice_records')->count();
+            $fiberStats['verified_splices'] = DB::table('fiber_splice_records')->where('status', 'verified')->count();
+        }
+        if (Schema::hasTable('fiber_customer_mappings')) {
+            $fiberStats['customer_mappings'] = DB::table('fiber_customer_mappings')->count();
+            $fiberStats['verified_customer_mappings'] = DB::table('fiber_customer_mappings')->where('status', 'verified')->count();
+        }
+
         $configuredLatitude = MainSiteData::getValue('ipilot_gis_default_latitude', '');
         $configuredLongitude = MainSiteData::getValue('ipilot_gis_default_longitude', '');
         $hasConfiguredCenter = is_numeric($configuredLatitude) && is_numeric($configuredLongitude)
@@ -246,7 +323,7 @@ class NetworkMap extends Component
 
         return view('livewire.network-map', compact(
             'routers', 'nodes', 'customers', 'mappedCustomers', 'unmappedCustomers',
-            'routerNodes', 'deviceLocations', 'mapEdges', 'mapStats', 'mapKindCounts', 'mapConfig'
+            'routerNodes', 'deviceLocations', 'mapEdges', 'mapStats', 'mapKindCounts', 'mapConfig', 'fiberStats', 'unlocatedCustomerRecords'
         ))->layout('layouts.app');
     }
 

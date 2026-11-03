@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Http\Controllers\MikrotikController;
 use App\Jobs\ReconcileMikrotikPendingAction;
 use App\Models\RouterList;
+use App\Models\BillingInfo;
+use App\Models\CustomersInfo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
@@ -56,6 +58,20 @@ class MikrotikPendingActionTest extends TestCase
             'action' => 'connected',
         ]);
         $id = $this->pending('connected-router', 'queued-user', 'disable');
+        CustomersInfo::create([
+            'customer_unique_id' => 'JOB-DISABLE',
+            'customer_name' => 'Queued disable customer',
+            'status' => 'active',
+            'disable_count' => 0,
+        ]);
+        BillingInfo::create([
+            'customer_bill_unique_id' => 'JOB-DISABLE',
+            'billing_type' => 'postpaid',
+            'monthly_rent' => 500,
+            'total_amount' => 500,
+            'due_amount' => 500,
+            'paid_amount' => 0,
+        ]);
 
         $controller = Mockery::mock(MikrotikController::class);
         $controller->shouldReceive('disablePPPSecret')
@@ -71,6 +87,93 @@ class MikrotikPendingActionTest extends TestCase
             'status' => 'completed',
             'attempts' => 1,
             'last_error' => null,
+        ]);
+    }
+
+    public function test_job_supersedes_prepaid_disable_when_new_expiry_is_in_the_future(): void
+    {
+        RouterList::create([
+            'router_name' => 'connected-router',
+            'ip_address' => '127.0.0.1',
+            'username' => 'test',
+            'password' => 'test',
+            'action' => 'connected',
+        ]);
+        CustomersInfo::create([
+            'customer_unique_id' => 'PENDING-future-user',
+            'customer_name' => 'Renewed prepaid customer',
+            'status' => 'active',
+            'disable_count' => 0,
+        ]);
+        BillingInfo::create([
+            'customer_bill_unique_id' => 'PENDING-future-user',
+            'billing_type' => 'prepaid',
+            'monthly_rent' => 500,
+            'total_amount' => 500,
+            'due_amount' => 0,
+            'paid_amount' => 500,
+            'auto_disable' => true,
+            'auto_disable_date' => today()->addMonth()->toDateString(),
+        ]);
+
+        $id = $this->pending('connected-router', 'future-user', 'disable');
+        $controller = Mockery::mock(MikrotikController::class);
+        $controller->shouldNotReceive('disablePPPSecret');
+
+        (new ReconcileMikrotikPendingAction($id))->handle($controller);
+
+        $this->assertDatabaseHas('mikrotik_pending_actions', [
+            'id' => $id,
+            'status' => 'superseded',
+            'attempts' => 0,
+        ]);
+    }
+
+    public function test_job_uses_connection_day_when_prepaid_expiry_is_missing(): void
+    {
+        RouterList::create([
+            'router_name' => 'connected-router',
+            'ip_address' => '127.0.0.1',
+            'username' => 'test',
+            'password' => 'test',
+            'action' => 'connected',
+        ]);
+        $customerId = 'PENDING-missing-expiry-user';
+        CustomersInfo::create([
+            'customer_unique_id' => $customerId,
+            'customer_name' => 'Missing expiry customer',
+            'connection_date' => today()->subMonthNoOverflow()->toDateString(),
+            'status' => 'active',
+            'disable_count' => 0,
+        ]);
+        BillingInfo::create([
+            'customer_bill_unique_id' => $customerId,
+            'billing_type' => 'prepaid',
+            'monthly_rent' => 500,
+            'total_amount' => 500,
+            'due_amount' => 500,
+            'paid_amount' => 0,
+            'auto_disable' => true,
+            'auto_disable_date' => null,
+        ]);
+
+        $id = $this->pending('connected-router', 'missing-expiry-user', 'disable');
+        $controller = Mockery::mock(MikrotikController::class);
+        $controller->shouldReceive('disablePPPSecret')
+            ->once()
+            ->with($customerId, 'connected-router', 'missing-expiry-user', false, true)
+            ->andReturn('soft');
+
+        (new ReconcileMikrotikPendingAction($id))->handle($controller);
+
+        $this->assertDatabaseHas('mikrotik_pending_actions', [
+            'id' => $id,
+            'status' => 'completed',
+            'attempts' => 1,
+        ]);
+        $this->assertDatabaseHas('customers_infos', [
+            'customer_unique_id' => $customerId,
+            'status' => 'disable',
         ]);
     }
 
@@ -134,6 +237,20 @@ class MikrotikPendingActionTest extends TestCase
             'action' => 'connected',
         ]);
         $id = $this->pending('connected-router', 'failing-user', 'disable');
+        CustomersInfo::create([
+            'customer_unique_id' => 'PENDING-failing-user',
+            'customer_name' => 'Failing disable customer',
+            'status' => 'active',
+            'disable_count' => 0,
+        ]);
+        BillingInfo::create([
+            'customer_bill_unique_id' => 'PENDING-failing-user',
+            'billing_type' => 'postpaid',
+            'monthly_rent' => 500,
+            'total_amount' => 500,
+            'due_amount' => 500,
+            'paid_amount' => 0,
+        ]);
 
         $controller = Mockery::mock(MikrotikController::class);
         $controller->shouldReceive('disablePPPSecret')

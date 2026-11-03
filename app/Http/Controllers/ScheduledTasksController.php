@@ -451,6 +451,37 @@ class ScheduledTasksController extends Controller
                 }
 
                 if ($shouldDisable && $pppUser && $pppUser->username) {
+                    // Payment/Enable may have completed while this scheduled scan was
+                    // evaluating an older snapshot. Re-read immediately before disabling.
+                    $latestCustomer = CustomersInfo::with(['billing', 'pppUser'])
+                        ->whereKey($customer->getKey())
+                        ->first();
+                    if (! $latestCustomer || $latestCustomer->status !== 'active' || ! $latestCustomer->billing) {
+                        return;
+                    }
+
+                    if ($latestCustomer->billing->billing_type === 'prepaid') {
+                        $latestExpiry = $latestCustomer->billing->auto_disable_date;
+                        if (! $latestExpiry && $latestCustomer->connection_date) {
+                            $latestExpiry = PrepaidBillingCycle::nextExpiryDate(
+                                $latestCustomer->connection_date,
+                                $latestCustomer->connection_date
+                            )->toDateString();
+                        }
+
+                        if (! $latestExpiry || Carbon::parse($latestExpiry, $tz)->startOfDay()->gt($today)) {
+                            return;
+                        }
+                    }
+
+                    $customer = $latestCustomer;
+                    $billing = $latestCustomer->billing;
+                    $pppUser = $latestCustomer->pppUser;
+
+                    if (! $pppUser || ! $pppUser->username) {
+                        return;
+                    }
+
                     if (filled($pppUser->router_name) && \DB::table('mikrotik_pending_actions')
                         ->where('customer_unique_id', $customer->customer_unique_id)
                         ->where('router_name', $pppUser->router_name)
@@ -472,6 +503,46 @@ class ScheduledTasksController extends Controller
                                 false,
                                 true
                             );
+
+                            // A prepaid renewal may complete during the router call.
+                            // Restore Enable instead of committing a stale Disable locally.
+                            $latestAfterRouterWrite = CustomersInfo::with('billing')
+                                ->whereKey($customer->getKey())
+                                ->first();
+                            if ($latestAfterRouterWrite
+                                && $latestAfterRouterWrite->status === 'active'
+                                && $latestAfterRouterWrite->billing?->billing_type === 'prepaid'
+                                && $latestAfterRouterWrite->billing->auto_disable_date
+                                && Carbon::parse($latestAfterRouterWrite->billing->auto_disable_date, $tz)->startOfDay()->gt($today)) {
+                                try {
+                                    app(MikrotikController::class)->enablePPPSecret(
+                                        $customer->customer_unique_id,
+                                        $router->router_name,
+                                        $pppUser->username
+                                    );
+                                    if (filled($pppUser->profile)) {
+                                        app(MikrotikController::class)->updatePPPSecret(
+                                            $router->router_name,
+                                            $pppUser->username,
+                                            'profile',
+                                            $pppUser->profile
+                                        );
+                                    }
+                                    PPPSecrets::where('id', $customer->ppp_user_id)->update(['status' => 'active']);
+                                } catch (\Throwable $restoreError) {
+                                    app(\App\Services\MikrotikPendingActionQueue::class)->queue(
+                                        $customer->customer_unique_id,
+                                        $router->router_name,
+                                        $pppUser->username,
+                                        'enable'
+                                    );
+                                    \Log::warning('Renewed prepaid customer was re-enabled after a concurrent auto-disable.', [
+                                        'customer_unique_id' => $customer->customer_unique_id,
+                                        'error' => $restoreError->getMessage(),
+                                    ]);
+                                }
+                                return;
+                            }
 
                             if ($disableStatus === 'fallback') {
                                 $fallbackIDs[] = $customer->customer_unique_id.' ('.$pppUser->username.')';

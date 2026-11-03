@@ -1,7 +1,7 @@
 <div class="container-fluid py-3">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <div><h3 class="mb-1">Manual Fiber Mapping</h3><div class="text-muted small">Field-recorded topology only. No automatic core, port, splitter or customer mapping.</div></div>
-        <div class="d-flex gap-2"><button wire:click="exportCsv" class="btn btn-outline-primary btn-sm"><i class="bi bi-download me-1"></i>Export CSV</button><a href="{{ route('network-topology.designer') }}" class="btn btn-outline-secondary btn-sm">Topology Designer</a></div>
+        <div class="d-flex flex-wrap gap-2"><a href="{{ route('network-map') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-map me-1"></i>Geographic Map</a><a href="{{ route('network-topology.live') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-broadcast me-1"></i>Live Topology</a><a href="{{ route('network-topology.designer') }}" class="btn btn-outline-secondary btn-sm">Topology Designer</a><button wire:click="exportCsv" class="btn btn-outline-primary btn-sm"><i class="bi bi-download me-1"></i>Export CSV</button></div>
     </div>
     @if($message)<div class="alert alert-info py-2">{{ $message }}</div>@endif
     <div class="alert alert-warning py-2 small">All new records start as <strong>Pending</strong>. Verification is an explicit operator action. A trace with any missing or unverified segment remains <strong>Incomplete</strong>.</div>

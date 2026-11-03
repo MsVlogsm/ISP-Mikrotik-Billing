@@ -74,8 +74,12 @@ class NetworkTopologyTest extends TestCase
         Livewire::test(NetworkTopology::class, ['mode' => 'designer'])
             ->set('source_key', 'router:'.$router->id)
             ->set('target_key', 'topology:'.$node->id)
+            ->set('target_port', 'IN-1')
             ->set('connection_type', 'fiber_core')
-            ->call('saveLink');
+            ->set('source_core', '1')
+            ->set('target_core', '1')
+            ->call('saveLink')
+            ->assertHasNoErrors();
 
         $link = NetworkTopologyLink::firstOrFail();
         Livewire::test(NetworkTopology::class, ['mode' => 'designer'])->call('verifyLink', $link->id)->call('publish', $link->id);
