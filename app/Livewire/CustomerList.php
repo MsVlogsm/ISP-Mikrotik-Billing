@@ -327,7 +327,7 @@ class CustomerList extends Component
                 $isOnline = $username !== '' && ! empty($livePppUsers[$router][mb_strtolower($username)]);
                 $dotClass = $isOnline ? 'customer-live-dot customer-live-dot--active' : 'customer-live-dot customer-live-dot--inactive';
                 $label = $isOnline ? 'Online now (live MikroTik PPP session)' : 'Offline (not found in live MikroTik PPP sessions)';
-                $liveText = '<small class="d-block '.($isOnline ? 'text-success' : 'text-muted').'">'.($isOnline ? 'Online' : 'Offline').'</small>';
+                $liveText = '<small class="customer-live-status '.($isOnline ? 'text-success' : 'text-muted').'">'.($isOnline ? 'Online' : 'Offline').'</small>';
                 return '<span class="customer-cid-live" title="'.e($label).'"><span class="'.e($dotClass).'" aria-label="'.e($label).'"></span>'
                     .'<a href="'.e($url).'" class="fw-bold text-primary text-decoration-none" title="Open Customer Details">'
                     .e($row->customer_unique_id)
@@ -362,8 +362,8 @@ class CustomerList extends Component
                 $dial = preg_replace('/[^0-9+]/', '', (string) $row->mobile);
                 return '<span class="d-inline-flex align-items-center gap-2 text-nowrap">'
                     .'<span>'.e($display).'</span>'
-                    .'<a class="btn btn-sm btn-outline-success py-1 px-2" href="tel:'.e($dial).'" aria-label="Call '.e($display).'" title="Call customer">'
-                    .'<i class="bi bi-telephone-fill" aria-hidden="true"></i> <span>Call</span></a></span>';
+                    .'<a class="btn btn-sm btn-outline-success py-1 px-2 customer-call-action" href="tel:'.e($dial).'" aria-label="Call '.e($display).'" title="Call customer">'
+                    .'<i class="bi bi-telephone-fill" aria-hidden="true"></i> <span class="customer-call-label">Call</span></a></span>';
             })
             ->addColumn('package_display', function ($row) {
                 // package_name was removed from customers_infos when package_id became

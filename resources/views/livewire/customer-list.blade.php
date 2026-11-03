@@ -120,7 +120,7 @@
 
     <div class="card border-0 shadow-sm m-sm-0 m-md-3 p-0 overflow-hidden customer-table-card">
         <div class="table-responsive bg-white px-3 pb-3" wire:ignore>
-            <table class="customer-table table table-hover custom-data-table border-0 w-100" style="width:100%">
+            <table class="customer-table customer-table--compact table table-hover custom-data-table border-0 w-100" style="width:100%">
                 <thead class="bg-light">
                     <tr>
                         <th class="text-center" style="width:36px;"><input type="checkbox" id="select-all-customers" class="form-check-input" title="{{ __('Select All') }}" aria-label="{{ __('Select All') }}"></th>
@@ -735,6 +735,130 @@
             font-size: 0.8rem;
             color: #6c757d;
         }
+
+        /* Sweet Billing-inspired compact customer rows. Keep every data field and action. */
+        .customer-table-card .table-responsive {
+            padding: 0 .5rem .5rem !important;
+        }
+        .customer-table--compact {
+            border-collapse: separate !important;
+            border-spacing: 0 2px !important;
+            font-size: .76rem !important;
+            line-height: 1.22 !important;
+        }
+        .customer-table--compact thead th {
+            padding: 7px 7px !important;
+            font-size: .67rem !important;
+            letter-spacing: .025em !important;
+            border-bottom: 1px solid var(--bs-border-color) !important;
+        }
+        .customer-table--compact tbody td {
+            padding: 5px 7px !important;
+            line-height: 1.22 !important;
+            vertical-align: middle !important;
+            border-top: 1px solid rgba(148, 163, 184, .12) !important;
+        }
+        .customer-table--compact tbody tr {
+            box-shadow: 0 1px 3px rgba(15, 23, 42, .025) !important;
+            transition: background-color .15s ease, box-shadow .15s ease !important;
+        }
+        .customer-table--compact tbody tr:hover {
+            transform: none !important;
+            box-shadow: 0 2px 7px rgba(15, 23, 42, .07) !important;
+        }
+        .customer-table--compact .customer-cid-live {
+            gap: .3rem !important;
+        }
+        .customer-table--compact .customer-live-dot {
+            width: .45rem !important;
+            height: .45rem !important;
+            flex-basis: .45rem !important;
+        }
+        .customer-table--compact .customer-live-status {
+            display: inline !important;
+            margin-left: .22rem;
+            font-size: .64rem !important;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .customer-table--compact .badge {
+            padding: .25em .45em !important;
+            font-size: .66rem !important;
+            line-height: 1.15 !important;
+        }
+        .customer-table--compact .customer-call-action {
+            width: 23px;
+            height: 23px;
+            padding: 0 !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            vertical-align: middle;
+        }
+        .customer-table--compact .customer-call-label {
+            display: none;
+        }
+        .customer-table--compact tbody td:nth-child(3),
+        .customer-table--compact tbody td:nth-child(4),
+        .customer-table--compact tbody td:nth-child(5),
+        .customer-table--compact tbody td:nth-child(6),
+        .customer-table--compact tbody td:nth-child(7),
+        .customer-table--compact tbody td:nth-child(8),
+        .customer-table--compact tbody td:nth-child(9),
+        .customer-table--compact tbody td:nth-child(10),
+        .customer-table--compact tbody td:nth-child(12),
+        .customer-table--compact tbody td:nth-child(13),
+        .customer-table--compact tbody td:nth-child(14) {
+            white-space: nowrap;
+        }
+        .customer-table--compact tbody td:nth-child(7) .d-inline-flex {
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: .3rem !important;
+            white-space: nowrap;
+        }
+        .customer-table--compact tbody td:nth-child(7) .d-inline-flex small {
+            display: inline-block;
+            max-width: 112px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .customer-table--compact tbody td:nth-child(11) {
+            max-width: 175px;
+            min-width: 110px;
+        }
+        .customer-table--compact tbody td:nth-child(11) > span {
+            display: inline-block;
+            max-width: 165px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        .customer-table--compact .customer-row-actions .dropdown-toggle {
+            padding: .28rem .45rem !important;
+            font-size: .68rem !important;
+            line-height: 1.2 !important;
+            border-radius: 7px !important;
+        }
+        .customer-table--compact .customer-row-actions .dropdown-menu .dropdown-item {
+            padding: .42rem .6rem;
+            font-size: .78rem;
+        }
+        @media (max-width: 767.98px) {
+            .customer-table--compact {
+                font-size: .72rem !important;
+            }
+            .customer-table--compact thead th {
+                padding: 6px 6px !important;
+                font-size: .63rem !important;
+            }
+            .customer-table--compact tbody td {
+                padding: 5px 6px !important;
+            }
+        }
     </style>
 @endpush
 
@@ -754,7 +878,7 @@
                 processing: true,
                 // serverSide: true,
                 pagingType: 'full_numbers',
-                pageLength: 10,
+                pageLength: 50,
                 lengthChange: true,
                 searchable: true,
                 lengthMenu: [
