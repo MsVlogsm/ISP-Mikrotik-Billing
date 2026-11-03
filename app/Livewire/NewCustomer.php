@@ -37,6 +37,8 @@ class NewCustomer extends Component
 
     public $customer_unique_id;
 
+    public $customerUniqueIdAvailability = 'idle';
+
     public $email;
 
     public $identification_no;
@@ -54,6 +56,10 @@ class NewCustomer extends Component
     public $profile;
 
     public $ip_address;
+
+    public $subnet_prefix;
+
+    public $gateway;
 
     public $ppp_remote_ip;
 
@@ -181,6 +187,10 @@ class NewCustomer extends Component
             $this->username = $secret->username;
             $this->password = $secret->password;
             $this->ppp_remote_ip = $secret->ppp_remote_ip;
+            $this->ip_address = $secret->ip_address ?? null;
+            $this->interface = $secret->interface ?? null;
+            $this->subnet_prefix = $secret->subnet_prefix ?? null;
+            $this->gateway = $secret->gateway ?? null;
             $this->caller_id = $secret->caller_id;
             $this->comment = $secret->comment;
             $this->connection_date = optional($secret->created_at)->format('Y-m-d') ?: now()->format('Y-m-d');
@@ -275,7 +285,9 @@ class NewCustomer extends Component
             'service' => 'nullable|required_with:router_name',
             'interface' => 'nullable|required_if:service,static',
             'ip_address' => 'nullable|required_if:service,static|ip',
-            'bandwidth' => 'nullable|required_if:service,static|regex:/^\d+(M|K)\/\d+(M|K)$/',
+            'subnet_prefix' => 'nullable|string|max:45',
+            'gateway' => 'nullable|ip',
+            'bandwidth' => ['nullable', 'required_if:service,static', 'regex:/^\d+(?:M|K)\/\d+(?:M|K)$/'],
             'caller_id' => 'nullable|mac_address',
             'queue_name' => 'nullable|required_if:service,static|string|max:25',
             'profile' => 'nullable|required_if:service,pppoe|string|max:25',
@@ -303,6 +315,20 @@ class NewCustomer extends Component
         }
 
         return $rules; // Return the combined rules
+    }
+
+    public function updatedCustomerUniqueId($value): void
+    {
+        $candidate = trim((string) $value);
+        if ($candidate === '') {
+            $this->customerUniqueIdAvailability = 'idle';
+            return;
+        }
+
+        // Include soft-deleted rows because the unique database index still reserves their CID.
+        $this->customerUniqueIdAvailability = CustomersInfo::withTrashed()
+            ->where('customer_unique_id', $candidate)
+            ->exists() ? 'taken' : 'available';
     }
 
     public function updated($propertyName)
@@ -379,7 +405,7 @@ class NewCustomer extends Component
                 }
             } else {
                 $this->auto_disable = false;
-                $this->auto_disable_date = $this->ip_address = $this->interface = $this->queue_name = $this->profile = $this->username = $this->password = $this->ppp_remote_ip = $this->caller_id = $this->bandwidth = $this->service = null;
+                $this->auto_disable_date = $this->ip_address = $this->subnet_prefix = $this->gateway = $this->interface = $this->queue_name = $this->profile = $this->username = $this->password = $this->ppp_remote_ip = $this->caller_id = $this->bandwidth = $this->service = null;
             }
             // Proceed only if service is static and router_name is set than fetch interfaces and profile
             if ($this->service == 'static' && $this->router_name) {
@@ -426,12 +452,13 @@ class NewCustomer extends Component
                 }
 
                 $this->interfaceNames = [];
-                $this->ip_address = $this->queue_name = $this->caller_id = $this->bandwidth = null;
+                $this->ip_address = $this->subnet_prefix = $this->gateway = $this->interface = null;
+                $this->queue_name = $this->caller_id = $this->bandwidth = null;
 
                 return;
             } else {
                 $this->interfaceNames = $this->profileNames = [];
-                $this->auto_disable_date = $this->ip_address = $this->queue_name = $this->username = $this->password = $this->ppp_remote_ip = $this->caller_id = $this->bandwidth = $this->service = null;
+                $this->auto_disable_date = $this->ip_address = $this->subnet_prefix = $this->gateway = $this->interface = $this->queue_name = $this->username = $this->password = $this->ppp_remote_ip = $this->caller_id = $this->bandwidth = $this->service = null;
 
                 return;
             }
@@ -508,6 +535,11 @@ class NewCustomer extends Component
                 if ($this->caller_id) {
                     $stepRules['caller_id'] = $allRules['caller_id'];
                 }
+                foreach (['subnet_prefix', 'gateway'] as $networkField) {
+                    if (filled($this->{$networkField})) {
+                        $stepRules[$networkField] = $allRules[$networkField];
+                    }
+                }
                 
                 if (!empty($stepRules)) {
                     $this->validate($stepRules);
@@ -540,7 +572,7 @@ class NewCustomer extends Component
                             if ($this->service === 'static') {
                                 $targetRules['interface'] = 'required';
                                 $targetRules['ip_address'] = 'required|ip';
-                                $targetRules['bandwidth'] = 'required|regex:/^\d+(M|K)\/\d+(M|K)$/';
+                                $targetRules['bandwidth'] = ['required', 'regex:/^\d+(?:M|K)\/\d+(?:M|K)$/'];
                                 $targetRules['queue_name'] = 'required|string|max:25';
                             } elseif ($this->service === 'pppoe') {
                                 $targetRules['profile'] = 'required|string|max:25';
@@ -680,7 +712,8 @@ class NewCustomer extends Component
                         $pppUser = new PPPSecrets;
                         $pppUser->router_name = $this->router_name;
                         $pppUser->username = ($this->username != '') ? $this->username : $this->queue_name;
-                        $pppUser->password = $this->password;
+                        // Static queue entries do not use PPP authentication, but the legacy secret table requires a non-null password.
+                        $pppUser->password = filled($this->password) ? $this->password : '-';
                         $pppUser->service = $this->service;
                         $pppUser->profile = ($this->profile != '') ? $this->profile : $this->interface;
                         $pppUser->bandwidth = $this->bandwidth;
@@ -689,6 +722,14 @@ class NewCustomer extends Component
                         $pppUser->ppp_remote_ip = ($this->ppp_remote_ip != '') ? $this->ppp_remote_ip : $this->ip_address;
                         $pppUser->save();
                     }
+                }
+
+                if ($pppUser && $this->service === 'static') {
+                    $pppUser->interface = $this->interface;
+                    $pppUser->ip_address = $this->ip_address;
+                    $pppUser->subnet_prefix = filled($this->subnet_prefix) ? trim((string) $this->subnet_prefix) : null;
+                    $pppUser->gateway = $this->gateway;
+                    $pppUser->save();
                 }
             }
 
@@ -892,3 +933,5 @@ class NewCustomer extends Component
         return view('livewire.new-customer')->layout('layouts.app');
     }
 }
+
+[executed on device: bill (d46e2bb3-ca74-4b6d-b341-ee3299469042)]
