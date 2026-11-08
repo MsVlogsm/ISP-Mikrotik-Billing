@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\IntegrationApiClient;
+use App\Services\ApiScopeAuthorizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -29,6 +30,12 @@ class ApiV2AuthController extends Controller
         $owner = $client->owner;
         if (! $owner || ! $owner->hasAnyRole(['Super Admin', 'Admin', 'Manager'])) {
             return response()->json(['success' => false, 'message' => 'API client owner is not permitted to use this API.'], 403);
+        }
+
+        // Client scopes are intersected with the owner's current module permissions.
+        // This check runs at every token exchange so revoked staff permissions take effect.
+        if (! ApiScopeAuthorizer::ownerCanUse($owner, $client->scopes ?? [])) {
+            return response()->json(['success' => false, 'message' => 'The API client requests scopes not permitted for its owner account.'], 403);
         }
 
         $deviceName = preg_replace('/[^A-Za-z0-9 ._:-]/', '', trim((string) ($data['device_name'] ?? 'iPilot integration'))) ?: 'iPilot integration';
