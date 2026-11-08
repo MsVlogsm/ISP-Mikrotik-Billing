@@ -97,20 +97,23 @@
                                 </label>
                             @endforeach
                         </div>
-                        <div class="d-flex flex-nowrap gap-1">
-                            <form method="POST" action="{{ route('network-inventory.olt.sync') }}" class="d-inline" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button span').textContent='Syncing…';">
-                                @csrf
-                                <button type="submit" class="btn btn-outline-success btn-sm rounded-pill px-3 py-0 shadow-none fw-600" style="height: 2rem;" title="Synchronize ONU inventory and customer mappings">
-                                    <i class="bi bi-arrow-repeat me-1"></i><span>Sync ONU</span>
+                        <div class="customer-filter-actions" role="group" aria-label="{{ __('Customer list quick actions') }}">
+                            <span class="customer-filter-actions-label">{{ __('QUICK ACTIONS') }}</span>
+                            <div class="customer-filter-action-buttons d-flex align-items-center flex-nowrap gap-1">
+                                <form method="POST" action="{{ route('network-inventory.olt.sync') }}" class="d-inline" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button span').textContent='Syncing…';">
+                                    @csrf
+                                    <button type="submit" class="btn btn-outline-success btn-sm rounded-pill px-3 py-0 shadow-none fw-600" style="height: 2rem;" title="Synchronize ONU inventory and customer mappings">
+                                        <i class="bi bi-arrow-repeat me-1"></i><span>Sync ONU</span>
+                                    </button>
+                                </form>
+                                <button type="button" wire:click="refreshLiveOnlineStatus" wire:loading.attr="disabled" wire:target="refreshLiveOnlineStatus" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-0 shadow-none fw-600" style="height: 2rem;" title="Clear the short-lived PPP session cache and refresh live online status">
+                                    <span wire:loading.remove wire:target="refreshLiveOnlineStatus"><i class="bi bi-wifi me-1"></i>Sync Online</span>
+                                    <span wire:loading wire:target="refreshLiveOnlineStatus"><span class="spinner-border spinner-border-sm me-1"></span>Refreshing…</span>
                                 </button>
-                            </form>
-                            <button type="button" wire:click="refreshLiveOnlineStatus" wire:loading.attr="disabled" wire:target="refreshLiveOnlineStatus" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-0 shadow-none fw-600" style="height: 2rem;" title="Clear the short-lived PPP session cache and refresh live online status">
-                                <span wire:loading.remove wire:target="refreshLiveOnlineStatus"><i class="bi bi-wifi me-1"></i>Sync Online</span>
-                                <span wire:loading wire:target="refreshLiveOnlineStatus"><span class="spinner-border spinner-border-sm me-1"></span>Refreshing…</span>
-                            </button>
-                            <button type="button" id="reset_table" class="btn btn-light btn-outline-dark btn-sm rounded-pill px-3 py-0 shadow-none fw-600" style="height: 2rem;" title="Reset all filters and search">
-                                <i class="bi bi-arrow-clockwise"></i> {{ __('Reset') }}
-                            </button>
+                                <button type="button" id="reset_table" class="btn btn-light btn-outline-dark btn-sm rounded-pill px-3 py-0 shadow-none fw-600" style="height: 2rem;" title="Reset all filters and search">
+                                    <i class="bi bi-arrow-clockwise"></i> {{ __('Reset') }}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -502,11 +505,11 @@
             min-width: 0;
         }
         .customer-filter-toolbar {
-            width: auto;
-            gap: 0 !important;
+            width: 100%;
+            gap: .65rem !important;
         }
         .customer-filter-toolbar > .filter-group {
-            flex: 0 1 auto !important;
+            flex: 1 1 auto !important;
             width: auto;
             min-width: 0;
             overflow-x: auto !important;
@@ -530,13 +533,31 @@
             flex: 0 0 auto !important;
             width: auto !important;
             margin-left: auto !important;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            gap: .22rem !important;
             white-space: nowrap;
-            gap: .25rem !important;
-            padding-left: .4rem !important;
+            padding: .38rem .55rem !important;
+            border: 1px solid #dbe5f1;
+            border-radius: 11px;
+            background: #f7faff;
+        }
+        .customer-filter-actions-label {
+            color: #718096;
+            font-size: .59rem;
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: .075em;
+            padding-left: .12rem;
+        }
+        .customer-filter-action-buttons {
+            gap: .3rem !important;
         }
         .customer-filter-actions .btn {
-            padding-left: .5rem !important;
-            padding-right: .5rem !important;
+            padding-left: .55rem !important;
+            padding-right: .55rem !important;
             font-size: .74rem !important;
             height: 1.85rem !important;
             white-space: nowrap;
@@ -544,6 +565,13 @@
         .customer-filter-actions form {
             flex: 0 0 auto;
             margin: 0;
+        }
+        html[data-bs-theme="dark"] .customer-filter-actions {
+            background: #17263b;
+            border-color: #405773;
+        }
+        html[data-bs-theme="dark"] .customer-filter-actions-label {
+            color: #a9bfd9;
         }
         .customer-table-card .table-responsive {
             border-radius: 14px;
@@ -584,26 +612,27 @@
             .customer-header-actions { width: 100%; }
             .customer-header-actions .btn { flex: 1 1 auto; }
             .customer-filter-toolbar {
-                flex-wrap: nowrap !important;
-                overflow-x: auto;
-                overflow-y: hidden;
-                padding-bottom: .25rem;
+                flex-wrap: wrap !important;
+                overflow: visible;
+                padding-bottom: 0;
                 width: 100%;
+                gap: .55rem !important;
             }
             .customer-filter-toolbar > .filter-group {
-                flex: 0 0 auto !important;
-                width: max-content !important;
-                min-width: max-content !important;
+                flex: 1 1 100% !important;
+                width: 100% !important;
+                min-width: 0 !important;
                 flex-wrap: nowrap !important;
             }
             .customer-filter-toolbar > .customer-filter-actions {
                 flex: 0 0 auto !important;
-                flex-wrap: nowrap !important;
                 width: max-content !important;
+                max-width: 100%;
                 margin-left: 0 !important;
-                border-left: 1px solid #dee2e6 !important;
-                border-top: 0 !important;
-                padding-top: 0 !important;
+                align-items: flex-start;
+            }
+            .customer-filter-action-buttons {
+                flex-wrap: wrap !important;
             }
             .customer-filter-card,
             .customer-table-card {
@@ -1148,6 +1177,26 @@
                     if (result.isConfirmed) { Livewire.dispatch('push-all-customers'); }
                 });
             };
+
+            window.syncCustomerOnu = function (encryptedCustomerId, button) {
+                if (!button || button.disabled || button.dataset.syncing === 'true') return;
+
+                button.dataset.syncing = 'true';
+                button.dataset.originalHtml = button.innerHTML;
+                button.disabled = true;
+                button.innerHTML = '<span class=\"spinner-border spinner-border-sm me-1\" role=\"status\"></span><span>Syncing…</span>';
+                Livewire.dispatch('sync-customer-onu', { id: encryptedCustomerId });
+            };
+
+            $wire.on('customer-onu-sync-complete', () => {
+                table.ajax.reload(null, false);
+                document.querySelectorAll('.customer-sync-onu-btn[data-syncing="true"]').forEach((button) => {
+                    button.disabled = false;
+                    button.innerHTML = button.dataset.originalHtml || '<i class=\"bi bi-arrow-repeat me-1\"></i><span>Sync ONU</span>';
+                    delete button.dataset.syncing;
+                    delete button.dataset.originalHtml;
+                });
+            });
 
             $wire.on('customer-action-done', () => { table.ajax.reload(null, false); });
             $wire.on('customer-online-sync-complete', () => { table.ajax.reload(null, true); });

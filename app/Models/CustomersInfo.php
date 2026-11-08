@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -211,6 +213,19 @@ class CustomersInfo extends Model
         return $query->whereNotNull('ppp_user_id');
     }
 
+    /** Physical ONU mappings this customer subscribes through (supports shared ONUs). */
+    public function oltOnuMappings(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            OltOnuCustomerMapping::class,
+            'olt_onu_customer_ppp_links',
+            'customer_id',
+            'olt_onu_customer_mapping_id'
+        )->withPivot([
+            'ppp_user_id', 'client_mac', 'source', 'status', 'first_seen_at', 'last_seen_at', 'notes',
+        ])->withTimestamps();
+    }
+
     public function pppUser()
     {
         return $this->belongsTo(PPPSecrets::class, 'ppp_user_id', 'id');
@@ -222,18 +237,19 @@ class CustomersInfo extends Model
     }
 
     /**
-     * Latest mapped ONU RX reading for this customer, limited to fresh OPM data.
-     * The mapping's customer_id references customers_infos.id (not the public CID).
+     * Latest fresh optical reading for this customer through its ONU subscriber link.
+     * The physical ONU remains a single mapping row; multiple PPP customers share it.
      */
-    public function latestOnuOpticalReading()
+    public function latestOnuOpticalReading(): HasOne
     {
         $now = now();
 
-        return $this->hasOne(OltOnuCustomerMapping::class, 'customer_id', 'id')
-            ->ofMany(['opm_last_seen_at' => 'max', 'id' => 'max'], function ($query) use ($now) {
+        return $this->hasOne(OltOnuCustomerPppLink::class, 'customer_id', 'id')
+            ->whereHas('onuMapping', function ($query) use ($now): void {
                 $query->whereNotNull('rx_power')
                     ->whereBetween('opm_last_seen_at', [$now->copy()->subMinutes(30), $now]);
-            });
+            })
+            ->latestOfMany('updated_at');
     }
 
     public function customerAddress()
