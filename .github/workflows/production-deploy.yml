@@ -26,6 +26,51 @@ jobs:
       - name: Checkout release
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
+      - name: Verify Laravel 13 baseline and live Nginx target
+        shell: bash
+        run: |
+          set -euo pipefail
+          php8.5 -r '
+            $manifest = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR);
+            $lock = json_decode(file_get_contents("composer.lock"), true, 512, JSON_THROW_ON_ERROR);
+            $framework = null;
+            foreach (($lock["packages"] ?? []) as $package) {
+                if (($package["name"] ?? null) === "laravel/framework") {
+                    $framework = $package["version"] ?? null;
+                    break;
+                }
+            }
+            if (($manifest["require"]["php"] ?? null) !== "^8.5" ||
+                ($manifest["require"]["laravel/framework"] ?? null) !== "^13.0" ||
+                ! is_string($framework) || ! str_starts_with($framework, "v13.")) {
+                fwrite(STDERR, "Refusing deployment: release dependencies are not on the Laravel 13 / PHP 8.5 baseline.\\n");
+                exit(1);
+            }
+            echo "Candidate baseline: Laravel {$framework}; PHP {$manifest["require"]["php"]}\\n";
+          '
+          APP_PATH=/var/www/isp-billing-import
+          LIVE_ROOT="$(nginx -T 2>/dev/null | python3 -c '
+          import re, sys
+          config = sys.stdin.read()
+          blocks = re.findall(r"(?ms)^server\\s*\\{(.*?)^\\}", config)
+          for block in blocks:
+              if "bill.xlinkbd.net" not in block:
+                  continue
+              if not re.search(r"(?m)^\\s*listen\\s+443(?:\\s|;)", block):
+                  continue
+              if "/run/php/php8.5-fpm.sock" not in block:
+                  continue
+              root = re.search(r"(?m)^\\s*root\\s+([^;]+);", block)
+              if root:
+                  print(root.group(1).strip())
+                  break
+          ')"
+          TARGET_ROOT="$(realpath "$APP_PATH")/public"
+          if [[ -z "$LIVE_ROOT" || "$LIVE_ROOT" != "$TARGET_ROOT" ]]; then
+            echo "::error::Refusing deployment: Nginx serves '$LIVE_ROOT' but the legacy deploy helper targets '$TARGET_ROOT'. The release target must be aligned before production deployment."
+            exit 1
+          fi
+
       - name: Verify production target and clean state
         shell: bash
         run: |
@@ -34,8 +79,8 @@ jobs:
           test -d "$APP_PATH/.git" || test -f "$APP_PATH/.git"
           test -f "$APP_PATH/.env"
           test -f "$APP_PATH/artisan"
-          php -v | head -1
-          composer --version
+          php8.5 -v | head -1
+          php8.5 "$(command -v composer)" --version
 
       - name: Build frontend assets
         run: |
@@ -53,17 +98,17 @@ jobs:
           MAIL_MAILER: array
           TELESCOPE_ENABLED: false
         run: |
-          composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
+          php8.5 "$(command -v composer)" install --no-interaction --prefer-dist --no-progress --optimize-autoloader
           cp .env.example .env
-          php artisan key:generate --force
+          php8.5 artisan key:generate --force
           mkdir -p database
           touch database/database.sqlite
-          php artisan migrate --force
-          php artisan test --no-ansi
-          php artisan config:cache
-          php artisan route:cache
-          php artisan view:cache
-          php artisan optimize:clear
+          php8.5 artisan migrate --force
+          php8.5 artisan test --no-ansi
+          php8.5 artisan config:cache
+          php8.5 artisan route:cache
+          php8.5 artisan view:cache
+          php8.5 artisan optimize:clear
 
       - name: Deploy tested main release through restricted root wrapper
         shell: bash
