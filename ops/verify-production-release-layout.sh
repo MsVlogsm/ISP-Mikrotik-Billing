@@ -38,6 +38,7 @@ esac
 [[ "$(cat "$MODE_FILE")" == "release-v1" ]] || fail "Unsupported deployment helper mode marker."
 [[ "$(stat -c '%U' "$MODE_FILE")" == "root" ]] || fail "Deployment helper marker must be root-owned."
 [[ -x "$DEPLOY_HELPER" ]] || fail "Root deployment helper is missing or not executable."
+grep -Fq "XLINK_RELEASE_DEPLOY_V1" "$DEPLOY_HELPER" || fail "Root deployment helper does not identify itself as release-v1."
 [[ "$(stat -c '%U' "$DEPLOY_HELPER")" == "root" ]] || fail "Root deployment helper must be root-owned."
 HELPER_MODE="$(stat -c '%a' "$DEPLOY_HELPER")"
 (( (8#$HELPER_MODE & 0022) == 0 )) || fail "Root deployment helper must not be group/world writable."
