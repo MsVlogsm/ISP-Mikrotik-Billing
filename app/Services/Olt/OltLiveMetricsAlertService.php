@@ -148,6 +148,9 @@ class OltLiveMetricsAlertService
         $number = (float) $value;
         $warning = is_numeric($thresholds['warning'] ?? null) ? (float) $thresholds['warning'] : null;
         $critical = is_numeric($thresholds['critical'] ?? null) ? (float) $thresholds['critical'] : null;
+        if ($warning !== null && $critical !== null && $critical <= $warning) {
+            return;
+        }
         $severity = $critical !== null && $number >= $critical
             ? 'critical'
             : ($warning !== null && $number >= $warning ? 'warning' : null);
@@ -186,6 +189,9 @@ class OltLiveMetricsAlertService
         $number = (float) $value;
         $warning = is_numeric($thresholds['warning'] ?? null) ? (float) $thresholds['warning'] : null;
         $critical = is_numeric($thresholds['critical'] ?? null) ? (float) $thresholds['critical'] : null;
+        if ($warning !== null && $critical !== null && $critical >= $warning) {
+            return;
+        }
         $severity = $critical !== null && $number <= $critical
             ? 'critical'
             : ($warning !== null && $number <= $warning ? 'warning' : null);
