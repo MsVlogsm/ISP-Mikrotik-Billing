@@ -33,7 +33,7 @@ normalize_release_bootstrap_cache_permissions() {
     local cache_file cache_mode
 
     [[ -d "$cache_dir" ]] || {
-        printf 'ERROR: Release bootstrap cache directory is missing: %s\\n' "$cache_dir" >&2
+        printf 'ERROR: Release bootstrap cache directory is missing: %s\n' "$cache_dir" >&2
         return 1
     }
 
@@ -45,13 +45,13 @@ normalize_release_bootstrap_cache_permissions() {
     # instead of attempting sudo and requiring passwordless elevation.
     if [[ $EUID -eq 0 ]]; then
         as_www_data test -x "$cache_dir" || {
-            printf 'ERROR: www-data cannot traverse release bootstrap cache: %s\\n' "$cache_dir" >&2
+            printf 'ERROR: www-data cannot traverse release bootstrap cache: %s\n' "$cache_dir" >&2
             return 1
         }
     else
         cache_mode="$(stat -c '%a' "$cache_dir")"
         (( (8#$cache_mode & 0001) != 0 )) || {
-            printf 'ERROR: Release bootstrap cache lacks other-execute access for www-data validation: %s\\n' "$cache_dir" >&2
+            printf 'ERROR: Release bootstrap cache lacks other-execute access for www-data validation: %s\n' "$cache_dir" >&2
             return 1
         }
     fi
@@ -59,13 +59,13 @@ normalize_release_bootstrap_cache_permissions() {
     while IFS= read -r -d '' cache_file; do
         if [[ $EUID -eq 0 ]]; then
             as_www_data test -r "$cache_file" || {
-                printf 'ERROR: www-data cannot read release cache file: %s\\n' "$cache_file" >&2
+                printf 'ERROR: www-data cannot read release cache file: %s\n' "$cache_file" >&2
                 return 1
             }
         else
             cache_mode="$(stat -c '%a' "$cache_file")"
             (( (8#$cache_mode & 0004) != 0 )) || {
-                printf 'ERROR: Release cache file lacks other-read access for www-data validation: %s\\n' "$cache_file" >&2
+                printf 'ERROR: Release cache file lacks other-read access for www-data validation: %s\n' "$cache_file" >&2
                 return 1
             }
         fi
@@ -85,27 +85,27 @@ self_test_cache_permissions() (
 
     (
         umask 077
-        printf '<?php return [];\\n' > "$cache_file"
+        printf '<?php return [];\n' > "$cache_file"
     )
 
     [[ "$(stat -c '%a' "$cache_file")" == "600" ]] || {
-        printf 'ERROR: Regression test did not reproduce restrictive umask.\\n' >&2
+        printf 'ERROR: Regression test did not reproduce restrictive umask.\n' >&2
         exit 1
     }
 
     normalize_release_bootstrap_cache_permissions "$cache_dir"
     [[ "$(stat -c '%a' "$cache_file")" == "644" ]] || {
-        printf 'ERROR: Cache normalization did not produce mode 0644.\\n' >&2
+        printf 'ERROR: Cache normalization did not produce mode 0644.\n' >&2
         exit 1
     }
 
     if [[ $EUID -eq 0 ]]; then
         as_www_data test -x "$cache_dir"
         as_www_data test -r "$cache_file"
-        printf 'PASS: restrictive-umask cache file normalized and verified readable by www-data.\\n'
+        printf 'PASS: restrictive-umask cache file normalized and verified readable by www-data.\n'
     else
-        printf 'PASS: restrictive-umask cache file normalized; www-data mode bits verified.\\n'
-        printf 'SKIP: direct www-data impersonation requires root; no sudo attempt was made.\\n'
+        printf 'PASS: restrictive-umask cache file normalized; www-data mode bits verified.\n'
+        printf 'SKIP: direct www-data impersonation requires root; no sudo attempt was made.\n'
     fi
 )
 
