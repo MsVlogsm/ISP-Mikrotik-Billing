@@ -30,6 +30,27 @@ class BridgeFdbSnmpServiceTest extends TestCase
         ], $result);
     }
 
+    public function test_indexed_integer_values_preserve_composite_fdb_indexes_and_numeric_bridge_port_indexes(): void
+    {
+        $service = app(BridgeFdbSnmpService::class);
+        $method = new ReflectionMethod($service, 'indexedIntegers');
+        $method->setAccessible(true);
+
+        $result = $method->invoke($service, [
+            '.1.3.6.1.2.1.17.7.1.2.2.1.3.100.6.0.17.34.51.68.85' => 'INTEGER: 3',
+            '.1.3.6.1.2.1.17.1.4.1.2.7' => 'INTEGER: 42',
+        ], '1.3.6.1.2.1.17.7.1.2.2.1.3');
+
+        $this->assertSame(3, $result['100.6.0.17.34.51.68.85']);
+        $this->assertArrayNotHasKey(100, $result);
+
+        $bridgePorts = $method->invoke($service, [
+            '.1.3.6.1.2.1.17.1.4.1.2.7' => 'INTEGER: 42',
+        ], '1.3.6.1.2.1.17.1.4.1.2');
+
+        $this->assertSame(42, $bridgePorts[7]);
+    }
+
     public function test_poll_without_a_read_only_community_records_an_error_without_network_writes(): void
     {
         config(['bridge_fdb.live_poll_enabled' => true]);
