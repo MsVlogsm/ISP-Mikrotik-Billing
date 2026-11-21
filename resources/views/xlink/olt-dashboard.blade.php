@@ -258,7 +258,10 @@
         <article class="olt-dash-panel olt-dash-alert-panel">
             <div class="olt-dash-panel-title">
                 <div><span class="olt-dash-panel-icon alert"><i class="bi bi-bell"></i></span><div><h3>System Alerts</h3><p>Current device and ONU observations</p></div></div>
-                <span class="olt-dash-pill {{ collect($alerts)->contains(fn($alert)=>$alert['level']==='critical') ? 'danger' : (count($alerts) ? 'warning' : 'success') }}">{{ count($alerts) }} {{ count($alerts) === 1 ? 'alert' : 'alerts' }}</span>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="olt-dash-pill {{ collect($alerts)->contains(fn($alert)=>$alert['level']==='critical') ? 'danger' : (count($alerts) ? 'warning' : 'success') }}">{{ count($alerts) }} {{ count($alerts) === 1 ? 'alert' : 'alerts' }}</span>
+                    <a href="{{ route('network-events') }}" class="btn btn-sm btn-outline-primary">Events & Alerts</a>
+                </div>
             </div>
             <div class="olt-dash-alerts">
                 @forelse($alerts as $alert)
