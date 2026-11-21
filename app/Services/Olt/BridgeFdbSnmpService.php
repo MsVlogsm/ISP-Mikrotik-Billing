@@ -254,7 +254,10 @@ class BridgeFdbSnmpService
             $index = $this->oidIndex((string) $oid, $baseOid);
             $number = $this->numericValue($value);
             if ($index !== null && $number !== null) {
-                $indexed[(int) $index] = $number;
+                // Keep composite indexes (e.g. Q-BRIDGE FDB-ID + MAC) intact.
+                // PHP automatically casts plain numeric string keys to integers,
+                // preserving bridge-port lookups without breaking FDB status joins.
+                $indexed[$index] = $number;
             }
         }
 
