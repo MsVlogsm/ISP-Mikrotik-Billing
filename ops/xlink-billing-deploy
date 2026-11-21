@@ -15,7 +15,7 @@ fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 normalize_shared_view_cache_permissions() {
     local view_dir="$SHARED_ROOT/storage/framework/views"
-    [[ -d "$view_dir" ]] || { printf 'ERROR: Shared Blade view cache is missing: %s\\n' "$view_dir" >&2; return 1; }
+    [[ -d "$view_dir" ]] || { printf 'ERROR: Shared Blade view cache is missing: %s\n' "$view_dir" >&2; return 1; }
     find "$view_dir" -maxdepth 1 -type f -name '*.php' -exec chown www-data:www-data -- {} +
     find "$view_dir" -maxdepth 1 -type f -name '*.php' -exec chmod 0644 -- {} +
 }
