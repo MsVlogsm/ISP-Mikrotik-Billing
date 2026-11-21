@@ -30,34 +30,54 @@ as_www_data() {
 
 normalize_release_bootstrap_cache_permissions() {
     local cache_dir="${1:?Release bootstrap/cache directory is required}"
-    local cache_file
+    local cache_file cache_mode
 
     [[ -d "$cache_dir" ]] || {
-        printf 'ERROR: Release bootstrap cache directory is missing: %s\n' "$cache_dir" >&2
+        printf 'ERROR: Release bootstrap cache directory is missing: %s\\n' "$cache_dir" >&2
         return 1
     }
 
     find "$cache_dir" -maxdepth 1 -type f -name '*.php' -exec chmod 0644 -- {} +
 
-    as_www_data test -x "$cache_dir" || {
-        printf 'ERROR: www-data cannot traverse release bootstrap cache: %s\n' "$cache_dir" >&2
-        return 1
-    }
-
-    while IFS= read -r -d '' cache_file; do
-        as_www_data test -r "$cache_file" || {
-            printf 'ERROR: www-data cannot read release cache file: %s\n' "$cache_file" >&2
+    # The deploy helper runs as root in production, so it can verify the
+    # actual www-data identity. CI's self-hosted runner is intentionally
+    # unprivileged; there, verify the other-read/other-traverse mode bits
+    # instead of attempting sudo and requiring passwordless elevation.
+    if [[ $EUID -eq 0 ]]; then
+        as_www_data test -x "$cache_dir" || {
+            printf 'ERROR: www-data cannot traverse release bootstrap cache: %s\\n' "$cache_dir" >&2
             return 1
         }
+    else
+        cache_mode="$(stat -c '%a' "$cache_dir")"
+        (( (8#$cache_mode & 0001) != 0 )) || {
+            printf 'ERROR: Release bootstrap cache lacks other-execute access for www-data validation: %s\\n' "$cache_dir" >&2
+            return 1
+        }
+    fi
+
+    while IFS= read -r -d '' cache_file; do
+        if [[ $EUID -eq 0 ]]; then
+            as_www_data test -r "$cache_file" || {
+                printf 'ERROR: www-data cannot read release cache file: %s\\n' "$cache_file" >&2
+                return 1
+            }
+        else
+            cache_mode="$(stat -c '%a' "$cache_file")"
+            (( (8#$cache_mode & 0004) != 0 )) || {
+                printf 'ERROR: Release cache file lacks other-read access for www-data validation: %s\\n' "$cache_file" >&2
+                return 1
+            }
+        fi
     done < <(find "$cache_dir" -maxdepth 1 -type f -name '*.php' -print0)
 }
 
 self_test_cache_permissions() (
     set -Eeuo pipefail
-    local test_root cache_dir cache_file
+    local test_root="" cache_dir="" cache_file=""
 
     test_root="$(mktemp -d "${TMPDIR:-/tmp}/xlink-cache-permissions.XXXXXX")"
-    trap 'rm -f -- "$cache_file"; rmdir -- "$cache_dir" "$test_root"' EXIT
+    trap '[[ -z "${cache_file:-}" ]] || rm -f -- "$cache_file"; [[ -z "${cache_dir:-}" ]] || rmdir -- "$cache_dir"; [[ -z "${test_root:-}" ]] || rmdir -- "$test_root"' EXIT
     chmod 0755 "$test_root"
     cache_dir="$test_root/bootstrap-cache"
     mkdir -m 0775 "$cache_dir"
@@ -65,22 +85,30 @@ self_test_cache_permissions() (
 
     (
         umask 077
-        printf '<?php return [];\n' > "$cache_file"
+        printf '<?php return [];\\n' > "$cache_file"
     )
 
     [[ "$(stat -c '%a' "$cache_file")" == "600" ]] || {
-        printf 'ERROR: Regression test did not reproduce restrictive umask.\n' >&2
+        printf 'ERROR: Regression test did not reproduce restrictive umask.\\n' >&2
         exit 1
     }
 
     normalize_release_bootstrap_cache_permissions "$cache_dir"
     [[ "$(stat -c '%a' "$cache_file")" == "644" ]] || {
-        printf 'ERROR: Cache normalization did not produce mode 0644.\n' >&2
+        printf 'ERROR: Cache normalization did not produce mode 0644.\\n' >&2
         exit 1
     }
-    as_www_data test -r "$cache_file"
-    printf 'PASS: restrictive-umask cache file normalized and readable by www-data.\n'
+
+    if [[ $EUID -eq 0 ]]; then
+        as_www_data test -x "$cache_dir"
+        as_www_data test -r "$cache_file"
+        printf 'PASS: restrictive-umask cache file normalized and verified readable by www-data.\\n'
+    else
+        printf 'PASS: restrictive-umask cache file normalized; www-data mode bits verified.\\n'
+        printf 'SKIP: direct www-data impersonation requires root; no sudo attempt was made.\\n'
+    fi
 )
+
 if [[ "${1:-}" == "--self-test-cache-permissions" ]]; then
     self_test_cache_permissions
     exit 0
