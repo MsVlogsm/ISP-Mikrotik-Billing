@@ -32,7 +32,7 @@ esac
 [[ -L "$ACTIVE_RELEASE/.env" ]] || fail "Active release .env must be linked to the shared runtime directory."
 [[ -L "$ACTIVE_RELEASE/storage" ]] || fail "Active release storage must be linked to the shared runtime directory."
 [[ "$(readlink -f -- "$ACTIVE_RELEASE/.env")" == "$SHARED_ROOT/.env" ]] || fail "Active release .env does not resolve to $SHARED_ROOT/.env."
-[[ "$(readlink -f -- "$ACTIVE_RELEASE/storage")" == "$SHARED_ROOT/storage" ]] || fail "Active release storage does not resolve to $SHARED_ROOT/storage."
+[[ "$(readlink -f -- "$ACTIVE_RELEASE/storage")" == "$(readlink -f -- "$SHARED_ROOT/storage")" ]] || fail "Active release storage does not resolve to the shared storage target."
 
 [[ -f "$MODE_FILE" ]] || fail "Release-aware root-helper marker is missing: $MODE_FILE"
 [[ "$(cat "$MODE_FILE")" == "release-v1" ]] || fail "Unsupported deployment helper mode marker."
