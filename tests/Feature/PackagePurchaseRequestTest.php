@@ -13,7 +13,7 @@ class PackagePurchaseRequestTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function customers_can_submit_purchase_request_via_livewire_form()
     {
         Livewire::test('⚡package-purchase-form')
@@ -41,7 +41,7 @@ class PackagePurchaseRequestTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function purchase_request_form_validates_required_fields()
     {
         Livewire::test('⚡package-purchase-form')
@@ -55,7 +55,7 @@ class PackagePurchaseRequestTest extends TestCase
         $this->assertDatabaseEmpty('package_purchase_requests');
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function admin_can_manage_purchase_requests()
     {
         $role = Role::firstOrCreate(['name' => 'Super Admin']);
