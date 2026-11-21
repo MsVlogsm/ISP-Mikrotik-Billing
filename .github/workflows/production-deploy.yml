@@ -59,6 +59,13 @@ jobs:
           npm ci --no-audit --no-fund
           npm run build
 
+      - name: Validate deploy helper cache permissions (isolated)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n ops/xlink-billing-deploy
+          bash ops/xlink-billing-deploy --self-test-cache-permissions
+
       - name: Run isolated release tests and cache preflight
         env:
           APP_ENV: testing
