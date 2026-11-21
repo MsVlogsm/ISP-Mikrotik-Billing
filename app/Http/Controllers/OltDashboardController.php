@@ -255,7 +255,7 @@ class OltDashboardController extends Controller
 
             return redirect()->route('network-inventory.olt.dashboard', $device)
                 ->with('olt_metrics_success', false)
-                ->with('olt_metrics_message', Str::limit($exception->getMessage(), 1200));
+                ->with('olt_metrics_message', 'Live metrics poll failed ('.class_basename($exception).'). Check protected server logs and the OLT read-only profile.');
         }
     }
 
@@ -276,7 +276,7 @@ class OltDashboardController extends Controller
 
             return redirect()->route('network-inventory.olt.diagnostics', $device)
                 ->with('diagnostic_metrics_success', false)
-                ->with('diagnostic_metrics_message', Str::limit($exception->getMessage(), 1200));
+                ->with('diagnostic_metrics_message', 'Read-only diagnostics poll failed ('.class_basename($exception).'). Check protected server logs and the OLT read-only profile.');
         }
     }
 
