@@ -16,23 +16,32 @@ class BridgeFdbOidParser
         $parts = explode('.', ltrim(trim($suffix), '.'));
 
         if ($source === 'dot1d') {
-            // MacAddress is OCTET STRING (SIZE(6)); RFC 2578 7.7 encodes
-            // fixed-length strings as exactly six OID sub-identifiers.
-            if (count($parts) !== 6) {
+            // The standard fixed-size MacAddress index is six octets. Some
+            // OLT firmware also emits an explicit leading length of 6.
+            if (count($parts) === 6) {
+                $octets = $parts;
+            } elseif (count($parts) === 7 && $parts[0] === '6') {
+                $octets = array_slice($parts, 1, 6);
+            } else {
                 return null;
             }
 
-            $octets = $parts;
             $fdbId = null;
         } elseif ($source === 'dot1q') {
-            // INDEX { dot1qFdbId, dot1qTpFdbAddress }: one FDB ID plus
-            // exactly six octets (no extra length sub-identifier).
-            if (count($parts) !== 7 || ! ctype_digit($parts[0])) {
+            // INDEX { dot1qFdbId, dot1qTpFdbAddress }. Accept both the
+            // standard fixed-size form and firmware that inserts length=6.
+            if (! isset($parts[0]) || ! ctype_digit($parts[0])) {
                 return null;
             }
 
             $fdbId = (int) $parts[0];
-            $octets = array_slice($parts, 1, 6);
+            if (count($parts) === 7) {
+                $octets = array_slice($parts, 1, 6);
+            } elseif (count($parts) === 8 && $parts[1] === '6') {
+                $octets = array_slice($parts, 2, 6);
+            } else {
+                return null;
+            }
         } else {
             return null;
         }
