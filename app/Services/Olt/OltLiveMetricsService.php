@@ -8,12 +8,40 @@ use App\Models\OltLiveMetricSnapshot;
 use App\Models\OltOnuCustomerMapping;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Throwable;
 
 class OltLiveMetricsService
 {
-    public function __construct(private readonly OltReadOnlyAdapterManager $manager) {}
+    public function __construct(
+        private readonly OltReadOnlyAdapterManager $manager,
+        private readonly OltLiveMetricsAlertService $alerts,
+    ) {}
 
     public function poll(NetworkInventoryDevice $device): OltLiveMetricSnapshot
+    {
+        try {
+            $snapshot = $this->collect($device);
+        } catch (Throwable $exception) {
+            try {
+                $this->alerts->pollFailed($device, $exception);
+            } catch (Throwable $alertException) {
+                report($alertException);
+            }
+
+            throw $exception;
+        }
+
+        try {
+            $this->alerts->sync($device, $snapshot);
+        } catch (Throwable $alertException) {
+            // Telemetry snapshots remain valid even if notification persistence has a problem.
+            report($alertException);
+        }
+
+        return $snapshot;
+    }
+
+    private function collect(NetworkInventoryDevice $device): OltLiveMetricSnapshot
     {
         abort_unless($device->type === 'olt', 404);
         $started = microtime(true);
