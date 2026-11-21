@@ -79,7 +79,7 @@ jobs:
           mkdir -p database
           touch database/database.sqlite
           php8.5 artisan migrate --force
-          vendor/bin/phpunit
+          php8.5 vendor/bin/phpunit
           php8.5 artisan optimize:clear
           php8.5 artisan config:cache
           php8.5 artisan route:cache
