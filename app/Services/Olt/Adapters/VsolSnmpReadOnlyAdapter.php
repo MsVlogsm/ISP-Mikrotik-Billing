@@ -452,8 +452,15 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
         $statusByIndex = [];
         foreach ($fdbStatuses as $returnedOid => $value) {
             $index = $this->oidIndex((string) $returnedOid, $fdbStatusOid);
-            if ($index !== null && $index !== '') {
-                $statusByIndex[$index] = trim((string) $this->cleanSnmpValue($value));
+            if ($index === null || $index === '') {
+                continue;
+            }
+            $statusValue = trim((string) $this->cleanSnmpValue($value));
+            if (preg_match('/\((\d+)\)/', $statusValue, $statusMatch)) {
+                $statusValue = $statusMatch[1];
+            }
+            if (ctype_digit($statusValue)) {
+                $statusByIndex[$index] = (int) $statusValue;
             }
         }
 
@@ -489,16 +496,17 @@ class VsolSnmpReadOnlyAdapter implements OltReadOnlyAdapter
         $byOnu = [];
         foreach ($fdbPorts as $returnedOid => $value) {
             $index = $this->oidIndex((string) $returnedOid, $fdbPortOid);
-            if ($index === null || ($statusByIndex[$index] ?? null) !== '3') {
+            if ($index === null || ($statusByIndex[$index] ?? null) !== 3) {
                 continue; // Only a currently learned/dynamic FDB entry is safe evidence.
             }
 
             $parts = explode('.', $index);
-            // dot1dTpFdbPort index = {6, six octets of the learned MAC address}.
-            if (count($parts) !== 7 || (int) $parts[0] !== 6) {
+            // MacAddress is fixed-length OCTET STRING (SIZE(6)); RFC 2578 7.7
+            // encodes six octet sub-identifiers without a separate length field.
+            if (count($parts) !== 6) {
                 continue;
             }
-            $octets = array_slice($parts, 1);
+            $octets = $parts;
             if (count(array_filter($octets, static fn ($part) => ctype_digit($part) && (int) $part >= 0 && (int) $part <= 255)) !== 6) {
                 continue;
             }
