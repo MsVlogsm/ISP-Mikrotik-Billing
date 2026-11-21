@@ -45,6 +45,8 @@ class OltLiveMetricsAlertService
         $allUplinksDown = $uplinks->isNotEmpty() && $uplinks->every(fn (OltLiveMetricPort $port) => $port->oper_status === 'down');
 
         foreach ($ports as $port) {
+            $this->syncConfiguredSfpDdm($device, $port);
+
             if ($port->role === 'pon') {
                 $fingerprint = 'olt-live:pon-down:'.$device->id.':'.$port->if_index;
                 if ($port->oper_status === 'down' && (int) $port->onu_total > 0) {
@@ -130,6 +132,55 @@ class OltLiveMetricsAlertService
             ['warning' => (float) $temperature['warning'], 'critical' => (float) $temperature['critical']],
             '°C'
         );
+    }
+
+    private function syncConfiguredSfpDdm(NetworkInventoryDevice $device, OltLiveMetricPort $port): void
+    {
+        if (! filled($port->ddm_source)) {
+            return;
+        }
+
+        $config = $device->adapter_config;
+        if (is_string($config)) {
+            $config = json_decode($config, true) ?: [];
+        }
+        $config = is_array($config) ? $config : [];
+        $ddmThresholds = data_get($config, 'alert_thresholds.sfp', []);
+
+        if (! is_array($ddmThresholds)) {
+            return;
+        }
+
+        $temperature = $ddmThresholds['temperature_c'] ?? null;
+        if (is_array($temperature)
+            && is_numeric($temperature['warning'] ?? null)
+            && is_numeric($temperature['critical'] ?? null)) {
+            $this->syncUpperBound(
+                $device,
+                'sfp-temperature:'.$port->if_index,
+                'olt_sfp_temperature_high',
+                'SFP temperature is high: '.$device->name.' / '.$port->interface_name,
+                $port->sfp_temperature_c,
+                $temperature,
+                '°C'
+            );
+        }
+
+        $txPower = $ddmThresholds['tx_power_dbm'] ?? null;
+        if (is_array($txPower)
+            && is_numeric($txPower['warning'] ?? null)
+            && is_numeric($txPower['critical'] ?? null)) {
+            $this->syncLowerBound(
+                $device,
+                'sfp-tx-power:'.$port->if_index,
+                'olt_sfp_tx_power_low',
+                'SFP transmit power is low: '.$device->name.' / '.$port->interface_name,
+                $port->sfp_tx_power_dbm,
+                $txPower,
+                'dBm',
+                ['if_index' => (int) $port->if_index, 'interface' => (string) $port->interface_name, 'ddm_source' => (string) $port->ddm_source]
+            );
+        }
     }
 
     private function syncUpperBound(
