@@ -150,7 +150,7 @@ class OltDashboardTest extends TestCase
         $this->assertStringContainsString('OLT CPU utilization is high: P2 Alert Dashboard OLT', $html);
         $this->assertStringContainsString('ACKNOWLEDGED', $html);
         $this->assertStringContainsString('2 occurrence(s)', $html);
-        $this->assertStringContainsString('Events &amp; Alerts', $html);
+        $this->assertStringContainsString('Events & Alerts', $html);
     }
 
     public function test_read_only_olt_snapshot_defaults_and_signal_fields_are_persisted(): void
