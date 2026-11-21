@@ -329,6 +329,29 @@
                 <div><dt>Last Health Check</dt><dd>{{ $deviceInfo['last_checked_at']?->format('d M Y H:i:s') ?: 'Never' }}</dd></div>
                 <div><dt>Latency</dt><dd>{{ $deviceInfo['last_latency_ms'] !== null ? $deviceInfo['last_latency_ms'].' ms' : 'No sample' }}</dd></div>
             </dl>
+            <div class="mt-3 pt-3 border-top">
+                <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                    <strong><i class="bi bi-grid-3x3-gap me-1"></i> Vendor Capability Matrix</strong>
+                    <span class="badge text-bg-secondary">{{ $capabilityMatrix['verified_count'] }} verified</span>
+                </div>
+                <div class="small text-muted mb-2">
+                    {{ $capabilityMatrix['vendor'] }} · {{ $capabilityMatrix['model'] }} · {{ $capabilityMatrix['firmware'] }}
+                </div>
+                <div class="d-flex flex-column gap-2">
+                    @foreach($capabilityMatrix['items'] as $capability)
+                        <div class="d-flex align-items-start justify-content-between gap-2">
+                            <div class="min-w-0">
+                                <div class="small fw-semibold">{{ $capability['label'] }}</div>
+                                <div class="small text-muted">{{ $capability['detail'] }}</div>
+                            </div>
+                            <span class="badge text-bg-{{ $capability['status'] === 'verified' ? 'success' : ($capability['status'] === 'configured' ? 'primary' : ($capability['status'] === 'profile_available' ? 'info' : ($capability['status'] === 'requires_model_mib' ? 'warning' : 'secondary'))) }} flex-shrink-0">{{ $capability['status_label'] }}</span>
+                        </div>
+                    @endforeach
+                </div>
+                <div class="small text-muted mt-2">
+                    Verified values come from live read-only results. A vendor-family profile alone does not certify every model or firmware.
+                </div>
+            </div>
             <div class="olt-dash-device-actions">
                 <a class="btn btn-outline-primary btn-sm" href="{{ route('network-inventory.olt.edit',$device) }}"><i class="bi bi-pencil"></i> Edit OLT</a>
                 <a class="btn btn-outline-secondary btn-sm" href="{{ route('network-inventory.olt.customers',$device) }}"><i class="bi bi-people"></i> Mapping</a>

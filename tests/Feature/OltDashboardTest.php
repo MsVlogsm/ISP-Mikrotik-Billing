@@ -74,6 +74,8 @@ class OltDashboardTest extends TestCase
         $this->assertStringContainsString('Discovered ONUs', $html);
         $this->assertStringContainsString('−20 dBm', $html);
         $this->assertStringContainsString('Sync ONU', $html);
+        $this->assertStringContainsString('Vendor Capability Matrix', $html);
+        $this->assertStringContainsString('Model MIB required', $html);
     }
 
     public function test_olt_dashboard_renders_offline_onu_alert_without_missing_stats_key(): void
