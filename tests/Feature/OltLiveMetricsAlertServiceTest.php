@@ -135,6 +135,61 @@ class OltLiveMetricsAlertServiceTest extends TestCase
         ]);
     }
 
+    public function test_sfp_ddm_alerts_require_both_a_real_ddm_source_and_explicit_transceiver_thresholds(): void
+    {
+        $this->olt->update([
+            'adapter_config' => json_encode([
+                'alert_thresholds' => [
+                    'sfp' => [
+                        'temperature_c' => ['warning' => 70, 'critical' => 80],
+                        'tx_power_dbm' => ['warning' => -8, 'critical' => -10],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $withoutSource = $this->snapshot();
+        OltLiveMetricPort::query()->create([
+            'snapshot_id' => $withoutSource->id,
+            'olt_device_id' => $this->olt->id,
+            'if_index' => 301,
+            'interface_name' => 'SFP1/1',
+            'role' => 'uplink_sfp',
+            'oper_status' => 'up',
+            'sfp_temperature_c' => 90,
+            'sfp_tx_power_dbm' => -12,
+            'sampled_at' => now(),
+        ]);
+        $this->alerts->sync($this->olt, $withoutSource->load('ports'));
+        $this->assertSame(0, NetworkEvent::count(), 'A numeric field without an explicit DDM source is not trusted.');
+
+        $withSource = $this->snapshot();
+        OltLiveMetricPort::query()->create([
+            'snapshot_id' => $withSource->id,
+            'olt_device_id' => $this->olt->id,
+            'if_index' => 302,
+            'interface_name' => 'SFP1/2',
+            'role' => 'uplink_sfp',
+            'oper_status' => 'up',
+            'sfp_temperature_c' => 85,
+            'sfp_tx_power_dbm' => -11,
+            'ddm_source' => 'explicit-device-sfp-ddm-oids',
+            'sampled_at' => now(),
+        ]);
+        $this->alerts->sync($this->olt, $withSource->load('ports'));
+
+        $this->assertDatabaseHas('network_events', [
+            'fingerprint' => 'olt-live:sfp-temperature:302:'.$this->olt->id,
+            'severity' => 'critical',
+            'status' => 'open',
+        ]);
+        $this->assertDatabaseHas('network_events', [
+            'fingerprint' => 'olt-live:sfp-tx-power:302:'.$this->olt->id,
+            'severity' => 'critical',
+            'status' => 'open',
+        ]);
+    }
+
     public function test_poll_failure_is_deduplicated_and_successful_poll_resolves_it_without_leaking_exception_text(): void
     {
         $exception = new RuntimeException('private-snmp-community-should-not-be-logged');
