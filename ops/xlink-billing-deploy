@@ -19,6 +19,74 @@ normalize_shared_view_cache_permissions() {
     find "$view_dir" -maxdepth 1 -type f -name '*.php' -exec chown www-data:www-data -- {} +
     find "$view_dir" -maxdepth 1 -type f -name '*.php' -exec chmod 0644 -- {} +
 }
+
+as_www_data() {
+    if [[ $EUID -eq 0 ]]; then
+        runuser -u www-data -- "$@"
+    else
+        sudo -n -u www-data -- "$@"
+    fi
+}
+
+normalize_release_bootstrap_cache_permissions() {
+    local cache_dir="${1:?Release bootstrap/cache directory is required}"
+    local cache_file
+
+    [[ -d "$cache_dir" ]] || {
+        printf 'ERROR: Release bootstrap cache directory is missing: %s\n' "$cache_dir" >&2
+        return 1
+    }
+
+    find "$cache_dir" -maxdepth 1 -type f -name '*.php' -exec chmod 0644 -- {} +
+
+    as_www_data test -x "$cache_dir" || {
+        printf 'ERROR: www-data cannot traverse release bootstrap cache: %s\n' "$cache_dir" >&2
+        return 1
+    }
+
+    while IFS= read -r -d '' cache_file; do
+        as_www_data test -r "$cache_file" || {
+            printf 'ERROR: www-data cannot read release cache file: %s\n' "$cache_file" >&2
+            return 1
+        }
+    done < <(find "$cache_dir" -maxdepth 1 -type f -name '*.php' -print0)
+}
+
+self_test_cache_permissions() (
+    set -Eeuo pipefail
+    local test_root cache_dir cache_file
+
+    test_root="$(mktemp -d "${TMPDIR:-/tmp}/xlink-cache-permissions.XXXXXX")"
+    trap 'rm -f -- "$cache_file"; rmdir -- "$cache_dir" "$test_root"' EXIT
+    chmod 0755 "$test_root"
+    cache_dir="$test_root/bootstrap-cache"
+    mkdir -m 0775 "$cache_dir"
+    cache_file="$cache_dir/config.php"
+
+    (
+        umask 077
+        printf '<?php return [];\n' > "$cache_file"
+    )
+
+    [[ "$(stat -c '%a' "$cache_file")" == "600" ]] || {
+        printf 'ERROR: Regression test did not reproduce restrictive umask.\n' >&2
+        exit 1
+    }
+
+    normalize_release_bootstrap_cache_permissions "$cache_dir"
+    [[ "$(stat -c '%a' "$cache_file")" == "644" ]] || {
+        printf 'ERROR: Cache normalization did not produce mode 0644.\n' >&2
+        exit 1
+    }
+    as_www_data test -r "$cache_file"
+    printf 'PASS: restrictive-umask cache file normalized and readable by www-data.\n'
+)
+if [[ "${1:-}" == "--self-test-cache-permissions" ]]; then
+    self_test_cache_permissions
+    exit 0
+fi
+[[ $# -eq 0 ]] || fail "Unknown argument: $1"
+
 [[ $EUID -eq 0 ]] || fail "Must run as root."
 [[ -f "$MODE_FILE" && "$(cat "$MODE_FILE")" == "release-v1" ]] || fail "Release-v1 layout marker is missing."
 [[ -L "$CURRENT" ]] || fail "Stable current symlink is missing."
@@ -118,8 +186,12 @@ cd "$CANDIDATE"
 )
 APP_VERSION="$(php8.5 artisan --version)"
 case "$APP_VERSION" in "Laravel Framework 13."*) ;; *) fail "Candidate is not Laravel 13 ($APP_VERSION)." ;; esac
-php8.5 artisan config:cache --no-ansi
-php8.5 artisan route:cache --no-ansi
+(
+    umask 022
+    php8.5 artisan config:cache --no-ansi
+    php8.5 artisan route:cache --no-ansi
+)
+normalize_release_bootstrap_cache_permissions "$CANDIDATE/bootstrap/cache"
 php8.5 artisan about --only=environment --no-ansi >/dev/null
 
 if [[ -f "$SRC/.xlink-run-migrations" ]] && [[ "$(tr -d '\r\n' < "$SRC/.xlink-run-migrations")" == "yes" ]]; then
@@ -145,6 +217,7 @@ rollback() {
         systemctl reload php8.5-fpm >/dev/null 2>&1 || true
         php8.5 "$PREVIOUS/artisan" view:cache --no-ansi >/dev/null 2>&1 || true
         normalize_shared_view_cache_permissions || true
+        normalize_release_bootstrap_cache_permissions "$PREVIOUS/bootstrap/cache" || true
         curl --silent --show-error --max-time 20 --resolve bill.xlinkbd.net:443:127.0.0.1 --location --output /dev/null https://bill.xlinkbd.net/login || true
     fi
     exit "$rc"
