@@ -2,19 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\NetworkBridgeFdbSnapshot;
 use App\Models\NetworkInventoryDevice;
 use App\Models\NetworkInventoryHealthCheck;
-use App\Models\OltMonitoringSnapshot;
-use App\Models\OltLiveMetricSnapshot;
+use App\Models\NetworkEvent;
 use App\Models\OltLiveMetricPort;
-use App\Services\Olt\OltLiveMetricsService;
+use App\Models\OltLiveMetricSnapshot;
+use App\Models\OltMonitoringSnapshot;
 use App\Models\OltOnuCustomerMapping;
+use App\Services\Olt\OltCapabilityRegistry;
+use App\Services\Olt\OltLiveMetricsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\View\View;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
 use Throwable;
 
 class OltDashboardController extends Controller
@@ -33,6 +36,10 @@ class OltDashboardController extends Controller
 
         $liveMetricSnapshot = OltLiveMetricSnapshot::where('olt_device_id', $device->id)
             ->latest('sampled_at')->first();
+        $latestFdbSnapshot = NetworkBridgeFdbSnapshot::query()
+            ->where('network_inventory_device_id', $device->id)
+            ->latest('sampled_at')
+            ->first();
         $livePorts = $liveMetricSnapshot
             ? OltLiveMetricPort::where('snapshot_id', $liveMetricSnapshot->id)->orderByRaw("CASE role WHEN 'pon' THEN 0 WHEN 'uplink_ge' THEN 1 WHEN 'uplink_sfp' THEN 2 ELSE 3 END")->orderBy('if_index')->get()
             : collect();
@@ -157,7 +164,39 @@ class OltDashboardController extends Controller
 
         $alerts = $this->buildAlerts($device, $stats, $latestSnapshot, $latestHealth, $freshOpmCount, $opmFreshMinutes);
 
+        $liveEvents = NetworkEvent::query()
+            ->where('device_id', $device->id)
+            ->where('source_type', 'olt-live-telemetry')
+            ->whereIn('status', ['open', 'acknowledged'])
+            ->latest('last_seen_at')
+            ->limit(10)
+            ->get();
+
+        foreach ($liveEvents as $event) {
+            $alerts[] = [
+                'level' => $event->severity,
+                'title' => $event->title,
+                'detail' => trim(($event->message ?: 'OLT telemetry threshold triggered')
+                    .' · '.strtoupper($event->status)
+                    .' · '.$event->occurrences.' occurrence(s)'),
+            ];
+        }
+
         $rawCommunity = $device->getRawOriginal('snmp_community');
+        $ddmReadings = $liveMetricSnapshot
+            ? OltLiveMetricPort::query()
+                ->where('snapshot_id', $liveMetricSnapshot->id)
+                ->whereNotNull('ddm_source')
+                ->count()
+            : 0;
+        $capabilityMatrix = app(OltCapabilityRegistry::class)->forDevice(
+            $device,
+            $latestFdbSnapshot,
+            $liveMetricSnapshot,
+            $latestSnapshot,
+            $ddmReadings
+        );
+
         $deviceInfo = [
             'name' => $device->name,
             'ip' => $device->ip_address ?: $device->host,
@@ -197,7 +236,8 @@ class OltDashboardController extends Controller
             'freshOpmCount',
             'opmFreshMinutes',
             'alerts',
-            'deviceInfo'
+            'deviceInfo',
+            'capabilityMatrix'
         ));
     }
 
@@ -226,13 +266,15 @@ class OltDashboardController extends Controller
                 .'; PON up: '.$snapshot->pon_up.'/'.($snapshot->pon_up + $snapshot->pon_down)
                 .'; ONU: '.$snapshot->onu_online.'/'.$snapshot->onu_total.' online'
                 .'; poll duration: '.$snapshot->poll_duration_ms.' ms.';
+
             return redirect()->route('network-inventory.olt.dashboard', $device)
                 ->with('olt_metrics_success', true)->with('olt_metrics_message', $message);
         } catch (Throwable $exception) {
             report($exception);
+
             return redirect()->route('network-inventory.olt.dashboard', $device)
                 ->with('olt_metrics_success', false)
-                ->with('olt_metrics_message', Str::limit($exception->getMessage(), 1200));
+                ->with('olt_metrics_message', 'Live metrics poll failed ('.class_basename($exception).'). Check protected server logs and the OLT read-only profile.');
         }
     }
 
@@ -245,13 +287,15 @@ class OltDashboardController extends Controller
                 .'. '.$snapshot->onu_online.'/'.$snapshot->onu_total.' ONU online; '
                 .$snapshot->pon_up.'/'.($snapshot->pon_up + $snapshot->pon_down).' PON up; '
                 .$snapshot->interface_count.' interfaces in '.$snapshot->poll_duration_ms.' ms.';
+
             return redirect()->route('network-inventory.olt.diagnostics', $device)
                 ->with('diagnostic_metrics_success', true)->with('diagnostic_metrics_message', $message);
         } catch (Throwable $exception) {
             report($exception);
+
             return redirect()->route('network-inventory.olt.diagnostics', $device)
                 ->with('diagnostic_metrics_success', false)
-                ->with('diagnostic_metrics_message', Str::limit($exception->getMessage(), 1200));
+                ->with('diagnostic_metrics_message', 'Read-only diagnostics poll failed ('.class_basename($exception).'). Check protected server logs and the OLT read-only profile.');
         }
     }
 
@@ -332,7 +376,7 @@ class OltDashboardController extends Controller
             $alerts[] = ['level' => 'warning', 'title' => number_format($stats['signal_warning']).' ONU(s) have weak RX power', 'detail' => 'Check connector loss, splitter path and optical budget.'];
         }
 
-        if (!$snapshot) {
+        if (! $snapshot) {
             $alerts[] = ['level' => 'info', 'title' => 'No verified OLT monitoring snapshot yet', 'detail' => 'Use Sync ONU to collect the first read-only inventory snapshot.'];
         } elseif ($snapshot->sampled_at->lt(now()->subMinutes(10))) {
             $alerts[] = ['level' => 'warning', 'title' => 'ONU telemetry is stale', 'detail' => 'The last complete read-only inventory snapshot is '.$snapshot->sampled_at->diffForHumans().'.'];

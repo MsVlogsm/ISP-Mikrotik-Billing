@@ -10,6 +10,7 @@
             <a class="btn btn-sm {{ ($active ?? '') === 'overview' ? 'btn-primary' : 'btn-outline-primary' }}" href="{{ route('network-inventory.olt.dashboard', $device) }}">Overview</a>
             <a class="btn btn-sm {{ ($active ?? '') === 'customers' ? 'btn-primary' : 'btn-outline-primary' }}" href="{{ route('network-inventory.olt.customers', $device) }}">ONU / Customers</a>
             <a class="btn btn-sm {{ ($active ?? '') === 'bridge-fdb' ? 'btn-primary' : 'btn-outline-primary' }}" href="{{ route('network-inventory.device.bridge-fdb', $device) }}">L2 Bridge / FDB</a>
+            <a class="btn btn-sm {{ ($active ?? '') === 'universal-search' ? 'btn-primary' : 'btn-outline-primary' }}" href="{{ route('network-inventory.universal-search') }}">Universal Search</a>
             <a class="btn btn-sm {{ ($active ?? '') === 'diagnostics' ? 'btn-primary' : 'btn-outline-primary' }}" href="{{ route('network-inventory.olt.diagnostics', $device) }}">Diagnostics</a>
             <a class="btn btn-sm {{ ($active ?? '') === 'config' ? 'btn-primary' : 'btn-outline-primary' }}" href="{{ route('network-inventory.olt.edit', $device) }}">Configuration</a>
         </div>

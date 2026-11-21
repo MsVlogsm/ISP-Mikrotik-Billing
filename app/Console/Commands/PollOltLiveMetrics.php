@@ -36,7 +36,7 @@ class PollOltLiveMetrics extends Command
             } catch (Throwable $exception) {
                 $failed++;
                 report($exception);
-                $this->error('OLT #'.$device->id.' '.$device->name.': '.$exception->getMessage());
+                $this->error('OLT #'.$device->id.' '.$device->name.' failed ('.class_basename($exception).'). Review protected server logs for details.');
             }
         }
 

@@ -8,12 +8,42 @@ use App\Models\OltLiveMetricSnapshot;
 use App\Models\OltOnuCustomerMapping;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Throwable;
 
 class OltLiveMetricsService
 {
-    public function __construct(private readonly OltReadOnlyAdapterManager $manager) {}
+    public function __construct(
+        private readonly OltReadOnlyAdapterManager $manager,
+        private readonly OltLiveMetricsAlertService $alerts,
+    ) {}
 
     public function poll(NetworkInventoryDevice $device): OltLiveMetricSnapshot
+    {
+        abort_unless($device->type === 'olt', 404);
+
+        try {
+            $snapshot = $this->collect($device);
+        } catch (Throwable $exception) {
+            try {
+                $this->alerts->pollFailed($device, $exception);
+            } catch (Throwable $alertException) {
+                report($alertException);
+            }
+
+            throw $exception;
+        }
+
+        try {
+            $this->alerts->sync($device, $snapshot);
+        } catch (Throwable $alertException) {
+            // Telemetry snapshots remain valid even if notification persistence has a problem.
+            report($alertException);
+        }
+
+        return $snapshot;
+    }
+
+    private function collect(NetworkInventoryDevice $device): OltLiveMetricSnapshot
     {
         abort_unless($device->type === 'olt', 404);
         $started = microtime(true);
@@ -155,6 +185,11 @@ class OltLiveMetricsService
                     'avg_rx_dbm' => $rx ? round(array_sum($rx) / count($rx), 2) : null,
                     'avg_tx_dbm' => $tx ? round(array_sum($tx) / count($tx), 2) : null,
                     'avg_distance_m' => $distance ? round(array_sum($distance) / count($distance), 2) : null,
+                    'sfp_tx_power_dbm' => $this->boundedMetric($interface['tx_power_dbm'] ?? null, -40, 20),
+                    'sfp_temperature_c' => $this->boundedMetric($interface['temperature_c'] ?? null, -40, 125),
+                    'sfp_voltage_v' => $this->boundedMetric($interface['supply_voltage_v'] ?? null, 0, 10),
+                    'sfp_laser_bias_ma' => $this->boundedMetric($interface['laser_bias_ma'] ?? null, 0, 200),
+                    'ddm_source' => is_string($interface['sfp_ddm_source'] ?? null) ? $interface['sfp_ddm_source'] : null,
                     'sampled_at' => $now,
                 ]);
             }

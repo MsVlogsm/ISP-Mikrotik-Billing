@@ -61,3 +61,43 @@ Subscriber labels are joined only via exact, unique active client-MAC, ONU-MAC, 
 ### OID index compatibility
 
 The collector accepts the standard fixed-size six-octet `MacAddress` index and a firmware variant that inserts an explicit length sub-identifier of `6` before the six octets. The latter form was verified on the production VSOL `V1600D4` read-only MIB walk. Any other length marker or index shape is rejected.
+
+## P1 collection and diagnostics extensions
+
+- Collection order: direct device SNMP GET/WALK, then an explicitly configured
+  RouterOS SNMP proxy (bridge_fdb.proxy_router_id), then an explicitly enabled
+  SSH account running a fixed vendor command allowlist.
+- The RouterOS proxy uses /tool/snmp-walk with the target device IP, SNMP port,
+  read-only community, version and OID. The proxy router must be selected by ID
+  and connected with API access; it is never auto-selected.
+- SSH fallback requires ssh_enabled=true and saved device credentials. It does
+  not use default credentials, Telnet, enable mode, configuration mode or writes.
+- MAC movement history compares the same learned MAC/VLAN between consecutive
+  successful snapshots. Three or more observed interface moves in ten minutes
+  are marked as flapping.
+- SFP DDM OIDs are per-model / firmware / transceiver configuration only.
+  Populate adapter_config.sfp_ddm_oids and, where required,
+  adapter_config.sfp_ddm_ifindex_map from the exact vendor MIB.
+  Unsupported or unconfigured values remain null and are not estimated.
+- Universal Network Search reads customer/PPPoE/ONU records and, when
+  submitted, performs read-only RouterOS active-session and ARP queries.
+
+## P1 collection and diagnostics extensions
+
+- Collection order: direct device SNMP GET/WALK, then an explicitly configured
+  RouterOS SNMP proxy (bridge_fdb.proxy_router_id), then an explicitly enabled
+  SSH account running a fixed vendor command allowlist.
+- The RouterOS proxy uses /tool/snmp-walk with the target device IP, SNMP port,
+  read-only community, version and OID. The proxy router must be selected by ID
+  and connected with API access; it is never auto-selected.
+- SSH fallback requires ssh_enabled=true and saved device credentials. It does
+  not use default credentials, Telnet, enable mode, configuration mode or writes.
+- MAC movement history compares the same learned MAC/VLAN between consecutive
+  successful snapshots. Three or more observed interface moves in ten minutes
+  are marked as flapping.
+- SFP DDM OIDs are per-model / firmware / transceiver configuration only.
+  Populate adapter_config.sfp_ddm_oids and, where required,
+  adapter_config.sfp_ddm_ifindex_map from the exact vendor MIB.
+  Unsupported or unconfigured values remain null and are not estimated.
+- Universal Network Search reads customer/PPPoE/ONU records and, when
+  submitted, performs read-only RouterOS active-session and ARP queries.

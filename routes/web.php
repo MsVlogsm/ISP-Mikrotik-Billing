@@ -562,6 +562,10 @@ Route::middleware([
             return back()->with('onu_sync_message', trim(\Illuminate\Support\Facades\Artisan::output()) ?: 'ONU mapping synchronization completed.')->with('onu_sync_success', true);
         })->name('network-inventory.olt.sync');
 
+        Route::get('/network-inventory/universal-search', [\App\Http\Controllers\UniversalNetworkSearchController::class, 'index'])
+            ->middleware('throttle:10,1')
+            ->name('network-inventory.universal-search');
+
         Route::get('/network-inventory/olt-management', function () {
             $query = \App\Models\NetworkInventoryDevice::type('olt')->orderBy('name');
             if ($q = trim((string) request('q',''))) {
