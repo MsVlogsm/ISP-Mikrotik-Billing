@@ -56,3 +56,8 @@ Subscriber labels are joined only via exact, unique active client-MAC, ONU-MAC, 
 3. Verify VLAN-to-FDB mapping, bridge-port-to-ifIndex, ifName/ifDescr, and exact ONU interface identity against that hardware/firmware.
 4. Enable polling only on Staging and confirm saved snapshots and error handling.
 5. Review per-vendor support before enabling production polling.
+
+
+### OID index compatibility
+
+The collector accepts the standard fixed-size six-octet `MacAddress` index and a firmware variant that inserts an explicit length sub-identifier of `6` before the six octets. The latter form was verified on the production VSOL `V1600D4` read-only MIB walk. Any other length marker or index shape is rejected.

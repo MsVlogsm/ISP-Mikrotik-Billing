@@ -27,11 +27,25 @@ class BridgeFdbOidParserTest extends TestCase
         );
     }
 
+    public function test_it_parses_vsol_length_prefixed_dot1d_and_dot1q_indexes(): void
+    {
+        $parser = new BridgeFdbOidParser;
+
+        $this->assertSame(
+            ['mac' => '00:11:22:33:44:55', 'fdb_id' => null],
+            $parser->parseIndex('6.0.17.34.51.68.85', 'dot1d')
+        );
+        $this->assertSame(
+            ['mac' => '00:11:22:33:44:55', 'fdb_id' => 100],
+            $parser->parseIndex('100.6.0.17.34.51.68.85', 'dot1q')
+        );
+    }
+
     public function test_it_rejects_malformed_or_unsupported_fdb_indexes(): void
     {
         $parser = new BridgeFdbOidParser;
 
-        $this->assertNull($parser->parseIndex('6.0.17.34.51.68.85', 'dot1d'));
+        $this->assertNull($parser->parseIndex('5.0.17.34.51.68.85', 'dot1d'));
         $this->assertNull($parser->parseIndex('100.5.0.17.34.51.68.85', 'dot1q'));
         $this->assertNull($parser->parseIndex('100.0.17.34.51.68.999', 'dot1q'));
         $this->assertNull($parser->parseIndex('100.0.17.34.51.68.85', 'unknown'));
