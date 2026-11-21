@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: \${{ inputs.confirm_production == 'deploy' && github.ref == 'refs/heads/main' }}
+    if: ${{ inputs.confirm_production == 'deploy' && github.ref == 'refs/heads/main' }}
     runs-on: [self-hosted, linux, x64, xlink-production]
     environment:
       name: production
@@ -58,7 +58,7 @@ jobs:
         env:
           APP_ENV: testing
           DB_CONNECTION: sqlite
-          DB_DATABASE: \${{ github.workspace }}/database/database.sqlite
+          DB_DATABASE: ${{ github.workspace }}/database/database.sqlite
           CACHE_STORE: array
           QUEUE_CONNECTION: sync
           SESSION_DRIVER: array
@@ -90,8 +90,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "\${GITHUB_REF_NAME}" = "main"
-          printf '%s\n' "\${GITHUB_SHA}" > "$GITHUB_WORKSPACE/.xlink-deploy-sha"
+          test "${GITHUB_REF_NAME}" = "main"
+          printf '%s\n' "${GITHUB_SHA}" > "$GITHUB_WORKSPACE/.xlink-deploy-sha"
           sudo -n /usr/local/sbin/xlink-billing-deploy
 
       - name: Verify production HTTPS endpoint and active Laravel release
@@ -101,5 +101,5 @@ jobs:
           HTTP_CODE="$(curl --silent --show-error --fail --max-time 25 --retry 2 --retry-delay 2 --resolve bill.xlinkbd.net:443:127.0.0.1 --location --output /dev/null --write-out '%{http_code}' https://bill.xlinkbd.net/login)"
           test "$HTTP_CODE" = "200"
           APP_VERSION="$(php8.5 /var/www/isp-billing-releases/current/artisan --version)"
-          grep -q 'Laravel Framework 13\\.' <<<"$APP_VERSION"
+          grep -q 'Laravel Framework 13\.' <<<"$APP_VERSION"
           echo "Verified HTTPS login endpoint and active release: $APP_VERSION"
