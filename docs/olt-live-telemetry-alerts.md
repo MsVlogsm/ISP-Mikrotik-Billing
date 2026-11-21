@@ -10,6 +10,7 @@ The OLT live-metrics collector remains the source of truth for read-only measure
 - PON down: critical only when the sampled PON has ONU records.
 - Uplink down: warning when another sampled uplink remains up; critical when every sampled uplink is down.
 - Chassis temperature: disabled unless exact-device, model-specific thresholds are configured in `adapter_config.alert_thresholds.temperature_c.warning` and `critical`.
+- SFP DDM: temperature and TX-power alarms are disabled unless a saved numeric sample has an explicit `ddm_source` and exact-device transceiver thresholds are configured under `adapter_config.alert_thresholds.sfp.temperature_c` or `adapter_config.alert_thresholds.sfp.tx_power_dbm`.
 
 Thresholds are evaluated only when a numeric measurement exists. Missing or stale values are not interpreted as healthy or as zero.
 
