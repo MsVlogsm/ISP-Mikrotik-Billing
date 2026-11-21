@@ -28,7 +28,7 @@ This runbook is deliberately separate from the deployment workflow. Do not run a
 
 - Build under a unique new release directory; never rsync with --delete into the live release.
 - Reuse the stable shared .env and storage paths. Do not copy secrets into release artifacts.
-- Run Composer install and Laravel optimize/cache preparation in the candidate release.
+- Run Composer install and candidate-specific config/route cache preparation before switching. Because storage is shared, generate the Blade view cache only after the atomic switch; if rollback occurs, regenerate the previous release's view cache.
 - Back up and verify the production database before any approved migration. Migrations must be reviewed for backward compatibility; this workflow must not be used to approve a schema change by itself.
 - Use an atomic temporary symlink plus rename (mv -Tf) for the current switch.
 - Health-check https://bill.xlinkbd.net/login through the local HTTPS vhost with TLS verification. On failure, restore the previous symlink and re-check health.

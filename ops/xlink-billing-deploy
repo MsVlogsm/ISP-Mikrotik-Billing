@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# XLINK_RELEASE_DEPLOY_V1
+set -Eeuo pipefail
+umask 077
+
+RELEASE_ROOT="/var/www/isp-billing-releases"
+CURRENT="$RELEASE_ROOT/current"
+SHARED_ROOT="/var/www/isp-billing-shared"
+BACKUP_ROOT="/var/backups/xlink-billing-deploy"
+SRC="/opt/actions-runner/_work/ISP-Mikrotik-Billing/ISP-Mikrotik-Billing"
+MODE_FILE="/etc/xlink-billing/deploy-mode"
+LOCK="/var/lock/xlink-billing-deploy.lock"
+
+fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+[[ $EUID -eq 0 ]] || fail "Must run as root."
+[[ -f "$MODE_FILE" && "$(cat "$MODE_FILE")" == "release-v1" ]] || fail "Release-v1 layout marker is missing."
+[[ -L "$CURRENT" ]] || fail "Stable current symlink is missing."
+PREVIOUS="$(readlink -f -- "$CURRENT")"
+[[ -d "$PREVIOUS" && -f "$PREVIOUS/artisan" ]] || fail "Current release is invalid."
+[[ -f "$SHARED_ROOT/.env" && -d "$SHARED_ROOT/storage" ]] || fail "Shared runtime is incomplete."
+[[ "$(readlink -f "$PREVIOUS/.env")" == "$(readlink -f "$SHARED_ROOT/.env")" ]] || fail "Active release .env is not shared."
+[[ "$(readlink -f "$PREVIOUS/storage")" == "$(readlink -f "$SHARED_ROOT/storage")" ]] || fail "Active release storage is not shared."
+
+exec 9>"$LOCK"
+flock -n 9 || fail "Another X-Link deployment is running."
+
+for path in "$SRC/.git" "$SRC/artisan" "$SRC/composer.json" "$SRC/composer.lock" "$SRC/.xlink-deploy-sha"; do
+    [[ -e "$path" ]] || fail "Required source path missing: $path"
+done
+EXPECTED_SHA="$(tr -d '\r\n' < "$SRC/.xlink-deploy-sha")"
+SOURCE_SHA="$(git -c safe.directory="$SRC" -C "$SRC" rev-parse HEAD)"
+[[ -n "$EXPECTED_SHA" && "$EXPECTED_SHA" == "$SOURCE_SHA" ]] || fail "Source SHA does not match tested workflow SHA."
+[[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || fail "Invalid source SHA."
+
+php8.5 -r '
+$m=json_decode(file_get_contents($argv[1]),true,512,JSON_THROW_ON_ERROR);
+$l=json_decode(file_get_contents($argv[2]),true,512,JSON_THROW_ON_ERROR);
+$v=null;
+foreach (($l["packages"] ?? []) as $p) if (($p["name"] ?? "") === "laravel/framework") { $v=$p["version"] ?? null; break; }
+if (($m["require"]["php"] ?? "") !== "^8.5" || ($m["require"]["laravel/framework"] ?? "") !== "^13.0" || !is_string($v) || !str_starts_with($v,"v13.")) {
+    fwrite(STDERR,"Refusing deployment: candidate is not on PHP 8.5 / Laravel 13 baseline.\n"); exit(1);
+}
+echo "Candidate dependency baseline: Laravel $v / PHP ^8.5\n";
+' "$SRC/composer.json" "$SRC/composer.lock"
+
+NGINX_DUMP="$(nginx -T 2>&1)" || fail "nginx -T failed."
+python3 - "$NGINX_DUMP" "$CURRENT/public" <<'PY'
+import re,sys
+config,expected=sys.argv[1:]
+blocks=re.findall(r"(?ms)^server\s*\{(.*?)^\}",config)
+ok=False
+for b in blocks:
+    names=re.findall(r"(?m)^\s*server_name\s+([^;]+);",b)
+    listens=re.findall(r"(?m)^\s*listen\s+([^;]+);",b)
+    roots=re.findall(r"(?m)^\s*root\s+([^;]+);",b)
+    if any("bill.xlinkbd.net" in x.split() for x in names) and any(re.match(r"\s*443(?:\s|$)",x) for x in listens):
+        if roots and roots[-1] == expected and "/run/php/php8.5-fpm.sock" in b:
+            ok=True
+if not ok:
+    print("HTTPS vhost is not configured for current/public with PHP 8.5-FPM.",file=sys.stderr); sys.exit(1)
+PY
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+SHORT_SHA="$(printf '%s' "$SOURCE_SHA" | cut -c1-7)"
+CANDIDATE="$RELEASE_ROOT/$STAMP-$SHORT_SHA"
+[[ ! -e "$CANDIDATE" ]] || fail "Candidate release already exists."
+mkdir -p "$BACKUP_ROOT"
+chmod 700 "$BACKUP_ROOT"
+CODE_BACKUP="$BACKUP_ROOT/code-$STAMP-$(basename "$PREVIOUS").tar.gz"
+DB_SQL="$BACKUP_ROOT/db-$STAMP.sql"
+DB_BACKUP="$DB_SQL.gz"
+
+tar --exclude='./.git' --exclude='./.env' --exclude='./storage' --exclude='./vendor' --exclude='./node_modules' -czf "$CODE_BACKUP" -C "$PREVIOUS" .
+chmod 600 "$CODE_BACKUP"
+
+php8.5 -r '
+require $argv[1]."/vendor/autoload.php";
+$e=\Dotenv\Dotenv::parse(file_get_contents($argv[2]));
+if (($e["DB_CONNECTION"] ?? "") !== "mysql") { fwrite(STDERR,"Unsupported DB driver for automatic backup.\n"); exit(30); }
+foreach (["DB_HOST","DB_DATABASE","DB_USERNAME"] as $k) if (!isset($e[$k]) || $e[$k] === "") { fwrite(STDERR,"Missing DB setting: $k\n"); exit(31); }
+$host=$e["DB_HOST"]; $port=($e["DB_PORT"] ?? "") ?: "3306"; $user=$e["DB_USERNAME"]; $db=$e["DB_DATABASE"];
+putenv("MYSQL_PWD=".($e["DB_PASSWORD"] ?? ""));
+$cmd="mysqldump --single-transaction --quick --routines --triggers --host=".escapeshellarg($host)." --port=".escapeshellarg($port)." --user=".escapeshellarg($user)." --databases ".escapeshellarg($db)." > ".escapeshellarg($argv[3])." 2>".escapeshellarg($argv[3].".err");
+exec($cmd,$out,$code);
+if ($code !== 0 || !is_file($argv[3]) || filesize($argv[3]) === 0) { fwrite(STDERR,"Database backup failed; protected error file retained.\n"); exit($code ?: 32); }
+' "$PREVIOUS" "$SHARED_ROOT/.env" "$DB_SQL"
+gzip -9 "$DB_SQL"
+gzip -t "$DB_BACKUP"
+chmod 600 "$DB_BACKUP"
+rm -f "$DB_BACKUP.err"
+sha256sum "$CODE_BACKUP" "$DB_BACKUP" > "$BACKUP_ROOT/SHA256-$STAMP.txt"
+chmod 600 "$BACKUP_ROOT/SHA256-$STAMP.txt"
+
+mkdir -m 755 "$CANDIDATE"
+rsync -a --delete --chown=root:root \
+    --exclude='/.git/' --exclude='/.env' --exclude='/storage/' --exclude='/vendor/' \
+    --exclude='/node_modules/' --exclude='/public/storage' \
+    --exclude='/.xlink-deploy-sha' --exclude='/.xlink-run-migrations' \
+    "$SRC/" "$CANDIDATE/"
+ln -s "$SHARED_ROOT/.env" "$CANDIDATE/.env"
+ln -s "$SHARED_ROOT/storage" "$CANDIDATE/storage"
+ln -s "$SHARED_ROOT/storage/app/public" "$CANDIDATE/public/storage"
+mkdir -p "$CANDIDATE/bootstrap/cache"
+chown -R www-data:www-data "$CANDIDATE/bootstrap/cache"
+chmod -R ug+rwX "$CANDIDATE/bootstrap/cache"
+
+cd "$CANDIDATE"
+(
+    umask 022
+    COMPOSER_ALLOW_SUPERUSER=1 php8.5 "$(command -v composer)" install --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
+)
+APP_VERSION="$(php8.5 artisan --version)"
+case "$APP_VERSION" in "Laravel Framework 13."*) ;; *) fail "Candidate is not Laravel 13 ($APP_VERSION)." ;; esac
+php8.5 artisan config:cache --no-ansi
+php8.5 artisan route:cache --no-ansi
+php8.5 artisan about --only=environment --no-ansi >/dev/null
+
+if [[ -f "$SRC/.xlink-run-migrations" ]] && [[ "$(tr -d '\r\n' < "$SRC/.xlink-run-migrations")" == "yes" ]]; then
+    echo "Running explicitly requested database migrations."
+    php8.5 artisan migrate --force --no-ansi
+else
+    echo "Database migrations skipped (no explicit migration approval marker)."
+fi
+
+TMP_LINK="$RELEASE_ROOT/.current-$STAMP-$$"
+ln -s "$CANDIDATE" "$TMP_LINK"
+mv -Tf "$TMP_LINK" "$CURRENT"
+SWITCHED=1
+
+rollback() {
+    rc=$?
+    trap - EXIT
+    if [[ "$SWITCHED" -eq 1 ]]; then
+        echo "Health check failed; restoring previous release $PREVIOUS." >&2
+        TMP_ROLLBACK="$RELEASE_ROOT/.rollback-$STAMP-$$"
+        ln -s "$PREVIOUS" "$TMP_ROLLBACK"
+        mv -Tf "$TMP_ROLLBACK" "$CURRENT"
+        systemctl reload php8.5-fpm >/dev/null 2>&1 || true
+        php8.5 "$PREVIOUS/artisan" view:cache --no-ansi >/dev/null 2>&1 || true
+        curl --silent --show-error --max-time 20 --resolve bill.xlinkbd.net:443:127.0.0.1 --location --output /dev/null https://bill.xlinkbd.net/login || true
+    fi
+    exit "$rc"
+}
+trap rollback EXIT
+
+systemctl reload php8.5-fpm >/dev/null 2>&1 || true
+php8.5 "$CURRENT/artisan" view:cache --no-ansi
+HTTP_CODE="$(curl --silent --show-error --fail --max-time 25 --retry 2 --retry-delay 2 --resolve bill.xlinkbd.net:443:127.0.0.1 --location --output /dev/null --write-out '%{http_code}' https://bill.xlinkbd.net/login)"
+[[ "$HTTP_CODE" == "200" ]] || fail "Production HTTPS health check returned HTTP $HTTP_CODE."
+ACTIVE_VERSION="$(php8.5 "$CURRENT/artisan" --version)"
+[[ "$ACTIVE_VERSION" == "Laravel Framework 13."* ]] || fail "Active release version verification failed."
+php8.5 "$CURRENT/artisan" queue:restart --no-ansi || true
+SWITCHED=0
+trap - EXIT
+
+echo "Release deployment successful: $SOURCE_SHA"
+echo "Active release: $(readlink -f "$CURRENT")"
+echo "Code backup: $CODE_BACKUP"
+echo "Database backup: $DB_BACKUP"
+echo "Previous release retained for rollback: $PREVIOUS"
+

@@ -67,6 +67,9 @@ jobs:
       - name: Validate production release verifier shell syntax
         run: bash -n ops/verify-production-release-layout.sh
 
+      - name: Validate release deployment helper shell syntax
+        run: bash -n ops/xlink-billing-deploy
+
       - name: Preflight production Laravel caches
         env:
           APP_ENV: testing

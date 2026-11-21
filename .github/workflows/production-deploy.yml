@@ -7,6 +7,11 @@ on:
         description: 'Type deploy to authorize production deployment'
         required: true
         type: string
+      run_migrations:
+        description: 'Run pending Production DB migrations (requires separate approval)'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -84,6 +89,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          sudo -n cmp --silent ops/xlink-billing-deploy /usr/local/sbin/xlink-billing-deploy
           sudo -n bash ops/verify-production-release-layout.sh
 
       - name: Deploy tested main release through release-aware root helper
@@ -92,6 +98,11 @@ jobs:
           set -euo pipefail
           test "${GITHUB_REF_NAME}" = "main"
           printf '%s\n' "${GITHUB_SHA}" > "$GITHUB_WORKSPACE/.xlink-deploy-sha"
+          if [[ "${{ inputs.run_migrations }}" == "true" ]]; then
+            printf 'yes\n' > "$GITHUB_WORKSPACE/.xlink-run-migrations"
+          else
+            rm -f "$GITHUB_WORKSPACE/.xlink-run-migrations"
+          fi
           sudo -n /usr/local/sbin/xlink-billing-deploy
 
       - name: Verify production HTTPS endpoint and active Laravel release
