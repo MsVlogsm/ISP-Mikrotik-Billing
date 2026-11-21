@@ -32,7 +32,7 @@ class ResellerTest extends TestCase
         // we make sure all migrations are run. RefreshDatabase runs migrations automatically.
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_can_create_a_reseller_profile()
     {
         $role = Role::firstOrCreate(['name' => 'Reseller']);
@@ -62,7 +62,7 @@ class ResellerTest extends TestCase
         $this->assertTrue($reseller->isActive());
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_redirects_reseller_user_from_admin_dashboard_to_reseller_dashboard()
     {
         $role = Role::firstOrCreate(['name' => 'Reseller']);
@@ -90,7 +90,7 @@ class ResellerTest extends TestCase
         $response->assertRedirect(route('reseller.dashboard'));
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_awards_commission_to_reseller_on_package_purchased_event()
     {
         // Setup Reseller
@@ -153,7 +153,7 @@ class ResellerTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_can_generate_and_redeem_fixed_amount_voucher()
     {
         // Setup Reseller
@@ -226,7 +226,7 @@ class ResellerTest extends TestCase
         $this->assertNotNull($voucher->used_at);
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_allows_reseller_to_create_customer_via_new_customer_component()
     {
         $role = Role::firstOrCreate(['name' => 'Reseller']);
@@ -281,7 +281,7 @@ class ResellerTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_allows_reseller_to_edit_their_own_customer_via_edit_customer_component()
     {
         $role = Role::firstOrCreate(['name' => 'Reseller']);
@@ -330,7 +330,7 @@ class ResellerTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_prevents_reseller_from_editing_other_reseller_customer()
     {
         $role = Role::firstOrCreate(['name' => 'Reseller']);
@@ -377,7 +377,7 @@ class ResellerTest extends TestCase
             ->assertStatus(403);
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_allows_reseller_to_manage_packages_via_livewire_component()
     {
         $role = Role::firstOrCreate(['name' => 'Reseller']);
@@ -443,7 +443,7 @@ class ResellerTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_displays_reseller_data_on_admin_dashboard()
     {
         $adminRole = Role::firstOrCreate(['name' => 'Super Admin']);
@@ -485,7 +485,7 @@ class ResellerTest extends TestCase
         $response->assertSee('Business Split');
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_filters_reseller_customers_on_admin_customer_list_datasource()
     {
         $adminRole = Role::firstOrCreate(['name' => 'Super Admin']);
@@ -579,7 +579,7 @@ class ResellerTest extends TestCase
         $this->assertFalse(in_array('Regular Customer One', $names));
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_filters_customers_on_reseller_customer_list_datasource_for_authenticated_reseller()
     {
         $permission = \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'view-customer']);
@@ -656,7 +656,7 @@ class ResellerTest extends TestCase
         $this->assertFalse(in_array('Reseller 2 Cust', $names));
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_prevents_reseller_from_updating_customer_status_to_free()
     {
         $role = Role::firstOrCreate(['name' => 'Reseller']);
@@ -705,7 +705,7 @@ class ResellerTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[\PHPUnit\Framework\Attributes\Test]
     public function it_filters_reseller_collections_and_commissions_month_wise_on_index_page()
     {
         $adminRole = Role::firstOrCreate(['name' => 'Super Admin']);

@@ -1357,5 +1357,3 @@ class EditCustomer extends Component
         return view('livewire.edit-customer')->layout('layouts.app');
     }
 }
-
-[executed on device: bill (d46e2bb3-ca74-4b6d-b341-ee3299469042)]
