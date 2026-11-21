@@ -19,6 +19,8 @@ class OltLiveMetricsService
 
     public function poll(NetworkInventoryDevice $device): OltLiveMetricSnapshot
     {
+        abort_unless($device->type === 'olt', 404);
+
         try {
             $snapshot = $this->collect($device);
         } catch (Throwable $exception) {
