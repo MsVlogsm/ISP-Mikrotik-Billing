@@ -62,7 +62,7 @@ jobs:
           SESSION_DRIVER: array
           MAIL_MAILER: array
           TELESCOPE_ENABLED: false
-        run: php artisan test
+        run: vendor/bin/phpunit
 
       - name: Preflight production Laravel caches
         env:
