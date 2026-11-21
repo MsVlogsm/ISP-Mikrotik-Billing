@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\OltDashboardController;
 use App\Models\NetworkInventoryDevice;
+use App\Models\NetworkEvent;
 use App\Models\OltMonitoringSnapshot;
 use App\Models\OltOnuCustomerMapping;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class OltDashboardTest extends TestCase
@@ -112,6 +114,43 @@ class OltDashboardTest extends TestCase
 
         $this->assertStringContainsString('OLT Offline Alert Test', $html);
         $this->assertStringContainsString('1 ONU(s) are offline', $html);
+    }
+
+    public function test_olt_dashboard_displays_active_live_telemetry_events_and_central_events_link(): void
+    {
+        Queue::fake();
+
+        $olt = NetworkInventoryDevice::create([
+            'type' => 'olt',
+            'name' => 'P2 Alert Dashboard OLT',
+            'status' => 'online',
+            'health_status' => 'online',
+        ]);
+
+        NetworkEvent::create([
+            'device_id' => $olt->id,
+            'source_type' => 'olt-live-telemetry',
+            'event_type' => 'olt_cpu_high',
+            'severity' => 'critical',
+            'title' => 'OLT CPU utilization is high: P2 Alert Dashboard OLT',
+            'message' => 'CPU is 97%; configured critical is 95%.',
+            'status' => 'acknowledged',
+            'fingerprint' => 'olt-live:cpu:'.$olt->id,
+            'occurrences' => 2,
+            'first_seen_at' => now()->subMinutes(10),
+            'last_seen_at' => now(),
+            'acknowledged_at' => now(),
+        ]);
+
+        $this->actingAs(User::factory()->create());
+
+        $response = app(OltDashboardController::class)->show(request(), $olt);
+        $html = $response->render();
+
+        $this->assertStringContainsString('OLT CPU utilization is high: P2 Alert Dashboard OLT', $html);
+        $this->assertStringContainsString('ACKNOWLEDGED', $html);
+        $this->assertStringContainsString('2 occurrence(s)', $html);
+        $this->assertStringContainsString('Events &amp; Alerts', $html);
     }
 
     public function test_read_only_olt_snapshot_defaults_and_signal_fields_are_persisted(): void
