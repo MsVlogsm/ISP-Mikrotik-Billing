@@ -1,4 +1,5 @@
 <x-app-layout>
+@include('xlink.partials.olt-management-nav', ['active' => 'overview', 'device' => $device])
 @push('styles')
 <link rel="stylesheet" href="{{ asset('xlink-olt/olt-dashboard.css') }}?v={{ filemtime(public_path('xlink-olt/olt-dashboard.css')) }}">
 @endpush
@@ -58,6 +59,7 @@
             </div>
             <div class="olt-dash-hero-links">
                 <a href="{{ route('network-inventory.olt.customers',$device) }}"><i class="bi bi-people"></i> ONU / Customer Mapping</a>
+                <a href="{{ route('network-inventory.device.bridge-fdb',$device) }}"><i class="bi bi-hdd-network"></i> L2 Bridge / FDB</a>
                 <a href="{{ route('network-inventory.olt.provisioning',$device) }}"><i class="bi bi-terminal"></i> Provisioning</a>
                 <a href="{{ route('network-inventory.onu-management',['olt'=>$device->id]) }}"><i class="bi bi-list-ul"></i> All ONU Inventory</a>
             </div>

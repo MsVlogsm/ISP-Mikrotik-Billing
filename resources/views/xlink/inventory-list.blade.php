@@ -53,6 +53,9 @@
           <td><span class="badge {{ in_array($device->health_status,['ready','up','online'])?'bg-success':($device->health_status?'bg-warning text-dark':'bg-secondary') }}">{{ ucfirst($device->health_status ?: 'not checked') }}</span><div class="small text-muted mt-1">{{ $device->health_port ? 'Port '.$device->health_port : 'No port' }} · Monitor {{ $device->monitor_enabled ? 'On' : 'Off' }}</div></td>
           <td>{{ $device->location ?: '—' }}</td>
           <td class="text-nowrap">
+            @if(in_array($type, ['olt', 'switch'], true))
+              <a class="btn btn-sm btn-outline-info" href="{{ route('network-inventory.device.bridge-fdb', $device) }}" title="Read-only L2 Bridge Forwarding Database">FDB</a>
+            @endif
             <a class="btn btn-sm btn-outline-primary" href="{{ route('network-inventory.devices', [$type,'q'=>$device->name]) }}">Edit</a>
             <form method="POST" action="{{ route('network-inventory.devices.destroy', [$type, $device->id]) }}" class="d-inline" onsubmit="return confirm('Delete this inventory record?')">@csrf @method('DELETE')<button class="btn btn-sm btn-outline-danger">Delete</button></form>
           </td>

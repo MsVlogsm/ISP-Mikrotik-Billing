@@ -611,6 +611,12 @@ Route::middleware([
 
         Route::get('/network-inventory/olt/{device}/dashboard', [\App\Http\Controllers\OltDashboardController::class, 'show'])
             ->name('network-inventory.olt.dashboard');
+
+        Route::get('/network-inventory/device/{device}/bridge-fdb', [\App\Http\Controllers\BridgeFdbController::class, 'index'])
+            ->name('network-inventory.device.bridge-fdb');
+        Route::post('/network-inventory/device/{device}/bridge-fdb/poll', [\App\Http\Controllers\BridgeFdbController::class, 'poll'])
+            ->middleware('throttle:3,1')
+            ->name('network-inventory.device.bridge-fdb.poll');
         Route::post('/network-inventory/olt/{device}/dashboard/sync', [\App\Http\Controllers\OltDashboardController::class, 'sync'])
             ->name('network-inventory.olt.dashboard.sync');
         Route::post('/network-inventory/olt/{device}/dashboard/metrics', [\App\Http\Controllers\OltDashboardController::class, 'pollMetrics'])
