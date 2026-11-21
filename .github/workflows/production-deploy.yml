@@ -43,24 +43,24 @@ jobs:
             if (($manifest["require"]["php"] ?? null) !== "^8.5" ||
                 ($manifest["require"]["laravel/framework"] ?? null) !== "^13.0" ||
                 ! is_string($framework) || ! str_starts_with($framework, "v13.")) {
-                fwrite(STDERR, "Refusing deployment: release dependencies are not on the Laravel 13 / PHP 8.5 baseline.\\n");
+                fwrite(STDERR, "Refusing deployment: release dependencies are not on the Laravel 13 / PHP 8.5 baseline.\n");
                 exit(1);
             }
-            echo "Candidate baseline: Laravel {$framework}; PHP {$manifest["require"]["php"]}\\n";
+            echo "Candidate baseline: Laravel " . $framework . "; PHP " . $manifest["require"]["php"] . PHP_EOL;
           '
           APP_PATH=/var/www/isp-billing-import
           LIVE_ROOT="$(nginx -T 2>/dev/null | python3 -c '
           import re, sys
           config = sys.stdin.read()
-          blocks = re.findall(r"(?ms)^server\\s*\\{(.*?)^\\}", config)
+          blocks = re.findall(r"(?ms)^server\s*\{(.*?)^\}", config)
           for block in blocks:
               if "bill.xlinkbd.net" not in block:
                   continue
-              if not re.search(r"(?m)^\\s*listen\\s+443(?:\\s|;)", block):
+              if not re.search(r"(?m)^\s*listen\s+443(?:\s|;)", block):
                   continue
               if "/run/php/php8.5-fpm.sock" not in block:
                   continue
-              root = re.search(r"(?m)^\\s*root\\s+([^;]+);", block)
+              root = re.search(r"(?m)^\s*root\s+([^;]+);", block)
               if root:
                   print(root.group(1).strip())
                   break
@@ -122,5 +122,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 20 http://127.0.0.1:8081/login >/dev/null
-          echo 'Production login endpoint returned HTTP 200.'
+          HTTP_CODE="$(curl --silent --show-error --max-time 20 --location -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/login)"
+          test "$HTTP_CODE" = "200"
+          php8.5 artisan --version | grep -q 'Laravel Framework 13.'
+          echo 'Production login endpoint and Laravel 13 runtime verified.'
