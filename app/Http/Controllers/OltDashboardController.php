@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\NetworkBridgeFdbSnapshot;
 use App\Models\NetworkInventoryDevice;
 use App\Models\NetworkInventoryHealthCheck;
+use App\Models\NetworkEvent;
 use App\Models\OltLiveMetricPort;
 use App\Models\OltLiveMetricSnapshot;
 use App\Models\OltMonitoringSnapshot;
@@ -162,6 +163,24 @@ class OltDashboardController extends Controller
             ->count();
 
         $alerts = $this->buildAlerts($device, $stats, $latestSnapshot, $latestHealth, $freshOpmCount, $opmFreshMinutes);
+
+        $liveEvents = NetworkEvent::query()
+            ->where('device_id', $device->id)
+            ->where('source_type', 'olt-live-telemetry')
+            ->whereIn('status', ['open', 'acknowledged'])
+            ->latest('last_seen_at')
+            ->limit(10)
+            ->get();
+
+        foreach ($liveEvents as $event) {
+            $alerts[] = [
+                'level' => $event->severity,
+                'title' => $event->title,
+                'detail' => trim(($event->message ?: 'OLT telemetry threshold triggered')
+                    .' · '.strtoupper($event->status)
+                    .' · '.$event->occurrences.' occurrence(s)'),
+            ];
+        }
 
         $rawCommunity = $device->getRawOriginal('snmp_community');
         $ddmReadings = $liveMetricSnapshot
