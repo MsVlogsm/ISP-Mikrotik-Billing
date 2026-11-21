@@ -48,7 +48,7 @@ jobs:
             if (($manifest["require"]["php"] ?? null) !== "^8.5" ||
                 ($manifest["require"]["laravel/framework"] ?? null) !== "^13.0" ||
                 ! is_string($framework) || ! str_starts_with($framework, "v13.")) {
-                fwrite(STDERR, "Refusing deployment: release dependencies are not on the Laravel 13 / PHP 8.5 baseline.\\n");
+                fwrite(STDERR, "Refusing deployment: release dependencies are not on the Laravel 13 / PHP 8.5 baseline.\n");
                 exit(1);
             }
             echo "Candidate baseline: Laravel " . $framework . "; PHP " . $manifest["require"]["php"] . PHP_EOL;
@@ -97,9 +97,9 @@ jobs:
         run: |
           set -euo pipefail
           test "${GITHUB_REF_NAME}" = "main"
-          printf '%s\\n' "${GITHUB_SHA}" > "$GITHUB_WORKSPACE/.xlink-deploy-sha"
+          printf '%s\n' "${GITHUB_SHA}" > "$GITHUB_WORKSPACE/.xlink-deploy-sha"
           if [[ "${{ inputs.run_migrations }}" == "true" ]]; then
-            printf 'yes\\n' > "$GITHUB_WORKSPACE/.xlink-run-migrations"
+            printf 'yes\n' > "$GITHUB_WORKSPACE/.xlink-run-migrations"
           else
             rm -f "$GITHUB_WORKSPACE/.xlink-run-migrations"
           fi
@@ -112,5 +112,5 @@ jobs:
           HTTP_CODE="$(curl --silent --show-error --fail --max-time 25 --retry 2 --retry-delay 2 --resolve bill.xlinkbd.net:443:127.0.0.1 --location --output /dev/null --write-out '%{http_code}' https://bill.xlinkbd.net/login)"
           test "$HTTP_CODE" = "200"
           APP_VERSION="$(php8.5 /var/www/isp-billing-releases/current/artisan --version)"
-          grep -q 'Laravel Framework 13\\.' <<<"$APP_VERSION"
+          grep -q 'Laravel Framework 13\.' <<<"$APP_VERSION"
           echo "Verified HTTPS login endpoint and active release: $APP_VERSION"
