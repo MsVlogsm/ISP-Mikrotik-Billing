@@ -7,6 +7,8 @@ use App\Models\NetworkInventoryDevice;
 use App\Models\OltLiveMetricPort;
 use App\Models\OltLiveMetricSnapshot;
 use App\Services\Olt\OltLiveMetricsAlertService;
+use App\Services\Olt\OltLiveMetricsService;
+use App\Services\Olt\OltReadOnlyAdapterManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use RuntimeException;
@@ -188,6 +190,29 @@ class OltLiveMetricsAlertServiceTest extends TestCase
             'severity' => 'critical',
             'status' => 'resolved',
         ]);
+    }
+
+    public function test_live_metrics_service_records_a_safe_failure_incident_before_rethrowing(): void
+    {
+        $manager = \Mockery::mock(OltReadOnlyAdapterManager::class);
+        $manager->shouldReceive('read')
+            ->once()
+            ->with($this->olt)
+            ->andThrow(new RuntimeException('secret-snmp-community'));
+
+        $service = new OltLiveMetricsService($manager, $this->alerts);
+
+        try {
+            $service->poll($this->olt);
+            $this->fail('The original poll exception should be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('secret-snmp-community', $exception->getMessage());
+        }
+
+        $event = NetworkEvent::where('fingerprint', 'olt-live:poll-failed:'.$this->olt->id)->firstOrFail();
+        $this->assertSame('open', $event->status);
+        $this->assertStringNotContainsString('secret-snmp-community', $event->message);
+        $this->assertStringNotContainsString('secret-snmp-community', json_encode($event->metadata));
     }
 
     private function snapshot(array $overrides = []): OltLiveMetricSnapshot
