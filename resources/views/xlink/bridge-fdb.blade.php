@@ -20,6 +20,7 @@
         <div class="d-flex flex-wrap gap-2">
             @if($device->type === 'olt')
                 <a class="btn btn-outline-secondary" href="{{ route('network-inventory.olt.dashboard', $device) }}"><i class="bi bi-speedometer2 me-1"></i> OLT Overview</a>
+                <a class="btn btn-outline-secondary" href="{{ route('network-inventory.universal-search') }}"><i class="bi bi-search me-1"></i> Universal Search</a>
             @endif
             @if($pollEnabled)
                 <form method="POST" action="{{ route('network-inventory.device.bridge-fdb.poll', $device) }}" onsubmit="const b=this.querySelector('button');b.disabled=true;b.innerHTML='<span class=&quot;spinner-border spinner-border-sm me-1&quot;></span>Reading FDB…';">
@@ -89,6 +90,35 @@
                 @endif
             </div>
         </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header bg-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="fw-semibold"><i class="bi bi-arrow-left-right me-1"></i> MAC movement / flapping history</div>
+            <span class="small text-muted">{{ $movements->count() }} recent movement records</span>
+        </div>
+        @if($movements->isNotEmpty())
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>MAC</th><th>VLAN</th><th>From</th><th>To</th><th>Last moved</th><th>Moves / 10 min</th><th>State</th></tr></thead>
+                    <tbody>
+                    @foreach($movements as $movement)
+                        <tr>
+                            <td><code>{{ $movement->mac_address }}</code></td>
+                            <td>{{ $movement->vlan_id ?? '—' }}</td>
+                            <td>{{ $movement->from_interface ?: ('ifIndex '.($movement->from_if_index ?? '—')) }}</td>
+                            <td>{{ $movement->to_interface ?: ('ifIndex '.($movement->to_if_index ?? '—')) }}</td>
+                            <td>{{ $movement->moved_at?->format('d M H:i:s') }}</td>
+                            <td>{{ $movement->moves_in_10m }}</td>
+                            <td>@if($movement->is_flapping)<span class="badge bg-warning text-dark">Flapping</span>@else<span class="badge bg-secondary">Moved</span>@endif</td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @else
+            <div class="card-body text-muted small">No confirmed interface movement is recorded yet. Movement is detected only when the same learned MAC/VLAN is observed on a different resolved interface in consecutive successful snapshots.</div>
+        @endif
     </div>
 
     <div class="card">

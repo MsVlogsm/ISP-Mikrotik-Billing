@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\NetworkBridgeFdbEntry;
+use App\Models\NetworkBridgeFdbMovement;
 use App\Models\NetworkBridgeFdbSnapshot;
 use App\Models\NetworkInventoryDevice;
 use App\Models\OltOnuCustomerMapping;
@@ -60,6 +61,12 @@ class BridgeFdbController extends Controller
 
         $this->attachExactSubscriberContext($entries->getCollection(), $device);
 
+        $movements = NetworkBridgeFdbMovement::query()
+            ->where('network_inventory_device_id', $device->id)
+            ->latest('moved_at')
+            ->limit(30)
+            ->get();
+
         $stats = [
             'total' => (int) ($snapshot?->entry_count ?? 0),
             'learned' => (int) ($snapshot?->learned_count ?? 0),
@@ -79,6 +86,7 @@ class BridgeFdbController extends Controller
             'device' => $device,
             'snapshot' => $snapshot,
             'entries' => $entries,
+            'movements' => $movements,
             'stats' => $stats,
             'search' => $search,
             'vlan' => $vlan,

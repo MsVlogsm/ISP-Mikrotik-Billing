@@ -141,6 +141,13 @@ Schedule::call(fn () => $runCommand(
 ))->everyMinute()->timezone($timezone)->name('onu-mapping-sync')->withoutOverlapping()->onOneServer();
 
 Schedule::call(fn () => $runCommand(
+    'olt-bridge-fdb-sync',
+    'OLT / Switch L2 Bridge FDB Read-only SNMP Poll',
+    'Every 5 minutes',
+    'olt:poll-bridge-fdb'
+))->everyFiveMinutes()->timezone($timezone)->name('olt-bridge-fdb-sync')->withoutOverlapping(4);
+
+Schedule::call(fn () => $runCommand(
     'olt-live-metrics-sync',
     'OLT Live Metrics / IF-MIB / Hardware Telemetry',
     'Every 5 minutes',

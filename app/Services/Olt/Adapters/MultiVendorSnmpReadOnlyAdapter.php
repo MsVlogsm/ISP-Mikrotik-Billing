@@ -74,6 +74,26 @@ class MultiVendorSnmpReadOnlyAdapter implements OltReadOnlyAdapter
         $result['meta']['pon_interface_count'] = count(array_filter($result['interfaces'], static fn ($i) => ($i['role'] ?? '') === 'pon'));
         $result['meta']['uplink_interface_count'] = count(array_filter($result['interfaces'], static fn ($i) => str_starts_with((string) ($i['role'] ?? ''), 'uplink_')));
 
+        // SFP DDM is model/transceiver/firmware-specific. Only query OIDs
+        // explicitly provided in this device's adapter_config; never infer
+        // vendor-private OIDs from the manufacturer string.
+        $sfpDdm = $this->discoverSfpDdm($host, $community, $config, $onuTimeout, $onuRetries);
+        foreach ($result['interfaces'] as &$interface) {
+            $ifIndex = (int) ($interface['if_index'] ?? 0);
+            if ($ifIndex > 0 && isset($sfpDdm['ports'][$ifIndex])) {
+                $interface = array_merge($interface, $sfpDdm['ports'][$ifIndex]);
+            }
+        }
+        unset($interface);
+        $result['meta']['sfp_ddm'] = [
+            'configured' => $sfpDdm['configured'],
+            'ports_with_readings' => count($sfpDdm['ports']),
+            'source' => $sfpDdm['configured'] ? 'snmp-configured-ddm' : null,
+            'note' => $sfpDdm['configured']
+                ? 'Only explicitly configured per-device DDM OIDs were queried.'
+                : 'No SFP DDM OIDs are configured for this model/firmware/transceiver.',
+        ];
+
         // Vendor/model-specific hardware OIDs must be explicitly configured;
         // no guessed enterprise OIDs are used for chassis metrics.
         $hardwareOids = is_array($config['hardware_oids'] ?? null) ? $config['hardware_oids'] : [];
@@ -184,6 +204,84 @@ class MultiVendorSnmpReadOnlyAdapter implements OltReadOnlyAdapter
             unset($row['in_octets_hc'],$row['out_octets_hc'],$row['in_ucast'],$row['in_nucast'],$row['out_ucast'],$row['out_nucast']);
         }
         unset($row);ksort($rows,SORT_NUMERIC);return array_values($rows);
+    }
+
+    /**
+     * Read configured SFP Digital Diagnostic Monitoring columns.
+     *
+     * adapter_config supports sfp_ddm_oids metric definitions with OID and
+     * divisor, and an optional sfp_ddm_ifindex_map for composite table indexes.
+     */
+    private function discoverSfpDdm(string $host, string $community, array $config, int $timeout, int $retries): array
+    {
+        $configured = is_array($config['sfp_ddm_oids'] ?? null) ? $config['sfp_ddm_oids'] : [];
+        if ($configured === [] || ! function_exists('snmp2_real_walk')) {
+            return ['configured' => $configured !== [], 'ports' => []];
+        }
+
+        $indexMap = is_array($config['sfp_ddm_ifindex_map'] ?? null) ? $config['sfp_ddm_ifindex_map'] : [];
+        $allowed = [
+            'tx_power_dbm' => [-40.0, 20.0],
+            'temperature_c' => [-40.0, 125.0],
+            'supply_voltage_v' => [0.0, 10.0],
+            'laser_bias_ma' => [0.0, 200.0],
+        ];
+        $ports = [];
+
+        foreach ($allowed as $metric => [$minimum, $maximum]) {
+            $definition = $configured[$metric] ?? null;
+            if (is_string($definition)) {
+                $definition = ['oid' => $definition, 'divisor' => 1];
+            }
+            if (! is_array($definition)) {
+                continue;
+            }
+
+            $oid = trim((string) ($definition['oid'] ?? ''));
+            if (! preg_match('/^\.?\d+(?:\.\d+)*$/', $oid)) {
+                continue;
+            }
+
+            $divisor = (float) ($definition['divisor'] ?? 1);
+            if (! is_finite($divisor) || $divisor <= 0 || $divisor > 1000000000) {
+                continue;
+            }
+
+            $walk = @snmp2_real_walk($host, $community, $oid, $timeout, $retries);
+            if (! is_array($walk)) {
+                continue;
+            }
+
+            foreach ($walk as $returnedOid => $raw) {
+                $normalized = preg_replace('/^iso\./i', '1.', trim((string) $returnedOid)) ?? trim((string) $returnedOid);
+                $normalized = ltrim($normalized, '.');
+                $base = ltrim($oid, '.');
+                if (! str_starts_with($normalized, $base.'.')) {
+                    continue;
+                }
+
+                $suffix = substr($normalized, strlen($base) + 1);
+                $ifIndex = isset($indexMap[$suffix]) ? (int) $indexMap[$suffix] : (ctype_digit($suffix) ? (int) $suffix : 0);
+                if ($ifIndex <= 0) {
+                    continue;
+                }
+
+                $number = $this->numeric($this->clean($raw));
+                if ($number === null) {
+                    continue;
+                }
+
+                $value = $number / $divisor;
+                if (! is_finite($value) || $value < $minimum || $value > $maximum) {
+                    continue;
+                }
+
+                $ports[$ifIndex][$metric] = round($value, 4);
+                $ports[$ifIndex]['sfp_ddm_source'] = 'snmp-configured-ddm';
+            }
+        }
+
+        return ['configured' => $configured !== [], 'ports' => $ports];
     }
 
     private function counterValue(mixed $value): ?int
