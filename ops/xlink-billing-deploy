@@ -12,6 +12,13 @@ MODE_FILE="/etc/xlink-billing/deploy-mode"
 LOCK="/var/lock/xlink-billing-deploy.lock"
 
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+normalize_shared_view_cache_permissions() {
+    local view_dir="$SHARED_ROOT/storage/framework/views"
+    [[ -d "$view_dir" ]] || { printf 'ERROR: Shared Blade view cache is missing: %s\\n' "$view_dir" >&2; return 1; }
+    find "$view_dir" -maxdepth 1 -type f -name '*.php' -exec chown www-data:www-data -- {} +
+    find "$view_dir" -maxdepth 1 -type f -name '*.php' -exec chmod 0644 -- {} +
+}
 [[ $EUID -eq 0 ]] || fail "Must run as root."
 [[ -f "$MODE_FILE" && "$(cat "$MODE_FILE")" == "release-v1" ]] || fail "Release-v1 layout marker is missing."
 [[ -L "$CURRENT" ]] || fail "Stable current symlink is missing."
@@ -137,6 +144,7 @@ rollback() {
         mv -Tf "$TMP_ROLLBACK" "$CURRENT"
         systemctl reload php8.5-fpm >/dev/null 2>&1 || true
         php8.5 "$PREVIOUS/artisan" view:cache --no-ansi >/dev/null 2>&1 || true
+        normalize_shared_view_cache_permissions || true
         curl --silent --show-error --max-time 20 --resolve bill.xlinkbd.net:443:127.0.0.1 --location --output /dev/null https://bill.xlinkbd.net/login || true
     fi
     exit "$rc"
@@ -145,6 +153,7 @@ trap rollback EXIT
 
 systemctl reload php8.5-fpm >/dev/null 2>&1 || true
 php8.5 "$CURRENT/artisan" view:cache --no-ansi
+normalize_shared_view_cache_permissions
 HTTP_CODE="$(curl --silent --show-error --fail --max-time 25 --retry 2 --retry-delay 2 --resolve bill.xlinkbd.net:443:127.0.0.1 --location --output /dev/null --write-out '%{http_code}' https://bill.xlinkbd.net/login)"
 [[ "$HTTP_CODE" == "200" ]] || fail "Production HTTPS health check returned HTTP $HTTP_CODE."
 ACTIVE_VERSION="$(php8.5 "$CURRENT/artisan" --version)"
