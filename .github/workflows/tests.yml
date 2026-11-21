@@ -64,6 +64,9 @@ jobs:
           TELESCOPE_ENABLED: false
         run: vendor/bin/phpunit
 
+      - name: Validate production release verifier shell syntax
+        run: bash -n ops/verify-production-release-layout.sh
+
       - name: Preflight production Laravel caches
         env:
           APP_ENV: testing
@@ -75,7 +78,7 @@ jobs:
           MAIL_MAILER: array
           TELESCOPE_ENABLED: false
         run: |
+          php artisan optimize:clear
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
-          php artisan optimize:clear
