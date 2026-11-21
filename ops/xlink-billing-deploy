@@ -57,7 +57,7 @@ self_test_cache_permissions() (
     local test_root cache_dir cache_file
 
     test_root="$(mktemp -d "${TMPDIR:-/tmp}/xlink-cache-permissions.XXXXXX")"
-    trap 'rm -rf -- "$test_root"' EXIT
+    trap 'rm -f -- "$cache_file"; rmdir -- "$cache_dir" "$test_root"' EXIT
     chmod 0755 "$test_root"
     cache_dir="$test_root/bootstrap-cache"
     mkdir -m 0775 "$cache_dir"
