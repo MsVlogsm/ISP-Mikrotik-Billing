@@ -89,8 +89,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo -n cmp --silent ops/xlink-billing-deploy /usr/local/sbin/xlink-billing-deploy
-          sudo -n bash ops/verify-production-release-layout.sh
+          sudo -n /usr/local/sbin/xlink-billing-preflight
 
       - name: Deploy tested main release through release-aware root helper
         shell: bash
