@@ -126,18 +126,37 @@
                                         @if(count($collectionSummary) > 0)
                                         <tr>
                                             <td class="text-muted py-2" colspan="2">
-                                                <div class="fw-bold text-dark mb-1">{{ __('Collected History') }}</div>
+                                                <div class="fw-bold text-dark mb-1">{{ __('Collection History') }}</div>
                                                 <div class="bg-light p-2 rounded-3" style="font-size: 0.8rem;">
                                                     @foreach ($collectionSummary as $summary)
-                                                        <div class="d-flex justify-content-between text-muted border-bottom py-1">
-                                                            <span>#{{ $summary->customer_collection_unique_id }} ({{ \Carbon\Carbon::parse($summary->collection_date)->format('d-M-Y') }})</span>
-                                                            <span class="fw-bold text-success">{{ $summary->collection_amount }} {{ siteUrlSettings('site_currency') }}</span>
+                                                        @php
+                                                            $status = strtolower(trim((string) $summary->payment_status));
+                                                            $statusClass = match ($status) {
+                                                                'paid' => 'text-success',
+                                                                'reversed' => 'text-danger',
+                                                                'reconciled' => 'text-warning',
+                                                                'pending', 'processing', 'initiated' => 'text-warning',
+                                                                default => 'text-muted',
+                                                            };
+                                                            $amount = (float) $summary->collection_amount;
+                                                        @endphp
+                                                        <div class="d-flex justify-content-between align-items-center gap-2 border-bottom py-1">
+                                                            <span>
+                                                                #{{ $summary->customer_collection_unique_id }}
+                                                                ({{ \Carbon\Carbon::parse($summary->collection_date)->format('d-M-Y') }})
+                                                                <small class="d-block {{ $statusClass }}">
+                                                                    {{ $status !== '' ? ucfirst($status) : __('Unspecified status') }}
+                                                                    · {{ $summary->payment_method ?: $summary->payment_type ?: '—' }}
+                                                                </small>
+                                                            </span>
+                                                            <span class="fw-bold {{ $amount < 0 ? 'text-danger' : ($status === 'paid' ? 'text-success' : 'text-muted') }}">
+                                                                {{ $amount > 0 ? '+' : '' }}{{ number_format($amount, 2) }} {{ siteUrlSettings('site_currency') }}
+                                                            </span>
                                                         </div>
                                                     @endforeach
                                                 </div>
                                             </td>
                                         </tr>
-                                        @endif
                                         <tr class="table-warning">
                                             <th class="py-2">{{ __('Current Payable Due') }}</th>
                                             <th class="text-end text-danger py-2">{{$due_amount}} {{ siteUrlSettings('site_currency') }}</th>
