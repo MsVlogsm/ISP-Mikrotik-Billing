@@ -63,6 +63,29 @@ class CollectionSummary extends Model
         'invoice_no',
     ];
 
+    /**
+     * Restrict accounting totals to completed, paid collections.
+     * Reversed, pending and reconciled adjustment records are kept in
+     * adjustment/audit views and must not inflate customer receipts.
+     */
+    #[Scope]
+    protected function postedForAccounting(Builder $query): void
+    {
+        $query->where('payment_status', 'paid');
+    }
+
+    /**
+     * Records excluded from posted collection totals, for audit presentation.
+     */
+    #[Scope]
+    protected function nonPostedForAccounting(Builder $query): void
+    {
+        $query->where(function (Builder $statusQuery) {
+            $statusQuery->whereNull('payment_status')
+                ->orWhere('payment_status', '<>', 'paid');
+        });
+    }
+
     public function customer()
     {
         return $this->belongsTo(CustomersInfo::class, 'customer_collection_unique_id', 'customer_unique_id');
