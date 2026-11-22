@@ -1,7 +1,7 @@
 # Tasks: OLT / Bridge-FDB Production Source Alignment
 
 **Source of truth:** PR #75 scope and validation record, `docs/olt-bridge-fdb.md`, and `docs/olt-capability-matrix.md`.
-**Implementation baseline:** PR #75 head `d8bdcb6b0d800a78a09ed1dbab3594b094664efd`.
+**Implementation baseline:** PR #75 head `d68b3e592af486efc2df5b3defc14a4fd10d0292`.
 **Status note:** This checklist tracks completion of the existing PR #75 scope and its remaining release gates. It does not authorize Production polling, merge, or deployment.
 
 ## Phase 1 — Production source alignment
@@ -68,15 +68,15 @@
 
 ## Phase 5 — Final review (not deployment authorization)
 
-- [x] T032 Re-check PR #75 against current `main`: base `eced466`; branch is 10 commits ahead and 0 behind; changed-file scope is limited to the OLT/Bridge-FDB implementation, tests, docs, and Spec Kit checklist.
-- [x] T033 Confirm CI run #655 passed on PR head `02f5a745` (frontend build, Composer validation, migrations, deploy helper/verifier syntax, Laravel cache preflight, and 373 tests / 1,578 assertions / 9 skipped).
+- [x] T032 Re-check PR #75 against current `main`: base `eced466`; branch is 12 commits ahead and 0 behind before the final review-only commits; changed-file scope is limited to the OLT/Bridge-FDB implementation, tests, docs, and Spec Kit checklist.
+- [x] T033 Confirm CI run #658 passed on PR head `d68b3e5` (including SFP DDM migration rollback regression test, frontend build, Composer validation, migrations, deploy helper/verifier syntax, Laravel cache preflight, and full PHPUnit).
 - [x] T034 Confirm all Staging browser gates T027–T031 are complete and documented. PR review/readiness is still subject to separate human review; this does not authorize merge.
-- [ ] T035 Obtain separate explicit approval for merge and, later, a separate Production deployment decision.
+- [x] T035 User explicitly approved PR #75 review/merge and Production deployment on 2026-11-23; OLT live polling remains excluded from this approval.
 - [ ] T036 Keep Production live polling disabled unless a separate approved change verifies dedicated read-only credentials, target hardware/model/firmware, and operational impact.
 
 ## Dependencies and safety constraints
 
 - T027 blocks T028–T031.
 - T028–T031 and T032–T034 must be complete before PR #75 can be considered ready for review under its stated release gate.
-- T035 is a separate approval; completing this checklist does not merge PR #75.
-- No task in this file authorizes Production changes, live OLT/router polling, credential changes, or deployment.
+- T035 records explicit approval; merge and Production deployment still require the documented safety gates and successful operations.
+- No task in this file authorizes live OLT/router polling or credential changes. Production deployment requires the user's separate deployment approval and a passing release preflight.
