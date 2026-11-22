@@ -54,6 +54,9 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // Dedicated HTTPS port for the restricted staging billing vhost.
+    'billing_staging_port' => (int) env('BILLING_STAGING_PORT', 8084),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
