@@ -98,7 +98,7 @@ class DashboardController extends Controller
             'previous_due' => -1 * (float) ($billingStats->previous_due_active ?? 0),
             'advance' => (float) ($billingStats->advance ?? 0),
             'paid_amount' => (float) ($billingStats->paid_amount ?? 0),
-            'today_paid_amount' => CollectionSummary::whereDate('collection_date', Carbon::today())->sum('collection_amount'),
+            'today_paid_amount' => CollectionSummary::postedForAccounting()->whereDate('collection_date', Carbon::today())->sum('collection_amount'),
             'hotspot_total' => HotspotSale::sum('amount'),
             'hotspot_today' => HotspotSale::whereDate('sale_date', Carbon::today())->sum('amount'),
             'due_amount' => -1 * (float) ($billingStats->due_amount_active ?? 0),
@@ -127,13 +127,13 @@ class DashboardController extends Controller
         $hotspotMonthExpr = $isSqlite ? "CAST(strftime('%m', sale_date) AS INTEGER)" : 'MONTH(sale_date)';
 
         // Pre-group yearly collections/hotspots by month to avoid looping 48 SQL queries
-        $collectionsPreviousYear = CollectionSummary::whereYear('collection_date', $previousYear)
+        $collectionsPreviousYear = CollectionSummary::postedForAccounting()->whereYear('collection_date', $previousYear)
             ->selectRaw("{$monthExpr} as month, SUM(collection_amount) as total")
             ->groupBy('month')
             ->pluck('total', 'month')
             ->toArray();
 
-        $collectionsCurrentYear = CollectionSummary::whereYear('collection_date', $currentYear)
+        $collectionsCurrentYear = CollectionSummary::postedForAccounting()->whereYear('collection_date', $currentYear)
             ->selectRaw("{$monthExpr} as month, SUM(collection_amount) as total")
             ->groupBy('month')
             ->pluck('total', 'month')
@@ -356,15 +356,15 @@ class DashboardController extends Controller
             ->sum('billing_infos.due_amount');
         $runningDue = abs($runningDue);
 
-        $monthCollectionPppoe = CollectionSummary::whereBetween('collection_date', [$monthStart, $monthEnd])->sum('collection_amount');
+        $monthCollectionPppoe = CollectionSummary::postedForAccounting()->whereBetween('collection_date', [$monthStart, $monthEnd])->sum('collection_amount');
         $monthCollectionHotspot = HotspotSale::whereBetween('sale_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->sum('amount');
         $monthCollection = (float) $monthCollectionPppoe + (float) $monthCollectionHotspot;
 
-        $todayPppoe = CollectionSummary::whereDate('collection_date', $today)->sum('collection_amount');
+        $todayPppoe = CollectionSummary::postedForAccounting()->whereDate('collection_date', $today)->sum('collection_amount');
         $todayHotspot = HotspotSale::whereDate('sale_date', $today)->sum('amount');
         $todayCollection = (float) $todayPppoe + (float) $todayHotspot;
 
-        $weekPppoe = CollectionSummary::whereBetween('collection_date', [$weekStart, Carbon::now()->endOfDay()])->sum('collection_amount');
+        $weekPppoe = CollectionSummary::postedForAccounting()->whereBetween('collection_date', [$weekStart, Carbon::now()->endOfDay()])->sum('collection_amount');
         $weekHotspot = HotspotSale::whereBetween('sale_date', [$weekStart->toDateString(), Carbon::now()->toDateString()])->sum('amount');
         $weekCollection = (float) $weekPppoe + (float) $weekHotspot;
 
@@ -391,7 +391,7 @@ class DashboardController extends Controller
                 $query->where('payment_type', 'online')->orWhereIn('payment_method', $mfsMethods);
             })->count();
 
-        $mfsCollection = (float) CollectionSummary::whereBetween('collection_date', [$monthStart, $monthEnd])
+        $mfsCollection = (float) CollectionSummary::postedForAccounting()->whereBetween('collection_date', [$monthStart, $monthEnd])
             ->where(function ($q) use ($mfsKeywords) {
                 foreach ($mfsKeywords as $keyword) {
                     $pattern = '%' . $keyword . '%';
