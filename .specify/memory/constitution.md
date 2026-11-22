@@ -6,8 +6,8 @@ Sync Impact Report
   Controlled Evolution and Compatibility; Evidence-Based Quality and Regression Prevention.
 - Added sections: Technology and Data Constraints; Delivery and Operational Quality Gates.
 - Removed sections: none.
-- Ratification date recorded as 2026-11-23, based on the project owner's clarification
-  that they learned about the constitution on this date.
+- Ratification date remains unconfirmed. Learning about the constitution is not approval
+  or ratification; retain TODO(RATIFICATION_DATE) until the project owner explicitly confirms it.
 -->
 
 # X-Link Billing Constitution
@@ -188,4 +188,4 @@ The development and operational references are `README.md`,
 `docs/olt-bridge-fdb.md`. These references provide implementation guidance; none
 overrides this constitution.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-23 | **Last Amended**: 2026-11-23
+**Version**: 1.0.0 | **Ratified**: TODO(RATIFICATION_DATE) | **Last Amended**: 2026-11-23
