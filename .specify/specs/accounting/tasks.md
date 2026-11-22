@@ -14,4 +14,4 @@
 ## Phase 3 — Automated and browser evidence
 - [ ] [T008] Extend status/sign/date/aggregate tests. Existing candidate: `tests/Feature/FinanceAccountingReportTest.php`; add coverage for every report consumer. Refs: ACC-001…ACC-005, ACC-007.
 - [ ] [T009] Test expense create/update/delete permissions, audit, and report inclusion/exclusion. Refs: ACC-006, ACC-008.
-- [ ] [T010] Verify MySQL Staging behavior and Admin/Manager browser report filters; record report-to-query-to-test matrix and CI evidence.
+- [ ] [T010] Verify MySQL Staging behavior and Admin/Manager browser report filters; record report-to-query-to-test matrix and CI evidence. Refs: ACC-001, ACC-002, ACC-003, ACC-004, ACC-005, ACC-006, ACC-007, ACC-008.
