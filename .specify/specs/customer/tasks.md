@@ -11,7 +11,7 @@
 - [ ] [T005] Audit disable/delete/restore semantics when associated router is offline; distinguish local and remote outcomes. Refs: CUS-006, CUS-009. Paths: `app/Http/Controllers/CustomersController.php`, `app/Http/Controllers/CustomerActionsController.php`.
 - [ ] [T006] Audit bulk import/export templates, encoding, duplicate rows, disabled-router filters, and partial-failure handling. Refs: CUS-007.
 ## Phase 3 — Tests and browser verification
-- [ ] [T007] Map/add CRUD, validation, duplicate ID, optional fields, search and lifecycle tests. Existing candidates: `tests/Feature/CustomerCrudTest.php`, `CustomerActionTest.php`, `CustomerAddEditEnableWorkflowTest.php`, `CustomerBulkImportWorkflowTest.php`, `CustomerCidReuseTest.php`.
-- [ ] [T008] Map/add profile, ledger, package, identity and unknown telemetry tests. Existing candidates: `tests/Feature/CustomerDetailsPageTest.php`, `OnuCustomerMappingWorkflowTest.php`.
-- [ ] [T009] Verify Admin/Manager browser flows and two-Reseller tenant boundary for customer routes, exports, and nested resources.
+- [ ] [T007] Map/add CRUD, validation, duplicate ID, optional fields, search and lifecycle tests. Existing candidates: `tests/Feature/CustomerCrudTest.php`, `CustomerActionTest.php`, `CustomerAddEditEnableWorkflowTest.php`, `CustomerBulkImportWorkflowTest.php`, `CustomerCidReuseTest.php`. Refs: CUS-001, CUS-002, CUS-003, CUS-006, CUS-007.
+- [ ] [T008] Map/add profile, ledger, package, identity and unknown telemetry tests. Existing candidates: `tests/Feature/CustomerDetailsPageTest.php`, `OnuCustomerMappingWorkflowTest.php`. Refs: CUS-004, CUS-005, CUS-008, CUS-009.
+- [ ] [T009] Verify Admin/Manager browser flows and two-Reseller tenant boundary for customer routes, exports, and nested resources. Refs: CUS-002, CUS-006, CUS-007.
 - [ ] [T010] Publish field provenance and requirement-to-test matrix; record CI and Staging evidence for CUS-001…CUS-009.
