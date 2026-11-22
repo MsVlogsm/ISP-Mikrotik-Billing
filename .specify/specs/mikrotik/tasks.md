@@ -14,4 +14,4 @@
 - [ ] [T007] Verify bulk-copy source preservation, destination scope, profile mapping and duplicate prevention. Refs: MTK-004, MTK-005.
 - [ ] [T008] Map role/permission and audit coverage; verify logs redact router secrets. Refs: MTK-007, MTK-008.
 - [ ] [T009] Run authenticated Staging Admin/Manager browser tests with dedicated test-router credentials only; confirm no Production router access. Refs: MTK-009.
-- [ ] [T010] Record source/test matrix, session freshness contract, CI evidence, and remaining unknown RouterOS version/API limitations.
+- [ ] [T010] Record source/test matrix, session freshness contract, CI evidence, and remaining unknown RouterOS version/API limitations. Refs: MTK-001, MTK-002, MTK-003, MTK-004, MTK-005, MTK-006, MTK-007, MTK-008, MTK-009.
