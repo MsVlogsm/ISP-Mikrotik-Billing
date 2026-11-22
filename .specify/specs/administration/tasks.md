@@ -14,5 +14,5 @@
 - [ ] [T007] Verify independent app/queue/scheduler/database/cache/storage/provider/device health indicators. Refs: ADM-008.
 - [ ] [T008] Validate release workflow confirmation, migration opt-in, backups, release cutover, HTTPS health, and rollback gates. Refs: ADM-009, ADM-010.
 ## Phase 4 — Tests and browser
-- [ ] [T009] Map/add route/action permission matrix, role revocation, API tokens, settings masking and audit-redaction tests. Existing candidates: `tests/Feature/AdminAuditRolePermissionTest.php`, `OperationalModulePermissionTest.php`, `RolePermissionBoundaryTest.php`, `ApiTokenPermissionsTest.php`, `CompanySettingsPagesTest.php`.
-- [ ] [T010] Verify Admin/Manager browser paths and expected denials on critical modules; document backup-restore and Staging isolation evidence, then complete requirement traceability.
+- [ ] [T009] Map/add route/action permission matrix, role revocation, API tokens, settings masking and audit-redaction tests. Existing candidates: `tests/Feature/AdminAuditRolePermissionTest.php`, `OperationalModulePermissionTest.php`, `RolePermissionBoundaryTest.php`, `ApiTokenPermissionsTest.php`, `CompanySettingsPagesTest.php`. Refs: ADM-001, ADM-002, ADM-003, ADM-004, ADM-005, ADM-006, ADM-011.
+- [ ] [T010] Verify Admin/Manager browser paths and expected denials on critical modules; document backup-restore and Staging isolation evidence, then complete requirement traceability. Refs: ADM-001, ADM-002, ADM-003, ADM-004, ADM-005, ADM-006, ADM-007, ADM-008, ADM-009, ADM-010, ADM-011.
