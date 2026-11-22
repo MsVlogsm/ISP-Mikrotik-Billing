@@ -69,3 +69,77 @@ Before claiming canonical analysis complete:
 ## 5. Release and safety decision
 
 This PR contains documentation/specification artifacts only. It does not authorize code changes, migrations, Production deployment, router/OLT credential changes, or live polling. Do not merge or deploy based only on this analysis. The Constitution's ratification date remains unconfirmed.
+
+
+## 6. Spec Kit cross-artifact analysis — 2026-11-23
+
+**Method:** Read-only analysis following the official Spec Kit `templates/commands/analyze.md` checks retrieved through Context7: artifact loading, semantic requirement/task mapping, duplication, ambiguity, underspecification, constitution alignment, coverage, inconsistency, severity assignment, and next actions. This report is the analysis output; it is not represented as an executed slash-command session.
+
+### Artifact readiness and coverage
+
+All ten module directories now contain `spec.md`, `plan.md`, and `tasks.md`. Each module has ten phased tasks. Requirement IDs are explicitly referenced by tasks; a final traceability pass found no uncovered requirement IDs, no orphan tasks, and no invalid requirement references.
+
+| Module | Requirements | Tasks | Requirements covered | Coverage |
+|---|---:|---:|---:|---:|
+| Billing | 8 | 10 | 8 | 100% |
+| Accounting | 8 | 10 | 8 | 100% |
+| Customer | 9 | 10 | 9 | 100% |
+| MikroTik | 9 | 10 | 9 | 100% |
+| OLT/ONU | 10 | 10 | 10 | 100% |
+| Network | 9 | 10 | 9 | 100% |
+| Payment | 9 | 10 | 9 | 100% |
+| SMS | 9 | 10 | 9 | 100% |
+| Reseller | 8 | 10 | 8 | 100% |
+| Administration | 11 | 10 | 11 | 100% |
+| **Total** | **90** | **100** | **90** | **100%** |
+
+Coverage means every requirement ID appears in at least one task. It does not mean implementation is complete, tests pass, or acceptance evidence exists.
+
+### Findings by severity
+
+#### HIGH
+1. **No canonical slash-command execution evidence.** Context7 confirms `/speckit.analyze` is a read-only agent command, not a generic CLI subcommand. The connected staging session has neither `specify` nor `speckit` executable, and this ChatGPT session has no coding-agent slash-command executor. The report therefore applies the official analyze template checks but must not be misrepresented as a native command invocation. A supported Spec Kit agent session must run `/speckit.analyze` against this branch to obtain canonical command output.
+2. **Requirement-to-implementation proof is still incomplete.** Task coverage is 100%, but most tasks are open checklists. No source implementation or tests were changed/run as part of this documentation-only analysis. Therefore none of the 90 requirements can be marked implemented solely from task coverage.
+3. **User stories are not separately modeled.** Module specs define requirements and acceptance criteria, but no dedicated user-story section. This is not a missing core artifact under the analyze template, but weakens actor/workflow traceability. Add user stories where they clarify Admin, Manager, Reseller, and customer workflows.
+4. **Several acceptance rules need approved concrete values before implementation.** Examples: commission rate/base/timing/rounding; exact fiber core color sequence; supported vendor/model/firmware list; payment provider lifecycle/refund policy; SMS sender/template/rate/retention rules; timezone/grace-period/proration policy. Specs correctly mark these as unresolved rather than inventing values.
+
+#### MEDIUM
+1. **Cross-module source-of-truth boundaries need an explicit contract.** Billing, Payment, and Accounting all refer to paid/final states and activation; Customer, OLT/ONU, and Network share identity/topology references; Administration governs permissions across every module. The requirements are compatible, but implementation plans should converge on shared contracts and avoid duplicate predicates or identity heuristics.
+2. **Task dependencies are phase-ordered but not fully explicit.** Tasks use phase headings and IDs but no dependency graph or parallel markers. Before implementation, add explicit prerequisites where a task depends on another module's contract; do not mark dependent work parallel.
+3. **Non-functional thresholds are not quantified.** Rate limits, freshness windows, retention periods, polling cadence, timeout budgets, backup recovery objectives, and performance targets are intentionally unresolved. They need approved values before being treated as measurable acceptance criteria.
+4. **No optional `data-model.md` was added.** Spec Kit's constrained-field citation checks are not applicable in the absence of that optional artifact. This is not a failure; do not invent schema constraints. Add data-model documents for modules before tasks that impose field-level length, nullability, enum, or validation constraints.
+5. **No separate API contract documents are present.** Provider callback and device adapter contracts are assigned to tasks but require detailed contracts/fixtures before implementation.
+
+#### LOW
+1. Requirement wording and acceptance criteria could be normalized to one consistent “Given/When/Then” style.
+2. Add explicit story IDs only where a user journey spans multiple requirements; avoid duplicating requirements as prose.
+
+### Duplication and ambiguity review
+
+- **No direct contradictory requirement pair was identified** across the ten module specs or their plans.
+- Expected overlap is intentional: Payment owns transaction verification/finality; Accounting owns posted financial treatment; Billing consumes final payment state for service renewal. Customer owns customer identity; OLT/ONU owns exact device mapping evidence; Network owns manually recorded physical topology. Administration supplies cross-cutting authorization and audit controls.
+- No unresolved placeholder tokens (`TODO`, `TKTK`, `FIXME`, `XXX`, `???`) were found in the ten module requirements.
+- Some words such as “secure”, “read-only”, “idempotent”, and “explicitly authorized” are policy terms whose measurable enforcement is delegated to tasks; quantify timeouts, freshness, retries, retention, and limits before implementation.
+- Existing path references were sampled against `origin/main`; one incorrect OLT ledger service path was found and corrected to `app/Services/OnuMacLedgerService.php`. A complete path-by-path validation of every referenced path has not been established.
+
+### Constitution alignment
+
+- No direct MUST-principle conflict was found in the ten specifications or plans.
+- PHP 8.5 / Laravel 13 baseline matches the repository Composer manifest and does not follow stale README prose.
+- Read-only network defaults, staging credential separation, explicit polling gates, payment idempotency, posted-only accounting, signed returns, server-side authorization, and test evidence are reflected in module plans/tasks.
+- Constitution remains Draft; no ratification date has been inferred or set.
+
+### Official command preconditions and execution status
+
+- `.specify/extensions.yml` is absent; there are no pre-analysis extension hooks to execute.
+- All ten module artifact triplets exist on the PR branch.
+- The official template requires a read-only analysis after tasks generation. The analysis checks above were executed against the GitHub branch artifacts, with findings recorded here.
+- **Canonical command status: NOT RUN in a native Spec Kit agent session.** The slash command is not executable from this ChatGPT tool session, and the staging checkout lacks the relevant CLI executable. Do not label this as a native `/speckit.analyze` pass.
+
+### Next actions
+
+1. In a supported Spec Kit coding-agent session with this branch checked out, run `/speckit.analyze` and attach its native output to this report/PR.
+2. Refine module stories, shared cross-module contracts, explicit task dependencies, and measurable non-functional limits.
+3. Add data-model/API contract artifacts only where source-backed field and integration constraints are known.
+4. After separate implementation approval, execute the task lists module by module, map each requirement to concrete implementation and tests, then run CI and authenticated Staging browser checks.
+5. Keep this PR Draft until the owner reviews the Constitution and unresolved policy decisions. No merge, deployment, Production migration, live router action, or OLT polling is authorized by this analysis.
