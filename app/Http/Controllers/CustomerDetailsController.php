@@ -116,9 +116,8 @@ class CustomerDetailsController extends Controller
             $months[$monthKey]['has_bill'] = true;
         }
 
-        $collectionMonths = CollectionSummary::query()
+        $collectionMonths = CollectionSummary::postedForAccounting()
             ->where('customer_collection_unique_id', $customer->customer_unique_id)
-            ->where('payment_status', 'paid')
             ->selectRaw("DATE_FORMAT(collection_date, '%Y-%m') as month_key, COUNT(*) as transaction_count, SUM(CASE WHEN collection_amount > 0 THEN collection_amount ELSE 0 END) as received_amount, SUM(CASE WHEN collection_amount < 0 THEN ABS(collection_amount) ELSE 0 END) as returned_amount, SUM(collection_amount) as net_paid_amount")
             ->groupByRaw("DATE_FORMAT(collection_date, '%Y-%m')")
             ->get();
