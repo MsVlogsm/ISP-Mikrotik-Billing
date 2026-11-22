@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\CollectionSummary;
+use App\Models\PaymentSummary;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -40,6 +41,23 @@ class FinanceAccountingReportTest extends TestCase
         $this->assertEquals(75.00, (float) $posted->sum('collection_amount'));
         $this->assertSame(4, $adjustments->count());
         $this->assertEquals(155.00, (float) $adjustments->sum('collection_amount'));
+    }
+
+    public function test_payment_summary_due_uses_paid_collections_only(): void
+    {
+        $summary = PaymentSummary::create([
+            'customer_payment_unique_id' => 'PAYMENT-SUMMARY-1',
+            'summary_date' => '2026-11-22',
+            'monthly_rent' => 500,
+        ]);
+
+        $this->recordCollection('PAYMENT-SUMMARY-1', '2026-11-22 10:00:00', 100, 'paid', 'cash', 990007);
+        $this->recordCollection('PAYMENT-SUMMARY-1', '2026-11-22 10:05:00', 50, 'reversed', 'cash', 990008);
+        $this->recordCollection('PAYMENT-SUMMARY-1', '2026-11-22 10:10:00', 75, 'pending', 'bkash', 990009);
+        $this->recordCollection('PAYMENT-SUMMARY-1', '2026-11-22 10:15:00', -25, 'reconciled', 'duplicate_reversal', 990010);
+
+        $this->assertEquals(100.00, $summary->paid_amount);
+        $this->assertEquals(400.00, $summary->due_amount);
     }
 
     public function test_income_report_includes_full_to_date_and_separates_adjustments(): void
