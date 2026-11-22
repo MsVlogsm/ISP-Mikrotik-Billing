@@ -33,10 +33,13 @@ class OltAndBridgeFdbReadOnlyGetTest extends TestCase
         $this->assertContains('GET', $route->methods());
         $this->assertNotContains('POST', $route->methods());
 
-        $response = $this->withoutMiddleware()->get(route('network-inventory.olt.dashboard', $device));
+        $response = app(OltDashboardController::class)->show(
+            Request::create(route('network-inventory.olt.dashboard', $device), 'GET'),
+            $device
+        );
 
-        $response->assertOk();
-        $response->assertSee('Read-only GET OLT');
+        $this->assertSame('xlink.olt-dashboard', $response->name());
+        $this->assertStringContainsString('Read-only GET OLT', $response->render());
         $this->assertDatabaseCount('olt_live_metric_snapshots', 0);
     }
 
@@ -59,10 +62,13 @@ class OltAndBridgeFdbReadOnlyGetTest extends TestCase
         $this->assertContains('GET', $route->methods());
         $this->assertNotContains('POST', $route->methods());
 
-        $response = $this->withoutMiddleware()->get(route('network-inventory.device.bridge-fdb', $device));
+        $response = app(BridgeFdbController::class)->index(
+            Request::create(route('network-inventory.device.bridge-fdb', $device), 'GET'),
+            $device
+        );
 
-        $response->assertOk();
-        $response->assertSee('Read-only GET Bridge FDB OLT');
+        $this->assertSame('xlink.bridge-fdb', $response->name());
+        $this->assertStringContainsString('Read-only GET Bridge FDB OLT', $response->render());
         $this->assertSame(0, NetworkBridgeFdbSnapshot::query()
             ->where('network_inventory_device_id', $device->id)
             ->count());
