@@ -35,6 +35,7 @@ class PaymentSummary extends Model
     public function monthlyCollections()
     {
         return $this->collections()
+            ->postedForAccounting()
             ->whereMonth('collection_date', $this->summary_date->month)
             ->whereYear('collection_date', $this->summary_date->year);
     }
