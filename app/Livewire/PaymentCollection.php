@@ -43,6 +43,9 @@ class PaymentCollection extends Component
 
     public $expire_date = '';
 
+    /** Prepaid renewal basis: calendar month, exact 30 days, or operator-entered date. */
+    public $expiry_mode = 'date_to_date';
+
     public $advance_paid = 0;
 
     public $payment_method = 'cash';
@@ -152,16 +155,25 @@ class PaymentCollection extends Component
         $this->advance_paid = max(0, round($amount - max(0, $currentDue), 2));
 
         if ($billing->billing_type === 'prepaid') {
-            $anchor = $this->info_data->connection_date ?: $billing->auto_disable_date;
-            $calculatedExpiry = PrepaidBillingCycle::expiryAfterPayment(
-                $anchor,
+            if ($this->expiry_mode === 'manual') {
+                return;
+            }
+
+            $timezone = config('app.timezone') ?: 'Asia/Dhaka';
+            $paymentDate = filled($this->collection_date)
+                ? Carbon::parse($this->collection_date, $timezone)
+                : now($timezone);
+
+            $calculatedExpiry = PrepaidBillingCycle::expiryAfterPaymentDate(
+                $paymentDate,
                 $billing->auto_disable_date,
                 $currentDue,
                 $amount,
-                (float) $billing->monthly_rent
+                (float) $billing->monthly_rent,
+                $this->expiry_mode
             );
             $this->expire_date = $calculatedExpiry?->toDateString()
-                ?: ($billing->auto_disable_date ? Carbon::parse($billing->auto_disable_date)->toDateString() : '');
+                ?: ($billing->auto_disable_date ? Carbon::parse($billing->auto_disable_date, $timezone)->toDateString() : '');
 
             return;
         }
@@ -187,6 +199,35 @@ class PaymentCollection extends Component
             $this->expire_date = Carbon::parse($billing->auto_disable_date)
                 ->month(now()->month)->year(now()->year)->addMonth()->format('Y-m-d');
         }
+    }
+
+    public function updatedCollectionDate(): void
+    {
+        if (
+            $this->info_data?->billing?->billing_type === 'prepaid'
+            && $this->expiry_mode !== 'manual'
+        ) {
+            $this->calculatePayment();
+        }
+    }
+
+    public function updatedExpiryMode(): void
+    {
+        if ($this->info_data?->billing?->billing_type !== 'prepaid') {
+            return;
+        }
+
+        if ($this->expiry_mode === 'manual') {
+            $timezone = config('app.timezone') ?: 'Asia/Dhaka';
+            $expiry = $this->info_data->billing->auto_disable_date;
+            $this->expire_date = $expiry
+                ? Carbon::parse($expiry, $timezone)->toDateString()
+                : '';
+
+            return;
+        }
+
+        $this->calculatePayment();
     }
 
     public function selectCustomer($value)
@@ -218,6 +259,7 @@ class PaymentCollection extends Component
         $this->payment_method = 'cash';
         $this->transaction_id = '';
         $this->payment_details = '';
+        $this->expiry_mode = 'date_to_date';
         $this->collection_date = now()->format('Y-m-d\TH:i');
         $this->send_sms = true;
         $this->payment_attempt_key = (string) Str::uuid();
@@ -247,18 +289,32 @@ class PaymentCollection extends Component
 
         $customerUniqueId = (string) $this->info_data->customer_unique_id;
         $isPrepaid = $this->info_data->billing->billing_type === 'prepaid';
+        $expiryDateRules = $isPrepaid && $this->expiry_mode !== 'manual'
+            ? ['nullable', 'date_format:Y-m-d']
+            : ['required', 'date_format:Y-m-d'];
+
         $this->validate([
             'paid_amount' => ['required', 'numeric', 'gt:0', 'max:99999999'],
             'payment_method' => ['required', Rule::in(['cash', 'bkash', 'nagad', 'rocket', 'bank', 'other'])],
             'transaction_id' => ['nullable', 'string', 'max:120', Rule::unique('collection_summaries', 'transaction_id')->where(fn ($q) => $q->whereNotNull('transaction_id'))],
             'payment_details' => ['nullable', 'string', 'max:2000'],
             'collection_date' => ['required', 'date', 'before_or_equal:now'],
-            'expire_date' => [$isPrepaid ? 'nullable' : 'required', 'date'],
+            'expiry_mode' => [$isPrepaid ? 'required' : 'nullable', Rule::in(['date_to_date', 'fixed_30_days', 'manual'])],
+            'expire_date' => $expiryDateRules,
             'send_sms' => ['boolean'],
         ]);
 
         $amount = round((float) $this->paid_amount, 2);
-        $collectionDate = Carbon::parse($this->collection_date);
+        $timezone = config('app.timezone') ?: 'Asia/Dhaka';
+        $collectionDate = Carbon::parse($this->collection_date, $timezone);
+
+        if ($isPrepaid && $this->expiry_mode === 'manual') {
+            $manualExpiry = Carbon::createFromFormat('!Y-m-d', (string) $this->expire_date, $timezone)->startOfDay();
+            if ($manualExpiry->lte($collectionDate->copy()->startOfDay())) {
+                $this->addError('expire_date', 'Expiry date must be later than the collection date.');
+                return false;
+            }
+        }
         $attemptKey = filled($this->payment_attempt_key)
             ? (string) $this->payment_attempt_key
             : (string) Str::uuid();
@@ -281,6 +337,8 @@ class PaymentCollection extends Component
             }
         }
 
+        $prepaidDueRemains = false;
+
         DB::beginTransaction();
         try {
             // The unique attempt key protects against a retried Livewire request
@@ -299,16 +357,25 @@ class PaymentCollection extends Component
             $newExpiry = null;
 
             if ($billing->billing_type === 'prepaid') {
-                $cycleAnchor = $this->info_data->connection_date ?: $billing->auto_disable_date;
-                $newExpiry = PrepaidBillingCycle::expiryAfterPayment(
-                    $cycleAnchor,
-                    $billing->auto_disable_date,
-                    $currentDue,
-                    $amount,
-                    (float) $billing->monthly_rent
-                );
-                if ($newExpiry) {
-                    $billing->auto_disable_date = $newExpiry->toDateString();
+                $prepaidDueRemains = $newDue > 0.009;
+
+                if (! $prepaidDueRemains) {
+                    if ($this->expiry_mode === 'manual') {
+                        $newExpiry = Carbon::createFromFormat('!Y-m-d', (string) $this->expire_date, $timezone);
+                    } else {
+                        $newExpiry = PrepaidBillingCycle::expiryAfterPaymentDate(
+                            $collectionDate,
+                            $billing->auto_disable_date,
+                            $currentDue,
+                            $amount,
+                            (float) $billing->monthly_rent,
+                            $this->expiry_mode
+                        );
+                    }
+
+                    if ($newExpiry) {
+                        $billing->auto_disable_date = $newExpiry->toDateString();
+                    }
                 }
             } else {
                 $billing->auto_disable_date = $this->expire_date;
@@ -408,6 +475,10 @@ class PaymentCollection extends Component
             $this->reset();
             $this->payment_attempt_key = (string) Str::uuid();
             $this->dispatch('focusInput');
+        }
+
+        if ($prepaidDueRemains) {
+            flash()->warning('Payment recorded, but the prepaid due remains. Expiry was not extended; clear the remaining due before renewal.');
         }
 
         return true;

@@ -189,20 +189,41 @@
                                 </div>
                                 <div class="col-md-3 col-sm-6">
                                     <label class="form-label small fw-semibold">{{ __('Collection Date & Time') }}</label>
-                                    <input type="datetime-local" class="form-control form-control-sm" wire:model="collection_date" required>
+                                    <input type="datetime-local" class="form-control form-control-sm" wire:model.live="collection_date" required>
                                     @error('collection_date') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
-                                <div class="col-md-4 col-sm-6">
+                                @if($info_data->billing->billing_type === 'prepaid')
+                                    <div class="col-md-3 col-sm-6">
+                                        <label class="form-label small fw-semibold">{{ __('Expiry Validity') }}</label>
+                                        <select class="form-select form-select-sm" wire:model.live="expiry_mode">
+                                            <option value="date_to_date">{{ __('Date-to-date') }}</option>
+                                            <option value="fixed_30_days">{{ __('Fixed 30 days') }}</option>
+                                            <option value="manual">{{ __('Manual date') }}</option>
+                                        </select>
+                                    </div>
+                                @endif
+                                <div class="col-md-3 col-sm-6">
                                     <label class="form-label small fw-semibold">{{ __('New Expiry Date') }}</label>
-                                    <input type="date" class="form-control form-control-sm" wire:model.live="expire_date" @if($info_data->billing->billing_type === 'prepaid') readonly @endif required>
+                                    <input
+                                        type="date"
+                                        class="form-control form-control-sm"
+                                        wire:model.live="expire_date"
+                                        @if($info_data->billing->billing_type === 'prepaid' && $expiry_mode !== 'manual') readonly @endif
+                                        @if($info_data->billing->billing_type !== 'prepaid' || $expiry_mode === 'manual') required @endif
+                                    >
+                                    @if($info_data->billing->billing_type === 'prepaid' && $expiry_mode !== 'manual')
+                                        <small class="text-muted d-block mt-1">{{ __('Calculated from Collection Date & Time. Existing future paid validity is preserved.') }}</small>
+                                    @elseif($info_data->billing->billing_type === 'prepaid')
+                                        <small class="text-muted d-block mt-1">{{ __('Choose the expiry date manually. It must be after the collection date.') }}</small>
+                                    @endif
                                     @error('expire_date') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
-                                <div class="col-md-5 col-sm-8">
+                                <div class="col-md-3 col-sm-6">
                                     <label class="form-label small fw-semibold">{{ __('Notes') }}</label>
                                     <input type="text" class="form-control form-control-sm" wire:model="payment_details" maxlength="2000" placeholder="Optional collection note">
                                     @error('payment_details') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
-                                <div class="col-md-3 col-sm-4">
+                                <div class="col-md-3 col-sm-6">
                                     <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="send_payment_sms" wire:model="send_sms"><label class="form-check-label small" for="send_payment_sms">{{ __('Send SMS receipt') }}</label></div>
                                     <button class="btn btn-sm btn-success w-100" wire:loading.attr="disabled" wire:target="savePayment"><span wire:loading.remove wire:target="savePayment"><i class="bi bi-check-circle me-1"></i>{{ __('Collect Payment') }}</span><span wire:loading wire:target="savePayment">Saving…</span></button>
                                     @if(in_array($info_data->status, ['pending', 'disable'], true))

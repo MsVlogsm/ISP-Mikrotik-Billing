@@ -105,6 +105,76 @@ class PrepaidBillingCycleTest extends TestCase
         $this->assertSame('2027-03-03', $expiry->toDateString());
     }
 
+    public function test_date_to_date_renewal_uses_collection_date_instead_of_connection_day(): void
+    {
+        $expiry = PrepaidBillingCycle::expiryAfterPaymentDate(
+            '2026-10-15 10:00:00',
+            '2026-10-10',
+            500,
+            500,
+            500,
+            'date_to_date'
+        );
+
+        $this->assertSame('2026-11-15', $expiry?->toDateString());
+    }
+
+    public function test_fixed_thirty_day_renewal_adds_exactly_thirty_days_from_payment_date(): void
+    {
+        $expiry = PrepaidBillingCycle::expiryAfterPaymentDate(
+            '2026-10-15 10:00:00',
+            '2026-10-10',
+            500,
+            500,
+            500,
+            'fixed_30_days'
+        );
+
+        $this->assertSame('2026-11-14', $expiry?->toDateString());
+    }
+
+    public function test_early_payment_preserves_existing_future_validity_before_adding_a_cycle(): void
+    {
+        $expiry = PrepaidBillingCycle::expiryAfterPaymentDate(
+            '2026-11-22 10:00:00',
+            '2026-12-15',
+            500,
+            500,
+            500,
+            'date_to_date'
+        );
+
+        $this->assertSame('2027-01-15', $expiry?->toDateString());
+    }
+
+    public function test_date_to_date_mode_restores_the_original_day_after_month_end_clamping(): void
+    {
+        $expiry = PrepaidBillingCycle::expiryAfterPaymentDate(
+            '2026-01-31 10:00:00',
+            '2026-01-10',
+            500,
+            1000,
+            500,
+            'date_to_date'
+        );
+
+        $this->assertSame('2026-03-31', $expiry?->toDateString());
+    }
+
+    public function test_payment_date_calculation_does_not_grant_validity_for_partial_payment(): void
+    {
+        $this->assertNull(
+            PrepaidBillingCycle::expiryAfterPaymentDate(
+                '2026-10-15 10:00:00',
+                '2026-10-10',
+                500,
+                250,
+                500,
+                'date_to_date'
+            )
+        );
+    }
+
     public function test_partial_payment_that_does_not_clear_prepaid_due_grants_no_cycle(): void
     {
         $this->assertNull(
