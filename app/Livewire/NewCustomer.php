@@ -47,6 +47,12 @@ class NewCustomer extends Component
 
     public $alternative_mobile;
 
+    public $contact_person;
+
+    public $parents_name;
+
+    public $spouse_name;
+
     public $profession;
 
     public $connection_date;
@@ -280,6 +286,9 @@ class NewCustomer extends Component
             'mobile' => ['nullable', 'string', new ValidPhoneDigits],
             'email' => 'nullable|email',
             'alternative_mobile' => ['nullable', 'string', new ValidPhoneDigits],
+            'contact_person' => 'nullable|string|max:255',
+            'parents_name' => 'nullable|string|max:255',
+            'spouse_name' => 'nullable|string|max:255',
             'identification_no' => 'nullable|string|max:255',
             'router_name' => 'nullable|required_with:service',
             'service' => 'nullable|required_with:router_name',
@@ -497,7 +506,10 @@ class NewCustomer extends Component
                 if ($this->identification_no) {
                     $stepRules['identification_no'] = $allRules['identification_no'];
                 }
-                
+                foreach (['contact_person', 'parents_name', 'spouse_name'] as $personalField) {
+                    $stepRules[$personalField] = $allRules[$personalField];
+                }
+
                 $this->validate($stepRules);
 
             } elseif ($this->step === 2) {
@@ -765,6 +777,9 @@ class NewCustomer extends Component
             // but Add Customer must not add a country-code prefix.
             $customer->mobile = filled($this->mobile) ? trim((string) $this->mobile) : null;
             $customer->alternative_mobile = filled($this->alternative_mobile) ? trim((string) $this->alternative_mobile) : null;
+            $customer->contact_person = filled($this->contact_person) ? trim((string) $this->contact_person) : null;
+            $customer->parents_name = filled($this->parents_name) ? trim((string) $this->parents_name) : null;
+            $customer->spouse_name = filled($this->spouse_name) ? trim((string) $this->spouse_name) : null;
             $customer->profession = $this->profession;
             $customer->ppp_user_id = $pppUser?->id;
             $customer->connection_date = $this->connection_date;

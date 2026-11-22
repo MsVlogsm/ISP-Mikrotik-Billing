@@ -55,6 +55,7 @@ class AddressSetup extends Component
 
     public array $standardAddressLabels = [
         'Present Address',
+        'Permanent Address',
         'Floor / Flat',
         'Road',
         'House',
@@ -94,7 +95,7 @@ class AddressSetup extends Component
 
         if (in_array($label, $dropdownFields, true)) {
             $this->input_type = 'dropdown';
-        } elseif ($label === 'Present Address') {
+        } elseif (in_array($label, ['Present Address', 'Permanent Address'], true)) {
             $this->input_type = 'textarea';
         } else {
             $this->input_type = 'text';
