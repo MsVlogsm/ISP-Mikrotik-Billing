@@ -157,6 +157,7 @@
                                                 </div>
                                             </td>
                                         </tr>
+                                        @endif
                                         <tr class="table-warning">
                                             <th class="py-2">{{ __('Current Payable Due') }}</th>
                                             <th class="text-end text-danger py-2">{{$due_amount}} {{ siteUrlSettings('site_currency') }}</th>
