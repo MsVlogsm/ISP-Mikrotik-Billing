@@ -36,6 +36,73 @@ final class PrepaidBillingCycle
         return $candidate;
     }
 
+    /**
+     * Calculate newly earned prepaid validity from the actual collection date.
+     *
+     * If a customer still has future paid validity, new cycles are appended
+     * after that expiry so an early payment never removes already-paid days.
+     * Once the stored expiry is reached/past, the collection date becomes the
+     * renewal anchor. Date-to-date mode preserves the anchor day across months
+     * (31st -> month-end -> 31st); fixed mode grants exact 30-day blocks.
+     */
+    public static function expiryAfterPaymentDate(
+        $paymentDate,
+        $currentExpiry,
+        float $currentDue,
+        float $paymentAmount,
+        float $monthlyRent,
+        string $validityMode = 'date_to_date'
+    ): ?Carbon {
+        if (
+            ! $paymentDate
+            || $paymentAmount <= 0
+            || $monthlyRent <= 0
+            || ! in_array($validityMode, ['date_to_date', 'fixed_30_days'], true)
+        ) {
+            return null;
+        }
+
+        $newDue = round($currentDue - $paymentAmount, 2);
+        if ($newDue > 0.009) {
+            return null;
+        }
+
+        // Preserve the existing advance-credit accounting: only the additional
+        // full monthly cycles earned by this receipt extend the current expiry.
+        $existingCycles = $currentDue <= 0.009
+            ? 1 + (int) floor((max(0, -$currentDue) + 0.00001) / $monthlyRent)
+            : 0;
+        $paidCycles = 1 + (int) floor((max(0, -$newDue) + 0.00001) / $monthlyRent);
+        $additionalCycles = max(0, $paidCycles - $existingCycles);
+
+        if ($additionalCycles < 1) {
+            return null;
+        }
+
+        $timezone = config('app.timezone') ?: 'Asia/Dhaka';
+        $paidOn = Carbon::parse($paymentDate, $timezone)->startOfDay();
+        $storedExpiry = $currentExpiry
+            ? Carbon::parse($currentExpiry, $timezone)->startOfDay()
+            : null;
+        $base = $storedExpiry && $storedExpiry->gt($paidOn)
+            ? $storedExpiry->copy()
+            : $paidOn->copy();
+
+        if ($validityMode === 'fixed_30_days') {
+            return $base->addDays(30 * $additionalCycles)->startOfDay();
+        }
+
+        // Calculate from the original anchor day, not from a clamped month-end,
+        // so Jan 31 -> Feb 28 -> Mar 31 does not drift to Mar 28.
+        $anchorDay = $base->day;
+        $targetMonth = $base->copy()
+            ->startOfMonth()
+            ->addMonthsNoOverflow($additionalCycles);
+        $targetMonth->day(min($anchorDay, $targetMonth->daysInMonth));
+
+        return $targetMonth->startOfDay();
+    }
+
     /** Calculate a prepaid expiry from the resulting due/credit balance. */
     public static function expiryFromBalance(
         $connectionDate,
