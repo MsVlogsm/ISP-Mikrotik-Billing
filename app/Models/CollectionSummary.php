@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\LogOptions;
@@ -62,6 +64,29 @@ class CollectionSummary extends Model
         'bill_month',
         'invoice_no',
     ];
+
+    /**
+     * Restrict accounting totals to completed, paid collections.
+     * Reversed, pending and reconciled adjustment records are kept in
+     * adjustment/audit views and must not inflate customer receipts.
+     */
+    #[Scope]
+    protected function postedForAccounting(Builder $query): void
+    {
+        $query->where('payment_status', 'paid');
+    }
+
+    /**
+     * Records excluded from posted collection totals, for audit presentation.
+     */
+    #[Scope]
+    protected function nonPostedForAccounting(Builder $query): void
+    {
+        $query->where(function (Builder $statusQuery) {
+            $statusQuery->whereNull('payment_status')
+                ->orWhere('payment_status', '<>', 'paid');
+        });
+    }
 
     public function customer()
     {

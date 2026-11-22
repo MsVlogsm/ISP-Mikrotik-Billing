@@ -31,12 +31,12 @@ class BillingFinanceDashboardController extends Controller
         $driver = DB::connection()->getDriverName();
         $currency = siteUrlSettings('site_currency') ?: '৳';
 
-        $collectionToday = (float) CollectionSummary::whereBetween('collection_date', [$todayStart, $todayEnd])->sum('collection_amount');
+        $collectionToday = (float) CollectionSummary::postedForAccounting()->whereBetween('collection_date', [$todayStart, $todayEnd])->sum('collection_amount');
         $hotspotToday = (float) HotspotSale::whereDate('sale_date', $todayDate)->sum('amount');
 
-        $collectionMonth = (float) CollectionSummary::whereBetween('collection_date', [$monthStart, $monthEnd])->sum('collection_amount');
+        $collectionMonth = (float) CollectionSummary::postedForAccounting()->whereBetween('collection_date', [$monthStart, $monthEnd])->sum('collection_amount');
         $hotspotMonth = (float) HotspotSale::whereBetween('sale_date', [$monthStartDate, $monthEndDate])->sum('amount');
-        $collectionYear = (float) CollectionSummary::whereBetween('collection_date', [$yearStart, $todayEnd])->sum('collection_amount');
+        $collectionYear = (float) CollectionSummary::postedForAccounting()->whereBetween('collection_date', [$yearStart, $todayEnd])->sum('collection_amount');
         $hotspotYear = (float) HotspotSale::whereBetween('sale_date', [$yearStartDate, $todayDate])->sum('amount');
 
         $expenseMonth = (float) IspExpense::whereBetween('expense_date', [$monthStartDate, $monthEndDate])->sum('amount');
@@ -76,7 +76,7 @@ class BillingFinanceDashboardController extends Controller
             ? "strftime('%Y-%m', created_at)"
             : "DATE_FORMAT(created_at, '%Y-%m')";
 
-        $collectionsByMonth = CollectionSummary::whereBetween('collection_date', [$trendStart, $monthEnd])
+        $collectionsByMonth = CollectionSummary::postedForAccounting()->whereBetween('collection_date', [$trendStart, $monthEnd])
             ->selectRaw($collectionMonthExpression.' as month_key, SUM(collection_amount) as total')
             ->groupBy('month_key')->pluck('total', 'month_key')->toArray();
 
@@ -107,11 +107,11 @@ class BillingFinanceDashboardController extends Controller
         }
         $trendMax = max(1, ...array_map(fn ($row) => max($row['revenue'], $row['expenses']), $trend));
 
-        $paymentMethods = CollectionSummary::whereBetween('collection_date', [$monthStart, $monthEnd])
+        $paymentMethods = CollectionSummary::postedForAccounting()->whereBetween('collection_date', [$monthStart, $monthEnd])
             ->selectRaw("COALESCE(NULLIF(payment_method, ''), 'Other') as method, SUM(collection_amount) as total")
             ->groupBy('method')->orderByDesc('total')->limit(5)->get();
 
-        $recentCollections = CollectionSummary::with('customer')
+        $recentCollections = CollectionSummary::postedForAccounting()->with('customer')
             ->whereBetween('collection_date', [$monthStart, $monthEnd])
             ->latest('collection_date')->latest('id')->limit(7)->get();
 

@@ -31,8 +31,14 @@ class EnsureBillingPort
             && $port === 443
             && $request->isSecure();
 
+        // Restricted staging runs on its own configurable HTTPS port, separate from Production.
+        $isStagingHttps = app()->environment('staging')
+            && $host === 'bill.xlinkbd.net'
+            && $port === (int) config('app.billing_staging_port', 8084)
+            && $request->isSecure();
+
         if (! in_array($host, ['bill.xlinkbd.net', 'billing.bill.xlinkbd.net'], true)
-            || ($port !== 8081 && ! $isCanonicalHttps)) {
+            || ($port !== 8081 && ! $isCanonicalHttps && ! $isStagingHttps)) {
             abort(404);
         }
 

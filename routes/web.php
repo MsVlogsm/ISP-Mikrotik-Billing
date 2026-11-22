@@ -562,6 +562,10 @@ Route::middleware([
             return back()->with('onu_sync_message', trim(\Illuminate\Support\Facades\Artisan::output()) ?: 'ONU mapping synchronization completed.')->with('onu_sync_success', true);
         })->name('network-inventory.olt.sync');
 
+        Route::get('/network-inventory/universal-search', [\App\Http\Controllers\UniversalNetworkSearchController::class, 'index'])
+            ->middleware('throttle:10,1')
+            ->name('network-inventory.universal-search');
+
         Route::get('/network-inventory/olt-management', function () {
             $query = \App\Models\NetworkInventoryDevice::type('olt')->orderBy('name');
             if ($q = trim((string) request('q',''))) {
@@ -1577,26 +1581,77 @@ Route::middleware([
         Route::get('/billing-finance', [BillingFinanceDashboardController::class, 'index'])->name('billing-finance');
 
         Route::get('/income-summary', function () {
-            $from = request('from', now()->startOfMonth()->toDateString());
-            $to = request('to', now()->endOfMonth()->toDateString());
-            $rows = \App\Models\CollectionSummary::with('customer')
-                ->whereBetween('collection_date', [$from, $to])
+            $validated = \Illuminate\Support\Facades\Validator::make([
+                'from' => request()->input('from', now()->startOfMonth()->toDateString()),
+                'to' => request()->input('to', now()->endOfMonth()->toDateString()),
+            ], [
+                'from' => ['required', 'date_format:Y-m-d'],
+                'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+            ])->validate();
+
+            $from = $validated['from'];
+            $to = $validated['to'];
+            $fromBoundary = \Carbon\Carbon::createFromFormat('!Y-m-d', $from);
+            // collection_date is TIMESTAMP: include all of the selected To day.
+            $toExclusive = \Carbon\Carbon::createFromFormat('!Y-m-d', $to)->addDay();
+
+            $rows = \App\Models\CollectionSummary::postedForAccounting()
+                ->with('customer')
+                ->where('collection_date', '>=', $fromBoundary)
+                ->where('collection_date', '<', $toExclusive)
                 ->latest('collection_date')->latest('id')->get();
+
+            $adjustments = \App\Models\CollectionSummary::nonPostedForAccounting()
+                ->with('customer')
+                ->where('collection_date', '>=', $fromBoundary)
+                ->where('collection_date', '<', $toExclusive)
+                ->latest('collection_date')->latest('id')->get();
+
             $own = $rows->whereNull('customer.reseller_id')->sum('collection_amount');
-            $reseller = $rows->filter(fn($r) => optional($r->customer)->reseller_id !== null)->sum('collection_amount');
-            return view('billing.income-summary', compact('rows','from','to','own','reseller'));
+            $reseller = $rows->filter(fn ($r) => optional($r->customer)->reseller_id !== null)->sum('collection_amount');
+
+            return view('billing.income-summary', compact('rows', 'adjustments', 'from', 'to', 'own', 'reseller'));
         })->name('income-summary');
 
         Route::get('/ledger-summary', function () {
-            $from = request('from', now()->startOfMonth()->toDateString());
-            $to = request('to', now()->endOfMonth()->toDateString());
-            $credits = \App\Models\CollectionSummary::with('customer')
-                ->whereBetween('collection_date', [$from, $to])->latest('collection_date')->limit(100)->get();
-            $debits = \App\Models\IspExpense::with('addedBy')
-                ->whereBetween('expense_date', [$from, $to])->latest('expense_date')->limit(100)->get();
-            $creditTotal = $credits->sum('collection_amount');
-            $debitTotal = $debits->sum('amount');
-            return view('billing.ledger-summary', compact('credits','debits','creditTotal','debitTotal','from','to'));
+            $validated = \Illuminate\Support\Facades\Validator::make([
+                'from' => request()->input('from', now()->startOfMonth()->toDateString()),
+                'to' => request()->input('to', now()->endOfMonth()->toDateString()),
+            ], [
+                'from' => ['required', 'date_format:Y-m-d'],
+                'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+            ])->validate();
+
+            $from = $validated['from'];
+            $to = $validated['to'];
+            $fromBoundary = \Carbon\Carbon::createFromFormat('!Y-m-d', $from);
+            $toExclusive = \Carbon\Carbon::createFromFormat('!Y-m-d', $to)->addDay();
+
+            // Lists are capped for readability; totals are deliberately not capped.
+            $creditQuery = \App\Models\CollectionSummary::postedForAccounting()
+                ->with('customer')
+                ->where('collection_date', '>=', $fromBoundary)
+                ->where('collection_date', '<', $toExclusive);
+            $credits = (clone $creditQuery)->latest('collection_date')->limit(100)->get();
+            $creditTotal = (float) (clone $creditQuery)->sum('collection_amount');
+
+            $adjustmentQuery = \App\Models\CollectionSummary::nonPostedForAccounting()
+                ->with('customer')
+                ->where('collection_date', '>=', $fromBoundary)
+                ->where('collection_date', '<', $toExclusive);
+            $adjustments = (clone $adjustmentQuery)->latest('collection_date')->limit(100)->get();
+            $adjustmentTotal = (float) (clone $adjustmentQuery)->sum('collection_amount');
+
+            $expenseQuery = \App\Models\IspExpense::query()
+                ->where('expense_date', '>=', $from)
+                ->where('expense_date', '<', $toExclusive->toDateString());
+            $debits = (clone $expenseQuery)->with('addedBy')->latest('expense_date')->limit(100)->get();
+            $debitTotal = (float) (clone $expenseQuery)->sum('amount');
+
+            return view('billing.ledger-summary', compact(
+                'credits', 'adjustments', 'adjustmentTotal', 'debits',
+                'creditTotal', 'debitTotal', 'from', 'to'
+            ));
         })->name('ledger-summary');
 
         Route::get('/extra-charges', function () {

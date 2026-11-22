@@ -127,7 +127,7 @@ class Reseller extends Model
         if (array_key_exists('total_collected', $this->getAttributes())) {
             return (float) ($this->total_collected ?? 0.00);
         }
-        return (float) $this->collections()->sum('collection_amount');
+        return (float) $this->collections()->postedForAccounting()->sum('collection_amount');
     }
 
     /**

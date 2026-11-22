@@ -42,7 +42,7 @@ class PartnerNetworkController extends Controller
         [$from, $to] = $this->period($request);
         $resellers = Reseller::with('user')->orderBy('id')->get();
 
-        $collections = CollectionSummary::query()
+        $collections = CollectionSummary::postedForAccounting()
             ->whereBetween('collection_date', [$from, $to])
             ->whereHas('customer', fn ($q) => $q->whereNotNull('reseller_id'))
             ->sum('collection_amount');
@@ -71,7 +71,7 @@ class PartnerNetworkController extends Controller
         [$from, $to] = $this->period($request);
         $resellerId = $request->query('reseller_id');
 
-        $collectionQuery = CollectionSummary::query()
+        $collectionQuery = CollectionSummary::postedForAccounting()
             ->with('customer:id,customer_unique_id,customer_name,reseller_id')
             ->whereBetween('collection_date', [$from, $to])
             ->whereHas('customer', fn ($q) => $q->whereNotNull('reseller_id'));
@@ -113,7 +113,7 @@ class PartnerNetworkController extends Controller
 
         $rows = collect();
 
-        $collections = CollectionSummary::query()
+        $collections = CollectionSummary::postedForAccounting()
             ->with('customer:id,customer_unique_id,customer_name,reseller_id')
             ->whereBetween('collection_date', [$from, $to])
             ->whereHas('customer', fn ($q) => $q->whereNotNull('reseller_id'))

@@ -35,16 +35,14 @@ class PaymentSummary extends Model
     public function monthlyCollections()
     {
         return $this->collections()
+            ->postedForAccounting()
             ->whereMonth('collection_date', $this->summary_date->month)
             ->whereYear('collection_date', $this->summary_date->year);
     }
 
     public function getPaidAmountAttribute(): float
     {
-        return $this->collections()
-            ->whereMonth('collection_date', $this->summary_date->month)
-            ->whereYear('collection_date', $this->summary_date->year)
-            ->sum('collection_amount');
+        return (float) $this->monthlyCollections()->sum('collection_amount');
     }
 
     public function getTotalAttribute(): float
