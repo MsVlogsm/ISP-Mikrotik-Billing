@@ -6,8 +6,8 @@ Sync Impact Report
   Controlled Evolution and Compatibility; Evidence-Based Quality and Regression Prevention.
 - Added sections: Technology and Data Constraints; Delivery and Operational Quality Gates.
 - Removed sections: none.
-- Ratification date recorded as 2026-11-23, when the project owner learned of and confirmed
-  the constitution in this review.
+- Ratification date recorded as 2026-11-23, based on the project owner's clarification
+  that they learned about the constitution on this date.
 -->
 
 # X-Link Billing Constitution
