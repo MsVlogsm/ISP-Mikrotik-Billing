@@ -11,7 +11,7 @@
 - [ ] [T005] Verify commission base/rate/timing, rounding, cancellations and return handling against approved configuration and fixtures. Refs: RES-004, RES-005.
 - [ ] [T006] Compare reseller statements/cashflow/ledger with Accounting's posted scope and signed-return behavior. Refs: RES-006.
 ## Phase 3 — Isolation tests and browser
-- [ ] [T007] Map/add reseller wallet/customer/voucher/commission tests. Existing candidates: `tests/Feature/ResellerTest.php`, `MacResellerPanelTest.php`, `PackagePurchaseRequestTest.php`.
+- [ ] [T007] Map/add reseller wallet/customer/voucher/commission tests. Existing candidates: `tests/Feature/ResellerTest.php`, `MacResellerPanelTest.php`, `PackagePurchaseRequestTest.php`. Refs: RES-001, RES-003, RES-004, RES-005, RES-008.
 - [ ] [T008] Add adversarial cross-reseller ID substitution tests for routes, APIs, nested resources, and exports. Refs: RES-001, RES-007, RES-008.
 - [ ] [T009] Add concurrent purchase, duplicate request, ledger reconciliation and manual adjustment audit tests. Refs: RES-002…RES-006.
-- [ ] [T010] Browser verify two different reseller accounts plus Admin/Manager actions; record exact allowed/denied matrix and CI evidence.
+- [ ] [T010] Browser verify two different reseller accounts plus Admin/Manager actions; record exact allowed/denied matrix and CI evidence. Refs: RES-001, RES-002, RES-003, RES-004, RES-005, RES-006, RES-007, RES-008.
