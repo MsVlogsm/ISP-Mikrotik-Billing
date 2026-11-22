@@ -13,5 +13,5 @@
 ## Phase 3 — Tests and browser evidence
 - [ ] [T007] Map and extend tests for duplicate generation, due arithmetic, paid-only activation, date boundaries, and failure/retry. Refs: BILL-001…BILL-004, BILL-007. Existing candidates: `tests/Unit/PrepaidBillingCycleTest.php`, `tests/Unit/PrepaidExpiryGuardTest.php`, `tests/Feature/CustomerAddEditEnableWorkflowTest.php`, `tests/Feature/PaymentCollectionWorkflowTest.php`.
 - [ ] [T008] Add cross-surface parity tests for dashboard/list/profile/ledger/export and pagination-independent totals. Refs: BILL-002, BILL-005, BILL-006. Existing candidate: `tests/Feature/XLinkBillingParityTest.php`.
-- [ ] [T009] Verify Admin/Manager browser access and denial paths and Reseller customer scope; attach screenshots/network evidence.
-- [ ] [T010] Record CI, migration, timezone, and staging evidence; mark every BILL requirement implemented/partial/missing/unverified with file+test references.
+- [ ] [T009] Verify Admin/Manager browser access and denial paths and Reseller customer scope; attach screenshots/network evidence. Refs: BILL-005, BILL-008.
+- [ ] [T010] Record CI, migration, timezone, and staging evidence; mark every BILL requirement implemented/partial/missing/unverified with file+test references. Refs: BILL-001, BILL-002, BILL-003, BILL-004, BILL-005, BILL-006, BILL-007, BILL-008.
