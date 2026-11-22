@@ -94,7 +94,7 @@ class ScheduledTasksController extends Controller
                 ->where('summary_date', $nextMonthStart)
                 ->exists();
 
-            $totalCollectionAmount = CollectionSummary::where('customer_collection_unique_id', $billing->customer_bill_unique_id)
+            $totalCollectionAmount = CollectionSummary::postedForAccounting()->where('customer_collection_unique_id', $billing->customer_bill_unique_id)
                 ->whereBetween('collection_date', [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()])
                 ->sum('collection_amount');
             // if ($totalCollectionAmount == $billing->paid_amount) {
