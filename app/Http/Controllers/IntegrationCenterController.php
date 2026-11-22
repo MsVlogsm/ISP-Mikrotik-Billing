@@ -6,6 +6,7 @@ use App\Jobs\DeliverIntegrationWebhook;
 use App\Models\IntegrationApiClient;
 use App\Models\IntegrationWebhookEndpoint;
 use App\Models\IntegrationWebhookDelivery;
+use App\Services\ApiScopeAuthorizer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -53,6 +54,10 @@ class IntegrationCenterController extends Controller
             'rate_limit_per_minute' => ['required', 'integer', 'min:10', 'max:600'],
         ]);
 
+        if (! ApiScopeAuthorizer::ownerCanUse($request->user(), $data['scopes'])) {
+            return back()->withErrors(['scopes' => 'Selected API scopes exceed your current module permissions.'])->withInput();
+        }
+
         $clientId = 'xlc_'.Str::random(32);
         $secret = 'xsec_'.Str::random(64);
 
@@ -80,6 +85,10 @@ class IntegrationCenterController extends Controller
             'rate_limit_per_minute' => ['required', 'integer', 'min:10', 'max:600'],
             'is_active' => ['nullable', 'boolean'],
         ]);
+
+        if (! ApiScopeAuthorizer::ownerCanUse($request->user(), $data['scopes'])) {
+            return back()->withErrors(['scopes' => 'Selected API scopes exceed your current module permissions.'])->withInput();
+        }
 
         $client->update([
             'scopes' => array_values(array_unique($data['scopes'])),

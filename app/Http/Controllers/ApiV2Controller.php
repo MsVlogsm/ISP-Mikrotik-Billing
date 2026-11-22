@@ -6,6 +6,7 @@ use App\Models\CustomersInfo;
 use App\Models\NetworkInventoryDevice;
 use App\Models\OltOnuCustomerMapping;
 use App\Models\RouterList;
+use App\Services\ApiScopeAuthorizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -20,6 +21,11 @@ class ApiV2Controller extends Controller
         }
         if (! $token->can($scope) && ! $token->can('*')) {
             return response()->json(['success' => false, 'message' => 'This token does not have the required scope: '.$scope], 403);
+        }
+        // Re-check the owner's current module permissions on every request, not
+        // only at token exchange, so permission loss invalidates active access.
+        if (! ApiScopeAuthorizer::ownerCanUse($request->user(), $token->abilities ?? [])) {
+            return response()->json(['success' => false, 'message' => 'The API client owner no longer has permission for this token scope.'], 403);
         }
         return null;
     }
