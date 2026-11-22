@@ -58,7 +58,7 @@
 - Browser GET navigation emitted zero device-related POST requests.
 - Staging config: manual/live, scheduled-poll, and schedule-enable flags all false.
 - Post-run DB audit: `network_bridge_fdb_snapshots` remained empty; `olt_live_metric_snapshots` contained 94 pre-existing rows with latest `created_at=2026-11-08 22:40:32`, before this browser run. No SNMP/SSH collection was executed.
-- Screenshots captured on the Staging host: `/tmp/pr75-admin-olt.png`, `/tmp/pr75-admin-fdb.png`, `/tmp/pr75-manager-olt.png`, `/tmp/pr75-manager-fdb.png`.
+- Screenshots captured on the Staging host: `/var/backups/xlink-pr75-browser-evidence-20261123/pr75-admin-olt.png`, `/var/backups/xlink-pr75-browser-evidence-20261123/pr75-admin-fdb.png`, `/var/backups/xlink-pr75-browser-evidence-20261123/pr75-manager-olt.png`, `/var/backups/xlink-pr75-browser-evidence-20261123/pr75-manager-fdb.png`.
 - Existing Basic Auth users and credentials were not modified. Temporary QA access was isolated from Production; Production code, DB, cache, services, routers, and OLTs were not changed.
 - This evidence completes T027–T031 only; it does not authorize merge, Production polling, or deployment.
 
@@ -68,9 +68,9 @@
 
 ## Phase 5 — Final review (not deployment authorization)
 
-- [ ] T032 Re-check PR #75 head, base `main`, changed-file scope, and compatibility with the latest merged `main`.
-- [ ] T033 Re-run applicable CI after any fixes and confirm all required checks are green.
-- [ ] T034 Confirm all Staging browser gates are complete and documented before requesting PR review/readiness.
+- [x] T032 Re-check PR #75 against current `main`: base `eced466`; branch is 10 commits ahead and 0 behind; changed-file scope is limited to the OLT/Bridge-FDB implementation, tests, docs, and Spec Kit checklist.
+- [x] T033 Confirm CI run #653 passed on code commit `3d9b1f5` (frontend build, Composer validation, migrations, 373 tests, and deploy helper syntax). The later checklist-only evidence commit did not trigger a workflow.
+- [x] T034 Confirm all Staging browser gates T027–T031 are complete and documented. PR review/readiness is still subject to separate human review; this does not authorize merge.
 - [ ] T035 Obtain separate explicit approval for merge and, later, a separate Production deployment decision.
 - [ ] T036 Keep Production live polling disabled unless a separate approved change verifies dedicated read-only credentials, target hardware/model/firmware, and operational impact.
 
