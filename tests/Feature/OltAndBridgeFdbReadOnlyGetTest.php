@@ -1,14 +1,14 @@
 <?php
 
-namespace Tests\\Feature;
+namespace Tests\Feature;
 
-use App\\Models\\NetworkBridgeFdbSnapshot;
-use App\\Models\\NetworkInventoryDevice;
-use App\\Services\\Olt\\BridgeFdbSnmpService;
-use App\\Services\\Olt\\OltLiveMetricsService;
-use Illuminate\\Foundation\\Testing\\RefreshDatabase;
-use Illuminate\\Support\\Facades\\Route;
-use Tests\\TestCase;
+use App\Models\NetworkBridgeFdbSnapshot;
+use App\Models\NetworkInventoryDevice;
+use App\Services\Olt\BridgeFdbSnmpService;
+use App\Services\Olt\OltLiveMetricsService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
+use Tests\TestCase;
 
 class OltAndBridgeFdbReadOnlyGetTest extends TestCase
 {
@@ -24,7 +24,7 @@ class OltAndBridgeFdbReadOnlyGetTest extends TestCase
             'is_active' => true,
         ]);
 
-        $metrics = \\Mockery::mock(OltLiveMetricsService::class);
+        $metrics = \Mockery::mock(OltLiveMetricsService::class);
         $metrics->shouldNotReceive('poll');
         $this->app->instance(OltLiveMetricsService::class, $metrics);
 
@@ -50,7 +50,7 @@ class OltAndBridgeFdbReadOnlyGetTest extends TestCase
             'is_active' => true,
         ]);
 
-        $poller = \\Mockery::mock(BridgeFdbSnmpService::class);
+        $poller = \Mockery::mock(BridgeFdbSnmpService::class);
         $poller->shouldNotReceive('poll');
         $this->app->instance(BridgeFdbSnmpService::class, $poller);
 
