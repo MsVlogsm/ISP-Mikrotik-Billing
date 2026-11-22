@@ -33,16 +33,11 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (! Schema::hasTable('olt_live_metric_ports')) {
-            return;
-        }
-
-        Schema::table('olt_live_metric_ports', function (Blueprint $table): void {
-            foreach (['sfp_tx_power_dbm', 'sfp_temperature_c', 'sfp_voltage_v', 'sfp_laser_bias_ma', 'ddm_source'] as $column) {
-                if (Schema::hasColumn('olt_live_metric_ports', $column)) {
-                    $table->dropColumn($column);
-                }
-            }
-        });
+        // These columns may have been created by an earlier Production release
+        // before this migration was reconciled into the repository. Removing
+        // them on rollback could destroy pre-existing telemetry data, so this
+        // additive compatibility migration intentionally has a non-destructive
+        // rollback. A future, separately reviewed cleanup may remove unused
+        // columns after verifying their provenance and data-retention impact.
     }
 };
