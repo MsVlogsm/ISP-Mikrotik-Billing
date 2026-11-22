@@ -69,7 +69,7 @@
 ## Phase 5 — Final review (not deployment authorization)
 
 - [x] T032 Re-check PR #75 against current `main`: base `eced466`; branch is 10 commits ahead and 0 behind; changed-file scope is limited to the OLT/Bridge-FDB implementation, tests, docs, and Spec Kit checklist.
-- [x] T033 Confirm CI run #653 passed on code commit `3d9b1f5` (frontend build, Composer validation, migrations, 373 tests, and deploy helper syntax). The later checklist-only evidence commit did not trigger a workflow.
+- [x] T033 Confirm CI run #655 passed on PR head `02f5a745` (frontend build, Composer validation, migrations, deploy helper/verifier syntax, Laravel cache preflight, and 373 tests / 1,578 assertions / 9 skipped).
 - [x] T034 Confirm all Staging browser gates T027–T031 are complete and documented. PR review/readiness is still subject to separate human review; this does not authorize merge.
 - [ ] T035 Obtain separate explicit approval for merge and, later, a separate Production deployment decision.
 - [ ] T036 Keep Production live polling disabled unless a separate approved change verifies dedicated read-only credentials, target hardware/model/firmware, and operational impact.
