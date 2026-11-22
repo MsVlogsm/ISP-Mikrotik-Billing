@@ -115,12 +115,12 @@
 
     <section class="olt-live-panel mb-3">
         <div class="olt-live-panel-heading"><div><span class="olt-live-icon"><i class="bi bi-diagram-3"></i></span><div><h3>PON Ports & Optical Telemetry</h3><p>Per-port live state, ONU distribution and measured optical values</p></div></div><span class="olt-live-sample">{{ $ponTotal }} PON interfaces detected</span></div>
-        <div class="table-responsive"><table class="table olt-live-table align-middle mb-0"><thead><tr><th>Port / ifIndex</th><th>Status</th><th>Temperature</th><th>Voltage</th><th>Bias</th><th>ONUs Online / Total</th><th>Avg RX</th><th>Avg TX</th><th>Distance</th><th>Download</th><th>Upload</th><th>Packet Health</th><th>Action</th></tr></thead><tbody>
+        <div class="table-responsive"><table class="table olt-live-table align-middle mb-0"><thead><tr><th>Port / ifIndex</th><th>Status</th><th>SFP Tx</th><th>SFP Temp</th><th>Voltage</th><th>Laser Bias</th><th>ONUs Online / Total</th><th>Avg RX</th><th>Avg TX</th><th>Distance</th><th>Download</th><th>Upload</th><th>Packet Health</th><th>Action</th></tr></thead><tbody>
         @forelse($ponLivePorts as $port)
-            <tr><td><strong>{{ $port->interface_name }}</strong><small>ifIndex {{ $port->if_index }}</small></td><td><span class="olt-live-state {{ $port->oper_status }}">{{ strtoupper($port->oper_status) }}</span></td><td>—<small>Not exposed by current profile</small></td><td>—<small>Not exposed by current profile</small></td><td>—<small>Not exposed by current profile</small></td><td><strong>{{ $port->onu_online }} / {{ $port->onu_total }}</strong></td><td>{{ $port->avg_rx_dbm !== null ? number_format((float)$port->avg_rx_dbm,2).' dBm' : '—' }}<small>{{ $port->rx_sample_count }} samples</small></td><td>{{ $port->avg_tx_dbm !== null ? number_format((float)$port->avg_tx_dbm,2).' dBm' : '—' }}</td><td>{{ $port->avg_distance_m !== null ? number_format((float)$port->avg_distance_m,0).' m' : '—' }}</td><td>{{ $port->in_bps !== null ? number_format((float)$port->in_bps/1000000,2).' Mbps' : 'Await next sample' }}</td><td>{{ $port->out_bps !== null ? number_format((float)$port->out_bps/1000000,2).' Mbps' : 'Await next sample' }}</td><td>{{ $port->packet_health_percent !== null ? number_format((float)$port->packet_health_percent,3).'%' : 'Await next sample' }}</td><td><form method="POST" action="{{ route('network-inventory.olt.dashboard.metrics',$device) }}" onsubmit="const b=this.querySelector('button');b.disabled=true;b.textContent='Polling…';">@csrf<input type="hidden" name="focus_if_index" value="{{ $port->if_index }}"><button class="btn btn-sm btn-outline-info" type="submit" title="Refresh all OLT read-only metrics; includes this port"><i class="bi bi-arrow-repeat"></i> Poll</button></form></td></tr>
-        @empty<tr><td colspan="13" class="text-center text-muted py-4">No live PON port data yet. Poll Live Metrics to discover IF-MIB port indexes.</td></tr>@endforelse
+            <tr><td><strong>{{ $port->interface_name }}</strong><small>ifIndex {{ $port->if_index }}</small></td><td><span class="olt-live-state {{ $port->oper_status }}">{{ strtoupper($port->oper_status) }}</span></td><td>{{ $port->sfp_tx_power_dbm !== null ? number_format((float)$port->sfp_tx_power_dbm,3).' dBm' : '—' }}<small>{{ $port->ddm_source ?: 'Not exposed / not configured' }}</small></td><td>{{ $port->sfp_temperature_c !== null ? number_format((float)$port->sfp_temperature_c,2).' °C' : '—' }}<small>{{ $port->ddm_source ?: 'Not exposed / not configured' }}</small></td><td>{{ $port->sfp_voltage_v !== null ? number_format((float)$port->sfp_voltage_v,4).' V' : '—' }}</td><td>{{ $port->sfp_laser_bias_ma !== null ? number_format((float)$port->sfp_laser_bias_ma,3).' mA' : '—' }}</td><td><strong>{{ $port->onu_online }} / {{ $port->onu_total }}</strong></td><td>{{ $port->avg_rx_dbm !== null ? number_format((float)$port->avg_rx_dbm,2).' dBm' : '—' }}<small>{{ $port->rx_sample_count }} samples</small></td><td>{{ $port->avg_tx_dbm !== null ? number_format((float)$port->avg_tx_dbm,2).' dBm' : '—' }}</td><td>{{ $port->avg_distance_m !== null ? number_format((float)$port->avg_distance_m,0).' m' : '—' }}</td><td>{{ $port->in_bps !== null ? number_format((float)$port->in_bps/1000000,2).' Mbps' : 'Await next sample' }}</td><td>{{ $port->out_bps !== null ? number_format((float)$port->out_bps/1000000,2).' Mbps' : 'Await next sample' }}</td><td>{{ $port->packet_health_percent !== null ? number_format((float)$port->packet_health_percent,3).'%' : 'Await next sample' }}</td><td><form method="POST" action="{{ route('network-inventory.olt.dashboard.metrics',$device) }}" onsubmit="const b=this.querySelector('button');b.disabled=true;b.textContent='Polling…';">@csrf<input type="hidden" name="focus_if_index" value="{{ $port->if_index }}"><button class="btn btn-sm btn-outline-info" type="submit" title="Refresh all OLT read-only metrics; includes this port"><i class="bi bi-arrow-repeat"></i> Poll</button></form></td></tr>
+        @empty<tr><td colspan="14" class="text-center text-muted py-4">No live PON port data yet. Poll Live Metrics to discover IF-MIB port indexes.</td></tr>@endforelse
         </tbody></table></div>
-        <div class="olt-live-note">Port temperature, voltage and bias are intentionally not displayed because the current V-SOL IF-MIB profile does not return verified per-port sensor values. ONU RX/TX averages use only fresh values from the same PON.</div>
+        <div class="olt-live-note">SFP DDM values appear only when the exact model/transceiver OIDs are explicitly configured in this OLT adapter profile and the OLT returns numeric readings. Missing metrics are never inferred. ONU RX/TX averages use only values reported by the active OLT adapter.</div>
     </section>
 
     <section class="olt-live-panel mb-3">
@@ -329,9 +329,33 @@
                 <div><dt>Last Health Check</dt><dd>{{ $deviceInfo['last_checked_at']?->format('d M Y H:i:s') ?: 'Never' }}</dd></div>
                 <div><dt>Latency</dt><dd>{{ $deviceInfo['last_latency_ms'] !== null ? $deviceInfo['last_latency_ms'].' ms' : 'No sample' }}</dd></div>
             </dl>
+            <div class="mt-3 pt-3 border-top">
+                <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                    <strong><i class="bi bi-grid-3x3-gap me-1"></i> Vendor Capability Matrix</strong>
+                    <span class="badge text-bg-secondary">{{ $capabilityMatrix['verified_count'] }} verified</span>
+                </div>
+                <div class="small text-muted mb-2">
+                    {{ $capabilityMatrix['vendor'] }} · {{ $capabilityMatrix['model'] }} · {{ $capabilityMatrix['firmware'] }}
+                </div>
+                <div class="d-flex flex-column gap-2">
+                    @foreach($capabilityMatrix['items'] as $capability)
+                        <div class="d-flex align-items-start justify-content-between gap-2">
+                            <div class="min-w-0">
+                                <div class="small fw-semibold">{{ $capability['label'] }}</div>
+                                <div class="small text-muted">{{ $capability['detail'] }}</div>
+                            </div>
+                            <span class="badge text-bg-{{ $capability['status'] === 'verified' ? 'success' : ($capability['status'] === 'configured' ? 'primary' : ($capability['status'] === 'profile_available' ? 'info' : ($capability['status'] === 'requires_model_mib' ? 'warning' : 'secondary'))) }} flex-shrink-0">{{ $capability['status_label'] }}</span>
+                        </div>
+                    @endforeach
+                </div>
+                <div class="small text-muted mt-2">
+                    Verified values come from live read-only results. A vendor-family profile alone does not certify every model or firmware.
+                </div>
+            </div>
             <div class="olt-dash-device-actions">
                 <a class="btn btn-outline-primary btn-sm" href="{{ route('network-inventory.olt.edit',$device) }}"><i class="bi bi-pencil"></i> Edit OLT</a>
                 <a class="btn btn-outline-secondary btn-sm" href="{{ route('network-inventory.olt.customers',$device) }}"><i class="bi bi-people"></i> Mapping</a>
+                <a class="btn btn-outline-secondary btn-sm" href="{{ route('network-inventory.universal-search') }}"><i class="bi bi-search"></i> Universal Search</a>
             </div>
         </aside>
     </section>
