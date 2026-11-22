@@ -49,7 +49,7 @@
 
 ## Additional implementation regression coverage
 
-- [x] T037 Add HTTP feature tests proving OLT Dashboard and Bridge-FDB GET routes are GET-only, return saved page data, and never invoke live OLT/FDB polling services or create a Bridge-FDB snapshot.
+- [x] T037 Add feature regression tests proving OLT Dashboard and Bridge-FDB routes are GET-only and their GET controller paths render saved page data without invoking live OLT/FDB polling services or creating a Bridge-FDB snapshot. Authenticated Staging HTTP/runtime evidence remains tracked separately under T027–T030.
 
 ## Phase 5 — Final review (not deployment authorization)
 
