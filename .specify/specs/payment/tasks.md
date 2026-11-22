@@ -13,5 +13,5 @@
 ## Phase 3 — Contract and integration tests
 - [ ] [T007] Map/add bKash callback contract tests. Existing candidate: `tests/Feature/BkashIpnTest.php`. Refs: PAY-002…PAY-004.
 - [ ] [T008] Add/locate equivalent Nagad, SSLCommerz, webhook, manual-collection, duplicate, mismatch, timeout and return tests. Existing candidate: `tests/Feature/PaymentCollectionWorkflowTest.php`. Refs: PAY-001…PAY-009.
-- [ ] [T009] Verify Accounting posted-state and Billing activation handoffs with mocked provider events; verify Admin/Manager permission boundaries.
-- [ ] [T010] Produce provider matrix with sandbox/mocked evidence, unsupported gaps, CI results and no-live-payment confirmation.
+- [ ] [T009] Verify Accounting posted-state and Billing activation handoffs with mocked provider events; verify Admin/Manager permission boundaries. Refs: PAY-003, PAY-004, PAY-005, PAY-007, PAY-008.
+- [ ] [T010] Produce provider matrix with sandbox/mocked evidence, unsupported gaps, CI results and no-live-payment confirmation. Refs: PAY-001, PAY-002, PAY-003, PAY-004, PAY-005, PAY-006, PAY-007, PAY-008, PAY-009.
