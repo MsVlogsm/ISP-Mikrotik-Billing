@@ -47,6 +47,10 @@
 - [ ] T030 Verify GET requests are read-only and do not trigger SNMP/SSH polling; verify no device mutation occurs.
 - [ ] T031 Review browser evidence against the PR #75 acceptance scope and record any defects as follow-up tasks.
 
+## Additional implementation regression coverage
+
+- [x] T037 Add HTTP feature tests proving OLT Dashboard and Bridge-FDB GET routes are GET-only, return saved page data, and never invoke live OLT/FDB polling services or create a Bridge-FDB snapshot.
+
 ## Phase 5 — Final review (not deployment authorization)
 
 - [ ] T032 Re-check PR #75 head, base `main`, changed-file scope, and compatibility with the latest merged `main`.
