@@ -6,6 +6,7 @@ use App\Http\Controllers\BridgeFdbController;
 use App\Http\Controllers\OltDashboardController;
 use App\Models\NetworkBridgeFdbSnapshot;
 use App\Models\NetworkInventoryDevice;
+use App\Models\User;
 use App\Services\Olt\BridgeFdbSnmpService;
 use App\Services\Olt\OltLiveMetricsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -26,6 +27,8 @@ class OltAndBridgeFdbReadOnlyGetTest extends TestCase
             'status' => 'online',
             'is_active' => true,
         ]);
+
+        $this->actingAs(User::factory()->create());
 
         $metrics = \Mockery::mock(OltLiveMetricsService::class);
         $metrics->shouldNotReceive('poll');
@@ -55,6 +58,8 @@ class OltAndBridgeFdbReadOnlyGetTest extends TestCase
             'status' => 'online',
             'is_active' => true,
         ]);
+
+        $this->actingAs(User::factory()->create());
 
         $poller = \Mockery::mock(BridgeFdbSnmpService::class);
         $poller->shouldNotReceive('poll');
