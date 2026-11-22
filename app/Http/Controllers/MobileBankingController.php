@@ -11,9 +11,9 @@ class MobileBankingController extends Controller
     public function index()
     {
         $this->authorizeModule('payment-collection');
-        $mfs = CollectionSummary::query()
+        $mfs = CollectionSummary::postedForAccounting()
             ->whereIn('payment_method', ['bkash', 'nagad', 'rocket', 'upay', 'sslcommerz']);
-        $stripe = CollectionSummary::query()
+        $stripe = CollectionSummary::postedForAccounting()
             ->where('payment_method', 'stripe')
             ->where('payment_type', 'online');
 
