@@ -41,11 +41,26 @@
 - [x] T024 Apply the three Bridge-FDB/SFP DDM migrations to Staging and verify the resulting tables.
 - [x] T025 Verify Laravel package discovery, Vite manifest, route/config/view caches, and route/schedule registration on Staging.
 - [x] T026 Confirm Staging manual and scheduled polling flags remain disabled and no SNMP/SSH poll has been executed.
-- [ ] T027 Obtain an authorized authenticated Staging browser session without changing the existing Basic Auth file or user accounts.
-- [ ] T028 Verify the affected OLT dashboard and Bridge-FDB pages as Admin in Staging; capture screenshot and HTTP evidence.
-- [ ] T029 Verify the same pages and expected authorization denials as Manager in Staging; capture screenshot and HTTP evidence.
-- [ ] T030 Verify GET requests are read-only and do not trigger SNMP/SSH polling; verify no device mutation occurs.
-- [ ] T031 Review browser evidence against the PR #75 acceptance scope and record any defects as follow-up tasks.
+- [x] T027 Obtain an authenticated Staging browser session using separately authorized temporary QA access; preserve all pre-existing Basic Auth users and credentials.
+- [x] T028 Verify the OLT dashboard and Bridge-FDB pages as Admin in Staging; both GET pages returned HTTP 200 and screenshots were captured.
+- [x] T029 Verify the OLT dashboard and Bridge-FDB pages as Manager (both GET HTTP 200); verify protected poll POST endpoints return HTTP 403 for Admin and Manager.
+- [x] T030 Verify browser GET navigation initiates no device-related POST; polling POSTs are denied before controller execution; polling flags remain disabled and snapshot tables show no new collection.
+- [x] T031 Review Admin/Manager browser evidence against PR #75 acceptance scope; no defects found in the tested read-only pages or authorization gates.
+
+## Staging browser verification evidence (2026-11-23, Asia/Dhaka)
+
+- Tested Staging checkout: `3d9b1f5e29978b47eff389854fb30c63df4a0889` (PR #75 head).
+- Billing Staging vhost: `https://bill.xlinkbd.net:8085`. Port `8084` is the separate React Staging vhost.
+- Separate temporary Admin and Manager QA users authenticated successfully through the temporary Basic Auth entry.
+- Admin: OLT dashboard GET HTTP 200; Bridge-FDB GET HTTP 200.
+- Manager: OLT dashboard GET HTTP 200; Bridge-FDB GET HTTP 200.
+- For both roles, POST to `/network-inventory/olt/3/dashboard/metrics` and `/network-inventory/device/3/bridge-fdb/poll` returned HTTP 403 from module authorization; neither polling controller was invoked.
+- Browser GET navigation emitted zero device-related POST requests.
+- Staging config: manual/live, scheduled-poll, and schedule-enable flags all false.
+- Post-run DB audit: `network_bridge_fdb_snapshots` remained empty; `olt_live_metric_snapshots` contained 94 pre-existing rows with latest `created_at=2026-11-08 22:40:32`, before this browser run. No SNMP/SSH collection was executed.
+- Screenshots captured on the Staging host: `/tmp/pr75-admin-olt.png`, `/tmp/pr75-admin-fdb.png`, `/tmp/pr75-manager-olt.png`, `/tmp/pr75-manager-fdb.png`.
+- Existing Basic Auth users and credentials were not modified. Temporary QA access was isolated from Production; Production code, DB, cache, services, routers, and OLTs were not changed.
+- This evidence completes T027–T031 only; it does not authorize merge, Production polling, or deployment.
 
 ## Additional implementation regression coverage
 
