@@ -688,3 +688,46 @@ html[data-bs-theme="dark"] .content .customer-row-actions .dropdown-menu .dropdo
 html[data-bs-theme="dark"] .content .customer-row-actions .dropdown-menu .dropdown-divider {
     border-color: var(--xlink-border) !important;
 }
+
+/* Light theme sidebar: restore readable contrast for the main application navigation. */
+html[data-bs-theme="light"] .navbar-vertical,
+html[data-bs-theme="light"] .navbar-vertical .navbar-vertical-content {
+    color: #334155 !important;
+    background-color: #f8fafc;
+}
+html[data-bs-theme="light"] .navbar-vertical .navbar-vertical-label {
+    color: #64748b !important;
+    font-weight: 700;
+}
+html[data-bs-theme="light"] .navbar-vertical .nav-link,
+html[data-bs-theme="light"] .navbar-vertical .nav-link .nav-link-text,
+html[data-bs-theme="light"] .navbar-vertical .nav-link .nav-link-icon,
+html[data-bs-theme="light"] .navbar-vertical .nav-link i,
+html[data-bs-theme="light"] .navbar-vertical .nav-link svg {
+    color: #334155 !important;
+    opacity: 1 !important;
+}
+html[data-bs-theme="light"] .navbar-vertical .nav-link:hover,
+html[data-bs-theme="light"] .navbar-vertical .nav-link:focus-visible {
+    color: #0f172a !important;
+    background-color: #e8eef6 !important;
+}
+html[data-bs-theme="light"] .navbar-vertical .nav-link:hover :is(.nav-link-text, .nav-link-icon, i, svg),
+html[data-bs-theme="light"] .navbar-vertical .nav-link:focus-visible :is(.nav-link-text, .nav-link-icon, i, svg) {
+    color: #0f172a !important;
+}
+html[data-bs-theme="light"] .navbar-vertical .nav-link.active,
+html[data-bs-theme="light"] .navbar-vertical .nav-link[aria-current="page"] {
+    color: #1d4ed8 !important;
+    background-color: #dbeafe !important;
+    font-weight: 600;
+}
+html[data-bs-theme="light"] .navbar-vertical .nav-link.active :is(.nav-link-text, .nav-link-icon, i, svg),
+html[data-bs-theme="light"] .navbar-vertical .nav-link[aria-current="page"] :is(.nav-link-text, .nav-link-icon, i, svg) {
+    color: #1d4ed8 !important;
+}
+html[data-bs-theme="light"] .navbar-vertical .navbar-vertical-divider,
+html[data-bs-theme="light"] .navbar-vertical .navbar-vertical-label-wrapper hr {
+    border-color: #cbd5e1 !important;
+    opacity: 1;
+}
