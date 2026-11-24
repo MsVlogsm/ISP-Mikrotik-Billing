@@ -192,17 +192,19 @@
                                     <input type="datetime-local" class="form-control form-control-sm" wire:model="collection_date" required>
                                     @error('collection_date') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
-                                <div class="col-xl-3 col-md-4 col-sm-6">
+                                <div class="col-12">
+                                    <div class="payment-collection-grid">
+                                <div class="payment-collection-grid__expiry">
                                     <label class="form-label small fw-semibold">{{ __('New Expiry Date') }}</label>
                                     <input type="date" class="form-control form-control-sm" wire:model.live="expire_date" @if($info_data->billing->billing_type === 'prepaid') readonly @endif required>
                                     @error('expire_date') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
-                                <div class="col-xl-6 col-md-5 col-sm-6">
+                                <div class="payment-collection-grid__notes">
                                     <label class="form-label small fw-semibold">{{ __('Notes') }}</label>
                                     <input type="text" class="form-control form-control-sm" wire:model="payment_details" maxlength="2000" placeholder="Optional collection note">
                                     @error('payment_details') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
-                                <div class="col-xl-3 col-md-3 col-sm-12">
+                                <div class="payment-collection-grid__actions">
                                     <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="send_payment_sms" wire:model="send_sms"><label class="form-check-label small" for="send_payment_sms">{{ __('Send SMS receipt') }}</label></div>
                                     <button class="btn btn-sm btn-success w-100" wire:loading.attr="disabled" wire:target="savePayment"><span wire:loading.remove wire:target="savePayment"><i class="bi bi-check-circle me-1"></i>{{ __('Collect Payment') }}</span><span wire:loading wire:target="savePayment">Saving…</span></button>
                                     @if(in_array($info_data->status, ['pending', 'disable'], true))
@@ -210,6 +212,8 @@
                                             <i class="bi bi-router me-1"></i>Retry Enable (No Payment)
                                         </button>
                                     @endif
+                                </div>
+                                    </div>
                                 </div>
                             </form>
                         </div>
@@ -219,6 +223,30 @@
         </div>
     </div>
 </div>
+
+<style>
+    .payment-collection-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 4fr) minmax(0, 5fr) minmax(0, 3fr);
+        gap: 1rem;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .payment-collection-grid > div,
+    .payment-collection-grid .form-control,
+    .payment-collection-grid .form-select {
+        min-width: 0;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    @media (max-width: 767.98px) {
+        .payment-collection-grid {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+</style>
 
 @push('scripts')
 <script>
