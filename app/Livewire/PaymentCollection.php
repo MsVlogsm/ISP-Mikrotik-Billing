@@ -139,6 +139,13 @@ class PaymentCollection extends Component
         }
     }
 
+    public function updatedCollectionDate(): void
+    {
+        if ($this->info_data?->billing) {
+            $this->calculatePayment();
+        }
+    }
+
     public function calculatePayment()
     {
         if (! $this->info_data?->billing) {
@@ -146,6 +153,10 @@ class PaymentCollection extends Component
         }
 
         $billing = $this->info_data->billing;
+        $timezone = config('app.timezone') ?: 'Asia/Dhaka';
+        $collectionDate = filled($this->collection_date)
+            ? Carbon::parse($this->collection_date, $timezone)
+            : now($timezone);
         $amount = max(0, (float) ($this->paid_amount ?? 0));
         $currentDue = (float) $billing->due_amount;
         $this->due_amount = round($currentDue - $amount, 2);
@@ -158,7 +169,8 @@ class PaymentCollection extends Component
                 $billing->auto_disable_date,
                 $currentDue,
                 $amount,
-                (float) $billing->monthly_rent
+                (float) $billing->monthly_rent,
+                $collectionDate
             );
             $this->expire_date = $calculatedExpiry?->toDateString()
                 ?: ($billing->auto_disable_date ? Carbon::parse($billing->auto_disable_date)->toDateString() : '');
@@ -167,25 +179,25 @@ class PaymentCollection extends Component
         }
 
         if ($amount <= 0) {
-            $this->expire_date = '';
+            $this->expire_date = $collectionDate->copy()->addMonthNoOverflow()->toDateString();
             return;
         }
 
         $rent = max(1, (int) $billing->monthly_rent);
         if ($this->due_amount > 0) {
             $extraMonth = (int) floor($this->due_amount / $rent);
-            $base = Carbon::parse($billing->auto_disable_date)->month(now()->month)->year(now()->year);
+            $base = $collectionDate->copy();
             $this->expire_date = ($extraMonth < (int) $billing->auto_disable_month
                 ? $base->subMonths($extraMonth)
                 : $base->subMonths((int) $billing->auto_disable_month)->addMonth())
                 ->format('Y-m-d');
         } elseif ($this->advance_paid > 0) {
             $extraMonth = 1 + (int) floor($this->advance_paid / $rent);
-            $this->expire_date = Carbon::parse($billing->auto_disable_date)
-                ->month(now()->month)->year(now()->year)->addMonths($extraMonth)->format('Y-m-d');
+            $this->expire_date = $collectionDate->copy()
+                ->addMonthsNoOverflow($extraMonth)->format('Y-m-d');
         } else {
-            $this->expire_date = Carbon::parse($billing->auto_disable_date)
-                ->month(now()->month)->year(now()->year)->addMonth()->format('Y-m-d');
+            $this->expire_date = $collectionDate->copy()
+                ->addMonthNoOverflow()->format('Y-m-d');
         }
     }
 
@@ -305,7 +317,8 @@ class PaymentCollection extends Component
                     $billing->auto_disable_date,
                     $currentDue,
                     $amount,
-                    (float) $billing->monthly_rent
+                    (float) $billing->monthly_rent,
+                    $collectionDate
                 );
                 if ($newExpiry) {
                     $billing->auto_disable_date = $newExpiry->toDateString();
