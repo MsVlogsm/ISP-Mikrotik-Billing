@@ -578,3 +578,113 @@ html[data-bs-theme="dark"] .content .action-btn:hover {
 html[data-bs-theme="dark"] .content .empty-state {
     color: var(--xlink-muted) !important;
 }
+
+/* --------------------------------------------------------------------------
+   Cross-page compatibility pass for legacy, page-local component styles.
+   These selectors are intentionally dark-mode-only; Light mode is unchanged.
+   -------------------------------------------------------------------------- */
+html[data-bs-theme="dark"] .content :is(.va-tile, .va-result) {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface) !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .va-tile:hover,
+html[data-bs-theme="dark"] .content .va-tile:focus-visible {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface-hover) !important;
+    border-color: #7397c5 !important;
+}
+html[data-bs-theme="dark"] .content .va-tile small,
+html[data-bs-theme="dark"] .content .va-result-grid span {
+    color: var(--xlink-muted) !important;
+}
+html[data-bs-theme="dark"] .content .va-icon {
+    color: #c5d9fa !important;
+    background: #243d62 !important;
+}
+html[data-bs-theme="dark"] .content .va-result-grid strong {
+    color: var(--xlink-text) !important;
+}
+
+/* Hotspot screens: keep the voucher preview legible; retain white print output. */
+html[data-bs-theme="dark"] .content .hs-table tbody td,
+html[data-bs-theme="dark"] .content .resource-val,
+html[data-bs-theme="dark"] .content .voucher-user {
+    color: var(--xlink-text) !important;
+}
+html[data-bs-theme="dark"] .content .hs-table tbody tr,
+html[data-bs-theme="dark"] .content .hs-table tbody tr:hover {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface) !important;
+}
+html[data-bs-theme="dark"] .content .hs-table tbody td {
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content :is(.voucher-card, .voucher-premium) {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface) !important;
+    border-color: #536985 !important;
+}
+html[data-bs-theme="dark"] .content .voucher-code,
+html[data-bs-theme="dark"] .content .voucher-user {
+    color: #dbe9ff !important;
+}
+html[data-bs-theme="dark"] .content :is(.voucher-pass, .voucher-info, .resource-mini) {
+    color: var(--xlink-muted) !important;
+}
+html[data-bs-theme="dark"] .content .voucher-info {
+    border-top-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .voucher-qr {
+    background: #e7edf5 !important;
+}
+html[data-bs-theme="dark"] .content :is(.icon-lock, .icon-edit, .icon-print, .icon-qr, .icon-comment) {
+    color: #b7c9e2 !important;
+}
+@media print {
+    html[data-bs-theme="dark"] .content :is(.voucher-card, .voucher-premium, .voucher-qr) {
+        color: #1e293b !important;
+        background: #fff !important;
+    }
+}
+
+/* Bootstrap's explicit table-light utility must follow the selected theme too. */
+html[data-bs-theme="dark"] .content .table-light {
+    --bs-table-color: var(--xlink-text);
+    --bs-table-bg: var(--xlink-surface-raised);
+    --bs-table-border-color: var(--xlink-border);
+    --bs-table-striped-bg: var(--xlink-surface);
+    --bs-table-striped-color: var(--xlink-text);
+    --bs-table-hover-bg: var(--xlink-surface-hover);
+    --bs-table-hover-color: var(--xlink-text);
+    color: var(--xlink-text) !important;
+}
+html[data-bs-theme="dark"] .content .table-light > :not(caption) > * > * {
+    color: var(--xlink-text) !important;
+    background-color: var(--xlink-surface-raised) !important;
+    border-color: var(--xlink-border) !important;
+}
+
+/* Customer-list row menus have a page-local palette; normalize the menu shell. */
+html[data-bs-theme="dark"] .content .customer-row-actions .dropdown-menu {
+    color: var(--xlink-text) !important;
+    background: var(--xlink-surface) !important;
+    border-color: var(--xlink-border) !important;
+}
+html[data-bs-theme="dark"] .content .customer-row-actions .dropdown-menu .dropdown-item {
+    color: var(--xlink-text) !important;
+    background: transparent !important;
+}
+html[data-bs-theme="dark"] .content .customer-row-actions .dropdown-menu .dropdown-item:hover,
+html[data-bs-theme="dark"] .content .customer-row-actions .dropdown-menu .dropdown-item:focus-visible {
+    color: #fff !important;
+    background: var(--xlink-surface-hover) !important;
+}
+html[data-bs-theme="dark"] .content .customer-row-actions .dropdown-menu .dropdown-item:active,
+html[data-bs-theme="dark"] .content .customer-row-actions .dropdown-menu .dropdown-item.active {
+    color: #fff !important;
+    background: #245b96 !important;
+}
+html[data-bs-theme="dark"] .content .customer-row-actions .dropdown-menu .dropdown-divider {
+    border-color: var(--xlink-border) !important;
+}

@@ -1,4 +1,4 @@
-<div class="zoom-in">
+<div class="zoom-in mikrotik-backup-page">
     <x-slot name="header">
         {{ __('MikroTik Backup Manager') }}
     </x-slot>
@@ -6,7 +6,7 @@
     <div class="row g-2 justify-content-center position-relative">
         
         <!-- Loading Overlay -->
-        <div wire:loading wire:target="pollLogs, createBackup, deleteBackup, restoreBackup, updatedSelectedRouter" class="position-absolute w-100 h-100 z-3 rounded" style="background: rgba(255,255,255,0.7); top:0; left:0; backdrop-filter: blur(2px);">
+        <div wire:loading wire:target="pollLogs, createBackup, deleteBackup, restoreBackup, updatedSelectedRouter" class="mbm-loading-overlay position-absolute w-100 h-100 z-3 rounded" style="top:0; left:0; backdrop-filter: blur(2px);">
             <div class="d-flex justify-content-center align-items-center h-100">
                 <div class="spinner-border text-primary shadow-sm" style="width: 3rem; height: 3rem;" role="status">
                     <span class="visually-hidden">Executing Action...</span>
@@ -20,11 +20,11 @@
                 <x-slot name="aside">
                     
                     <div class="card border-0 shadow-sm mb-4">
-                        <div class="card-body bg-light border-bottom d-flex flex-wrap gap-3 align-items-center justify-content-between">
+                        <div class="card-body mbm-toolbar border-bottom d-flex flex-wrap gap-3 align-items-center justify-content-between">
                             <div class="d-flex align-items-center gap-3">
                                 <div>
                                     <label class="form-label mb-1 fw-bold text-secondary">{{ __('Target Router') }}</label>
-                                    <select wire:model.live="selectedRouter" class="form-select bg-white shadow-sm border-secondary-subtle font-monospace text-primary">
+                                    <select wire:model.live="selectedRouter" class="form-select shadow-sm border-secondary-subtle font-monospace text-primary">
                                         <option value="">{{ __('Select a router...') }}</option>
                                         @foreach($this->routers() as $rName)
                                             <option value="{{ $rName }}">{{ $rName }}</option>
@@ -48,8 +48,8 @@
 
                     <div class="card border-0 shadow-sm">
                         <div class="table-responsive">
-                            <table class="table table-hover table-striped align-middle mb-0">
-                                <thead class="table-light">
+                            <table class="table table-hover table-striped align-middle mb-0 mbm-table">
+                                <thead>
                                     <tr>
                                         <th class="ps-3 py-3">{{ __('Snapshot (Point-in-Time)') }}</th>
                                         <th class="py-3">{{ __('Hardware Backup (.backup)') }}</th>
@@ -61,7 +61,7 @@
                                     @forelse($backups as $snap)
                                         <tr class="align-middle border-bottom">
                                             <td class="ps-3">
-                                                <div class="fw-bold text-dark">{{ \Carbon\Carbon::parse(str_replace('_', '', $snap['timestamp']))->format('M d, Y') }}</div>
+                                                <div class="fw-bold text-body">{{ \Carbon\Carbon::parse(str_replace('_', '', $snap['timestamp']))->format('M d, Y') }}</div>
                                                 <div class="text-muted" style="font-size: 0.8rem;">{{ \Carbon\Carbon::parse(str_replace('_', '', $snap['timestamp']))->format('h:i:s A') }}</div>
                                             </td>
                                             <td>
@@ -139,3 +139,53 @@
         </div>
     </div>
 </div>
+
+
+<style>
+    .mikrotik-backup-page .mbm-toolbar {
+        background: var(--bs-tertiary-bg, var(--bs-body-bg));
+        color: var(--bs-body-color);
+        border-color: var(--bs-border-color) !important;
+    }
+
+    .mikrotik-backup-page .card {
+        background: var(--bs-card-bg, var(--bs-body-bg));
+        border-color: var(--bs-border-color) !important;
+    }
+
+    .mikrotik-backup-page .form-select {
+        background-color: var(--bs-body-bg);
+        color: var(--bs-body-color);
+    }
+
+    .mikrotik-backup-page .mbm-table {
+        --bs-table-bg: var(--bs-body-bg);
+        --bs-table-color: var(--bs-body-color);
+        --bs-table-border-color: var(--bs-border-color);
+        --bs-table-striped-bg: var(--bs-tertiary-bg);
+        --bs-table-striped-color: var(--bs-body-color);
+        --bs-table-hover-bg: var(--bs-secondary-bg);
+        --bs-table-hover-color: var(--bs-body-color);
+    }
+
+    .mikrotik-backup-page .mbm-table thead th {
+        background: var(--bs-tertiary-bg);
+        color: var(--bs-emphasis-color, var(--bs-body-color));
+        border-color: var(--bs-border-color);
+        white-space: nowrap;
+    }
+
+    .mikrotik-backup-page .mbm-table tbody td {
+        color: var(--bs-body-color);
+        border-color: var(--bs-border-color);
+    }
+
+    .mikrotik-backup-page .mbm-loading-overlay {
+        background: rgba(255, 255, 255, .68);
+    }
+
+    [data-bs-theme="dark"] .mikrotik-backup-page .mbm-loading-overlay,
+    .dark .mikrotik-backup-page .mbm-loading-overlay {
+        background: rgba(0, 0, 0, .55);
+    }
+</style>
