@@ -92,13 +92,6 @@ jobs:
           php8.5 artisan route:cache
           php8.5 artisan view:cache
 
-      - name: Install the tested deployment helper on the production runner
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo -n install -o root -g root -m 0750 ops/xlink-billing-deploy /usr/local/sbin/xlink-billing-deploy
-          sudo -n cmp --silent ops/xlink-billing-deploy /usr/local/sbin/xlink-billing-deploy
-
       - name: Verify release-based production layout and root-owned deploy helper
         shell: bash
         run: |
