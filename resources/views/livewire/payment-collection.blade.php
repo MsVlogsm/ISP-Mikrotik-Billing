@@ -189,7 +189,7 @@
                                 </div>
                                 <div class="col-md-3 col-sm-6">
                                     <label class="form-label small fw-semibold">{{ __('Collection Date & Time') }}</label>
-                                    <input type="datetime-local" class="form-control form-control-sm" wire:model="collection_date" required>
+                                    <input type="datetime-local" class="form-control form-control-sm" wire:model.live.debounce.250ms="collection_date" required>
                                     @error('collection_date') <span class="text-danger small">{{ $message }}</span> @enderror
                                 </div>
                                 <div class="col-12">
