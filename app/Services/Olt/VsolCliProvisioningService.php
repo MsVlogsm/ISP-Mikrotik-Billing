@@ -35,6 +35,85 @@ class VsolCliProvisioningService
         if (!$this->ssh->login($username, $password)) throw new RuntimeException('VSOL SSH login failed.');
     }
 
+    public function readOnlyMacTable(NetworkInventoryDevice $device): array
+    {
+        if (strcasecmp(trim((string) $device->vendor), 'VSOL') !== 0) {
+            throw new RuntimeException('Read-only dynamic MAC table query is only supported for VSOL OLTs.');
+        }
+
+        $this->connectReadOnly($device);
+        $this->ssh->setTimeout(max(3, min(12, (int) ($device->cli_timeout ?: 7))));
+
+        $this->ssh->write("enable\n");
+        $prompt = (string) $this->ssh->read('/(?:Password:\\s*|[A-Za-z0-9_.-]+[>#]\\s*)$/mi');
+        $promptLines = preg_split('/\\R/', trim($prompt)) ?: [];
+        $lastPromptLine = trim((string) end($promptLines));
+
+        if (preg_match('/^Password:\\s*$/i', $lastPromptLine)) {
+            $enablePassword = $this->secret($device, 'enable_password');
+            if ($enablePassword === '') {
+                throw new RuntimeException('VSOL privileged CLI requires a separate enable password.');
+            }
+
+            $this->ssh->write($enablePassword."\n");
+            $prompt = (string) $this->ssh->read('/(?:Password:\\s*|[A-Za-z0-9_.-]+[>#]\\s*)$/mi');
+            $promptLines = preg_split('/\\R/', trim($prompt)) ?: [];
+            $lastPromptLine = trim((string) end($promptLines));
+
+            if (preg_match('/^Password:\\s*$/i', $lastPromptLine)) {
+                throw new RuntimeException('VSOL rejected the CLI enable password.');
+            }
+        }
+
+        if (! str_ends_with($lastPromptLine, '#')) {
+            throw new RuntimeException('VSOL did not confirm privileged CLI mode for the read-only MAC table query.');
+        }
+
+        $this->ssh->write("terminal length 0\n");
+        $pagingOutput = trim((string) $this->ssh->read('/(?:[A-Za-z0-9_.()-]+[>#]\\s*)$/m'));
+        if (preg_match('/(?:Unknown command|Command incomplete|There is no matched command)/i', $pagingOutput)) {
+            throw new RuntimeException('VSOL CLI did not accept the per-session terminal paging command.');
+        }
+
+        $this->ssh->write("show mac address-table\n");
+        $output = trim((string) $this->ssh->read('/(?:[A-Za-z0-9_.()\\/-]+[>#]\\s*)$/m'));
+        if ($output === '') {
+            throw new RuntimeException('VSOL returned no response to the read-only MAC table command.');
+        }
+        if (preg_match('/(?:Unknown command|Command incomplete|There is no matched command|Invalid command|Not authorized)/i', $output)) {
+            throw new RuntimeException('VSOL rejected the read-only MAC table command.');
+        }
+
+        $rows = [];
+        foreach (preg_split('/\\R/', $output) ?: [] as $line) {
+            if (! preg_match('/^\\s*(\\d+)\\s+((?:[0-9a-f]{4}:){2}[0-9a-f]{4}|(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2})\\s+Dynamic\\s+EPON0\\/(\\d+):(\\d+)/i', trim($line), $matches)) {
+                continue;
+            }
+
+            $hex = preg_replace('/[^0-9a-f]/i', '', $matches[2]) ?: '';
+            if (strlen($hex) !== 12) {
+                continue;
+            }
+
+            $rows[] = [
+                'vlan' => (int) $matches[1],
+                'mac' => implode(':', str_split(strtolower($hex), 2)),
+                'pon_port' => (string) $matches[3],
+                'onu_id' => (string) $matches[4],
+            ];
+        }
+
+        if ($rows === [] && stripos($output, 'EPON0/') !== false && stripos($output, 'Dynamic') !== false) {
+            throw new RuntimeException('VSOL returned dynamic EPON MAC rows, but their format could not be parsed safely.');
+        }
+
+        return [
+            'dynamic_onu_client_macs' => $rows,
+            'read_only' => true,
+            'writes_performed' => false,
+        ];
+    }
+
     public function discoverVersion(): string
     {
         return $this->runReadOnly('show version');
