@@ -90,13 +90,6 @@ Schedule::call(fn () => $runCommand(
 ))->everyFiveMinutes()->timezone($timezone)->name('mikrotik-router-log-poll')->withoutOverlapping();
 
 Schedule::call(fn () => $runCommand(
-    'expire-realtime-hotspot-users',
-    'Realtime Hotspot Voucher Sync / Expiry',
-    'Every minute',
-    'app:expire-realtime-hotspot-users'
-))->name('expire-realtime-hotspot-users')->everyMinute()->timezone($timezone)->withoutOverlapping();
-
-Schedule::call(fn () => $runCommand(
     'check-device-watchers',
     'Device Watcher Health Check',
     'Every minute',
