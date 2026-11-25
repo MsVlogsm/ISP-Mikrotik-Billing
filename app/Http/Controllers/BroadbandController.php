@@ -215,18 +215,37 @@ class BroadbandController extends Controller
             $customer->setAttribute('live_ppp_mac', $live['mac'] ?? null);
         }
 
-        // Join ONU optical readings only through the saved Customer ID mapping.
+        // Join ONU optical readings through either the primary Customer ID mapping
+        // or an explicit active PPP subscriber link for a shared physical ONU.
         // A reading is considered current only when its OPM timestamp is <= 30 minutes old.
         $pageCustomerIds = $customers->getCollection()->pluck('id')->filter()->unique()->values();
         $opticalByCustomer = $pageCustomerIds->isNotEmpty()
-            ? \App\Models\OltOnuCustomerMapping::with('olt:id,name')
-                ->whereIn('customer_id', $pageCustomerIds)
+            ? \App\Models\OltOnuCustomerMapping::with([
+                'olt:id,name',
+                'subscriberLinks' => fn ($query) => $query->whereIn('customer_id', $pageCustomerIds)
+                    ->where('status', 'active'),
+            ])
+                ->where(function ($query) use ($pageCustomerIds) {
+                    $query->whereIn('customer_id', $pageCustomerIds)
+                        ->orWhereHas('subscriberLinks', fn ($links) => $links
+                            ->whereIn('customer_id', $pageCustomerIds)
+                            ->where('status', 'active'));
+                })
                 ->whereNotNull('opm_last_seen_at')
                 ->where('opm_last_seen_at', '>=', now()->subMinutes(30))
                 ->whereNotNull('rx_power')
                 ->orderByDesc('opm_last_seen_at')
                 ->get(['id','olt_device_id','customer_id','onu_id','onu_mac','pon_port','rx_power','tx_power','opm_last_seen_at','status'])
-                ->unique('customer_id')->keyBy('customer_id')
+                ->flatMap(function ($mapping) use ($pageCustomerIds) {
+                    $customerIds = collect([$mapping->customer_id])
+                        ->merge($mapping->subscriberLinks->pluck('customer_id'))
+                        ->filter(fn ($customerId) => $pageCustomerIds->contains((int) $customerId))
+                        ->unique();
+
+                    return $customerIds->map(fn ($customerId) => [$customerId, $mapping]);
+                })
+                ->unique(fn ($entry) => (string) $entry[0])
+                ->mapWithKeys(fn ($entry) => [$entry[0] => $entry[1]])
             : collect();
 
         foreach ($customers as $customer) {
