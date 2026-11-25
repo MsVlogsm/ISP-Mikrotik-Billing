@@ -144,7 +144,7 @@
             </div>
         </div>
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 broadband-customer-table">
+            <table class="table table-hover align-middle mb-0 broadband-customer-table {{ $mode === 'online' ? 'table-sm' : '' }}">
                 <thead>
                     <tr>
                         @if($mode === 'inactive')
