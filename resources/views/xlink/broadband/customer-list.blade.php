@@ -5,6 +5,11 @@
 <style>
 .broadband-customer-table th{white-space:nowrap;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
 .broadband-customer-table td{vertical-align:middle}
+.broadband-customer-table.table-sm>:not(caption)>*>*{padding:.2rem .35rem!important;line-height:1.15}
+.broadband-customer-table.table-sm tbody td{white-space:nowrap}
+.broadband-customer-table.table-sm .customer-meta{font-size:.68rem;line-height:1.05}
+.broadband-customer-table.table-sm .customer-onu-optical .customer-meta{display:inline-block;margin-right:.35rem}
+.broadband-customer-table.table-sm .customer-diagnostic-result{min-height:0}
 .customer-actions{min-width:145px;white-space:normal}.customer-actions form{display:inline}
 .customer-actions details.left-recovery-editor{display:block;position:relative;min-width:0;width:100%;max-width:190px}.customer-actions details.left-recovery-editor[open]{z-index:5}.customer-actions details.left-recovery-editor summary{white-space:nowrap;font-size:.75rem}.customer-actions details.left-recovery-editor form{display:block;width:min(280px,calc(100vw - 48px));max-width:280px;max-height:65vh;overflow-y:auto;position:absolute;right:0;top:calc(100% + 6px);z-index:1050;box-shadow:0 .5rem 1.25rem rgba(0,0,0,.18);background:var(--bs-body-bg)!important}
 .customer-actions .btn{margin:.12rem}.customer-onu-optical{min-width:155px}.customer-diagnostics{display:inline-flex;align-items:center;gap:.15rem;flex-wrap:wrap}.customer-diagnostic-result{font-size:.75rem;min-height:1.1rem}.traffic-metric{border:1px solid var(--bs-border-color);border-radius:.6rem;padding:.8rem 1rem}.traffic-metric small{display:block;color:var(--bs-secondary-color)}.traffic-metric strong{font-size:1.25rem}.traffic-live-dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:currentColor;box-shadow:0 0 0 .25rem color-mix(in srgb,currentColor 12%,transparent)}.customer-live-pulse{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;background:#16a34a;animation:customerPulse 1.5s infinite;vertical-align:middle;margin-right:.35rem}@keyframes customerPulse{0%{box-shadow:0 0 0 0 rgba(22,163,74,.55)}70%{box-shadow:0 0 0 .4rem rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}@media(prefers-reduced-motion:reduce){.customer-live-pulse{animation:none}}
