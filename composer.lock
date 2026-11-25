@@ -4418,16 +4418,16 @@
         },
         {
             "name": "league/csv",
-            "version": "9.29.0",
+            "version": "9.29.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/thephpleague/csv.git",
-                "reference": "13d5600d2c935c8785707e7d1d44ca1f2a22d6f4"
+                "reference": "fb9ea14460001b62fcb54d8ac247cc501f60e6e0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/thephpleague/csv/zipball/13d5600d2c935c8785707e7d1d44ca1f2a22d6f4",
-                "reference": "13d5600d2c935c8785707e7d1d44ca1f2a22d6f4",
+                "url": "https://api.github.com/repos/thephpleague/csv/zipball/fb9ea14460001b62fcb54d8ac247cc501f60e6e0",
+                "reference": "fb9ea14460001b62fcb54d8ac247cc501f60e6e0",
                 "shasum": ""
             },
             "require": {
@@ -4509,7 +4509,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-28T08:56:24+00:00"
+            "time": "2026-11-22T13:51:45+00:00"
         },
         {
             "name": "league/flysystem",
@@ -12903,16 +12903,16 @@
         },
         {
             "name": "web-auth/webauthn-lib",
-            "version": "5.3.12",
+            "version": "5.3.17",
             "source": {
                 "type": "git",
                 "url": "https://github.com/web-auth/webauthn-lib.git",
-                "reference": "c7aeeb1d35e39b7d32ab5146cce4b668f271a68e"
+                "reference": "7f38dbcf07cd22ec104fa6eb720df22eb4196b47"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/web-auth/webauthn-lib/zipball/c7aeeb1d35e39b7d32ab5146cce4b668f271a68e",
-                "reference": "c7aeeb1d35e39b7d32ab5146cce4b668f271a68e",
+                "url": "https://api.github.com/repos/web-auth/webauthn-lib/zipball/7f38dbcf07cd22ec104fa6eb720df22eb4196b47",
+                "reference": "7f38dbcf07cd22ec104fa6eb720df22eb4196b47",
                 "shasum": ""
             },
             "require": {
@@ -12973,7 +12973,7 @@
                 "webauthn"
             ],
             "support": {
-                "source": "https://github.com/web-auth/webauthn-lib/tree/5.3.12"
+                "source": "https://github.com/web-auth/webauthn-lib/tree/5.3.17"
             },
             "funding": [
                 {
@@ -12985,7 +12985,7 @@
                     "type": "patreon"
                 }
             ],
-            "time": "2026-11-03T09:21:08+00:00"
+            "time": "2026-11-23T18:46:47+00:00"
         },
         {
             "name": "webmozart/assert",
