@@ -200,96 +200,131 @@
 
             </li>
             <li class="nav-item">
-                <!-- label-->
-                <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
-                    <div class="col-auto navbar-vertical-label">{{ __('Network Operations') }}</div>
-                    <div class="col ps-0">
-                        <hr class="mb-0 navbar-vertical-divider" />
+                <a class="nav-link dropdown-indicator collapsed" href="#networkOperationsMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="networkOperationsMenu">
+                    <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-diagram-3"></i></span><span class="nav-link-text ps-1">{{ __('Network Operation') }}</span></div>
+                </a>
+                <div class="collapse ps-4" id="networkOperationsMenu">
+                    <a class="nav-link dropdown-indicator collapsed" href="#mikrotikOptionsMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="mikrotikOptionsMenu">
+                        <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-router-fill"></i></span><span class="nav-link-text ps-1">{{ __('MikroTik') }}</span></div>
+                    </a>
+                    <div class="collapse ps-3" id="mikrotikOptionsMenu">
+                        <!-- parent pages-->
+                        <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-sync') }}"
+                            role="button">
+                            <div class="d-flex align-items-center">
+                                <span class="nav-link-icon">
+                                    <i class="bi bi-router-fill"></i>
+                                </span>
+                                <span class="nav-link-text ps-1">{{ __('Mikrotik Sync') }}</span>
+                            </div>
+                        </a>
+
+                        <!-- Mikrotik Server Dropdown -->
+                        <a class="nav-link dropdown-indicator collapsed" href="#mikrotikServer" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="mikrotikServer">
+                            <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-hdd-network"></i></span><span class="nav-link-text ps-1">{{ __('Mikrotik Server') }}</span></div>
+                        </a>
+                        <ul class="nav collapse" id="mikrotikServer">
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-server') }}"><div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Server') }}</span></div></a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-server-backup') }}"><div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Server Backup') }}</span></div></a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-server-import') }}"><div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Import From Mikrotik') }}</span></div></a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-server-bulk-import') }}"><div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Bulk Clients Import') }}</span></div></a></li>
+                        </ul>
+
+                        <!-- Mikrotik Setup Dropdown -->
+                        <a class="nav-link dropdown-indicator collapsed" href="#mikrotikSetup" role="button"
+                            data-bs-toggle="collapse" aria-expanded="false" aria-controls="mikrotikSetup">
+                            <div class="d-flex align-items-center">
+                                <span class="nav-link-icon">
+                                    <i class="bi bi-tools"></i>
+                                </span>
+                                <span class="nav-link-text ps-1">{{ __('Mikrotik Setup') }}</span>
+                            </div>
+                        </a>
+                        <ul class="nav collapse" id="mikrotikSetup" style="">
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
+                                    href="{{ route('mikrotik-ip-setup') }}">
+                                    <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('IP & Pool') }}</span>
+                                    </div>
+                                </a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
+                                    href="{{ route('mikrotik-pppoe-setup') }}">
+                                    <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('PPPoE Server') }}</span></div>
+                                </a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
+                                    href="{{ route('mikrotik-radius-setup') }}">
+                                    <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('RADIUS') }}</span>
+                                    </div>
+                                </a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
+                                    href="{{ route('mikrotik-firewall-setup') }}">
+                                    <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Firewall') }}</span>
+                                    </div>
+                                </a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
+                                    href="{{ route('mikrotik-walled-garden') }}">
+                                    <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Walled Garden') }}</span><span class="badge rounded-pill ms-2 badge-subtle-info">{{ __('New') }}</span>
+                                    </div>
+                                </a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
+                                    href="{{ route('mikrotik-queue-setup') }}">
+                                    <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Queues') }}</span>
+                                    </div>
+                                </a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
+                                    href="{{ route('mikrotik-vpn-setup') }}">
+                                    <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('VPN Server') }}</span>
+                                    </div>
+                                </a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
+                                    href="{{ route('mikrotik-interface-setup') }}">
+                                    <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Interfaces & VLAN') }}</span></div>
+                                </a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
+                                    href="{{ route('mikrotik-traffic-monitor') }}">
+                                    <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Live Traffic') }}</span><span class="badge rounded-pill ms-2 badge-subtle-success">{{ __('New') }}</span>
+                                    </div>
+                                </a></li>
+                            <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
+                                    href="{{ route('mikrotik-backup-setup') }}">
+                                    <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Backup & Restore') }}</span><span
+                                            class="badge rounded-pill ms-2 badge-subtle-primary">{{ __('Admin') }}</span></div>
+                                </a></li>
+                        </ul>
+                    </div>
+                    <a class="nav-link dropdown-indicator collapsed" href="#networkMonitoringMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="networkMonitoringMenu">
+                        <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-activity"></i></span><span class="nav-link-text ps-1">{{ __('Device Monitoring') }}</span></div>
+                    </a>
+                    <div class="collapse ps-3" id="networkMonitoringMenu">
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('device-manager') }}"><span class="nav-link-text ps-1">{{ __('Device Manager') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-events') }}"><span class="nav-link-text ps-1">{{ __('Events & Alerts') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-map') }}"><span class="nav-link-text ps-1">{{ __('Network Map') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-topology.designer') }}"><span class="nav-link-text ps-1">{{ __('Topology Designer') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('fiber-mapping') }}"><span class="nav-link-text ps-1">{{ __('Manual Fiber Mapping') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-topology.live') }}"><span class="nav-link-text ps-1">{{ __('Live Topology') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('optical-audit') }}"><span class="nav-link-text ps-1">{{ __('Virtual OTDR / Optical Audit') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('traffic-monitor') }}"><span class="nav-link-text ps-1">{{ __('Traffic Monitor') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('high-usage-monitor') }}"><span class="nav-link-text ps-1">{{ __('High Usage Monitor') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('device-watcher') }}"><span class="nav-link-text ps-1">{{ __('Device Watcher') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-login-messages') }}"><span class="nav-link-text ps-1">{{ __('Logs & Alerts') }}</span></a>
+                            @if(auth()->user()->hasRole('Super Admin'))
+                                <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('system.sync-health') }}"><span class="nav-link-text ps-1">{{ __('Automation & Sync Health') }}</span></a>
+                            @endif
+                    </div>
+                    <a class="nav-link dropdown-indicator collapsed" href="#networkInventoryMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="networkInventoryMenu">
+                        <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-router"></i></span><span class="nav-link-text ps-1">{{ __('Device Inventory') }}</span></div>
+                    </a>
+                    <div class="collapse ps-3" id="networkInventoryMenu">
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory') }}"><span class="nav-link-text ps-1">{{ __('Dashboard') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.mikrotik') }}"><span class="nav-link-text ps-1">{{ __('MikroTik Management') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.olt') }}"><span class="nav-link-text ps-1">{{ __('OLT Management') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.onu-management') }}"><span class="nav-link-text ps-1">{{ __('ONU Management') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-monitoring') }}"><span class="nav-link-text ps-1">{{ __('Customer Network Monitoring') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.olt') }}#olt-provisioning"><span class="nav-link-text ps-1">{{ __('OLT / ONU Provisioning') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.switches') }}"><span class="nav-link-text ps-1">{{ __('Switch Management') }}</span></a>
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.access-points') }}"><span class="nav-link-text ps-1">{{ __('Access Point Management') }}</span></a>
                     </div>
                 </div>
-                <!-- parent pages-->
-                <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-sync') }}"
-                    role="button">
-                    <div class="d-flex align-items-center">
-                        <span class="nav-link-icon">
-                            <i class="bi bi-router-fill"></i>
-                        </span>
-                        <span class="nav-link-text ps-1">{{ __('Mikrotik Sync') }}</span>
-                    </div>
-                </a>
-
-                <!-- Mikrotik Server Dropdown -->
-                <a class="nav-link dropdown-indicator collapsed" href="#mikrotikServer" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="mikrotikServer">
-                    <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-hdd-network"></i></span><span class="nav-link-text ps-1">{{ __('Mikrotik Server') }}</span></div>
-                </a>
-                <ul class="nav collapse" id="mikrotikServer">
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-server') }}"><div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Server') }}</span></div></a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-server-backup') }}"><div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Server Backup') }}</span></div></a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-server-import') }}"><div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Import From Mikrotik') }}</span></div></a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-server-bulk-import') }}"><div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Bulk Clients Import') }}</span></div></a></li>
-                </ul>
-
-                <!-- Mikrotik Setup Dropdown -->
-                <a class="nav-link dropdown-indicator collapsed" href="#mikrotikSetup" role="button"
-                    data-bs-toggle="collapse" aria-expanded="false" aria-controls="mikrotikSetup">
-                    <div class="d-flex align-items-center">
-                        <span class="nav-link-icon">
-                            <i class="bi bi-tools"></i>
-                        </span>
-                        <span class="nav-link-text ps-1">{{ __('Mikrotik Setup') }}</span>
-                    </div>
-                </a>
-                <ul class="nav collapse" id="mikrotikSetup" style="">
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('mikrotik-ip-setup') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('IP & Pool') }}</span>
-                            </div>
-                        </a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('mikrotik-pppoe-setup') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('PPPoE Server') }}</span></div>
-                        </a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('mikrotik-radius-setup') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('RADIUS') }}</span>
-                            </div>
-                        </a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('mikrotik-firewall-setup') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Firewall') }}</span>
-                            </div>
-                        </a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('mikrotik-walled-garden') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Walled Garden') }}</span><span class="badge rounded-pill ms-2 badge-subtle-info">{{ __('New') }}</span>
-                            </div>
-                        </a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('mikrotik-queue-setup') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Queues') }}</span>
-                            </div>
-                        </a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('mikrotik-vpn-setup') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('VPN Server') }}</span>
-                            </div>
-                        </a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('mikrotik-interface-setup') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Interfaces & VLAN') }}</span></div>
-                        </a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('mikrotik-traffic-monitor') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Live Traffic') }}</span><span class="badge rounded-pill ms-2 badge-subtle-success">{{ __('New') }}</span>
-                            </div>
-                        </a></li>
-                    <li class="nav-item"><a wire:navigate.hover wire:current="active" class="nav-link"
-                            href="{{ route('mikrotik-backup-setup') }}">
-                            <div class="d-flex align-items-center"><span class="nav-link-text ps-1">{{ __('Backup & Restore') }}</span><span
-                                    class="badge rounded-pill ms-2 badge-subtle-primary">{{ __('Admin') }}</span></div>
-                        </a></li>
-                </ul>
-
+            </li>
                 <!-- Hotspot (Unified) -->
             <li class="nav-item">
                 <a class="nav-link dropdown-indicator collapsed" href="#hotspotMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="hotspotMenu">
@@ -305,51 +340,6 @@
                     <a wire:navigate.hover class="nav-link" href="{{ route('hotspot-cards') }}"><span class="nav-link-text ps-1">{{ __('Card List') }}</span></a>
                     <a wire:navigate.hover class="nav-link" href="{{ route('hotspot-card-print-setup') }}"><span class="nav-link-text ps-1">{{ __('Print Setup') }}</span></a>
                     <a wire:navigate.hover class="nav-link" href="{{ route('hotspot-page-setup') }}"><span class="nav-link-text ps-1">{{ __('Hotspot Setup') }}</span></a>
-                </div>
-            </li>
-            <li class="nav-item">
-                <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
-                    <div class="col-auto navbar-vertical-label">{{ __('Device Monitoring') }}</div>
-                    <div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div>
-                </div>
-                <a class="nav-link dropdown-indicator collapsed" href="#networkMonitoringMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="networkMonitoringMenu">
-                    <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-activity"></i></span><span class="nav-link-text ps-1">{{ __('Network Monitoring') }}</span></div>
-                </a>
-                <div class="collapse ps-4" id="networkMonitoringMenu">
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('device-manager') }}"><span class="nav-link-text ps-1">{{ __('Device Manager') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-events') }}"><span class="nav-link-text ps-1">{{ __('Events & Alerts') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-map') }}"><span class="nav-link-text ps-1">{{ __('Network Map') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-topology.designer') }}"><span class="nav-link-text ps-1">{{ __('Topology Designer') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('fiber-mapping') }}"><span class="nav-link-text ps-1">{{ __('Manual Fiber Mapping') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-topology.live') }}"><span class="nav-link-text ps-1">{{ __('Live Topology') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('optical-audit') }}"><span class="nav-link-text ps-1">{{ __('Virtual OTDR / Optical Audit') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('traffic-monitor') }}"><span class="nav-link-text ps-1">{{ __('Traffic Monitor') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('high-usage-monitor') }}"><span class="nav-link-text ps-1">{{ __('High Usage Monitor') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('device-watcher') }}"><span class="nav-link-text ps-1">{{ __('Device Watcher') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-login-messages') }}"><span class="nav-link-text ps-1">{{ __('Logs & Alerts') }}</span></a>
-                    @if(auth()->user()->hasRole('Super Admin'))
-                        <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('system.sync-health') }}"><span class="nav-link-text ps-1">{{ __('Automation & Sync Health') }}</span></a>
-                    @endif
-                </div>
-            </li>
-            <li class="nav-item">
-                <!-- X-Link Billing parity modules -->
-                <div class="row navbar-vertical-label-wrapper mt-3 mb-2">
-                    <div class="col-auto navbar-vertical-label">{{ __('Network Inventory') }}</div>
-                    <div class="col ps-0"><hr class="mb-0 navbar-vertical-divider" /></div>
-                </div>
-                <a class="nav-link dropdown-indicator collapsed" href="#networkInventoryMenu" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="networkInventoryMenu">
-                    <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-router"></i></span><span class="nav-link-text ps-1">{{ __('Devices Inventory') }}</span></div>
-                </a>
-                <div class="collapse ps-4" id="networkInventoryMenu">
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory') }}"><span class="nav-link-text ps-1">{{ __('Dashboard') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.mikrotik') }}"><span class="nav-link-text ps-1">{{ __('MikroTik Management') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.olt') }}"><span class="nav-link-text ps-1">{{ __('OLT Management') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.onu-management') }}"><span class="nav-link-text ps-1">{{ __('ONU Management') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-monitoring') }}"><span class="nav-link-text ps-1">{{ __('Customer Network Monitoring') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.olt') }}#olt-provisioning"><span class="nav-link-text ps-1">{{ __('OLT / ONU Provisioning') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.switches') }}"><span class="nav-link-text ps-1">{{ __('Switch Management') }}</span></a>
-                    <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-inventory.access-points') }}"><span class="nav-link-text ps-1">{{ __('Access Point Management') }}</span></a>
                 </div>
             </li>
             {{-- ── Billing & Finance: independent finance workspace ── --}}
