@@ -87,7 +87,7 @@ Schedule::call(fn () => $runCommand(
     'MikroTik Router Log Poll',
     'Every minute',
     'app:poll-router-logs'
-))->everyMinute()->timezone($timezone)->name('mikrotik-router-log-poll')->withoutOverlapping();
+))->everyFiveMinutes()->timezone($timezone)->name('mikrotik-router-log-poll')->withoutOverlapping();
 
 Schedule::call(fn () => $runCommand(
     'expire-realtime-hotspot-users',
@@ -138,7 +138,7 @@ Schedule::call(fn () => $runCommand(
     'OLT / ONU Mapping & Telemetry Sync',
     'Every minute',
     'olt:sync-onu-mappings'
-))->everyMinute()->timezone($timezone)->name('onu-mapping-sync')->withoutOverlapping()->onOneServer();
+))->everyFiveMinutes()->timezone($timezone)->name('onu-mapping-sync')->withoutOverlapping()->onOneServer();
 
 Schedule::call(fn () => $runCommand(
     'olt-bridge-fdb-sync',
