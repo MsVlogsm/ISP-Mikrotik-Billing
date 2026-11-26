@@ -121,14 +121,14 @@ class CustomerList extends Component
 
             SyncCustomerOnu::dispatch((int) $customer->id, (int) auth()->id(), $lock->owner());
             $this->dispatch('customer-onu-sync-queued', encryptedCustomerId: $encryptedId);
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             if ($lock) {
-                try { $lock->release(); } catch (\\Throwable) {}
+                try { $lock->release(); } catch (\Throwable) {}
             }
             if (isset($customer)) {
                 Cache::forget(SyncCustomerOnu::statusKey((int) auth()->id(), (int) $customer->id));
             }
-            \\Log::warning('Single customer ONU sync dispatch failed', [
+            \Log::warning('Single customer ONU sync dispatch failed', [
                 'user_id' => auth()->id(),
                 'encrypted_customer_id' => $encryptedId,
                 'error' => $exception->getMessage(),
@@ -156,7 +156,7 @@ class CustomerList extends Component
             $customer = CustomersInfo::query()
                 ->where('customer_unique_id', $customerId)
                 ->firstOrFail();
-        } catch (\\Throwable) {
+        } catch (\Throwable) {
             flash()->addError('Customer identity বা sync status পাওয়া যায়নি।');
             $this->dispatch('customer-onu-sync-complete');
             return true;
