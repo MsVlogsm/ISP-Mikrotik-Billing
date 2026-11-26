@@ -75,6 +75,73 @@ class BridgeFdbControllerTest extends TestCase
         $this->assertStringContainsString('Live Poll Disabled', $html);
     }
 
+    public function test_failed_poll_keeps_last_successful_fdb_data_visible_with_warning(): void
+    {
+        config(['bridge_fdb.live_poll_enabled' => false]);
+
+        $device = NetworkInventoryDevice::create([
+            'type' => 'switch',
+            'name' => 'Access Switch',
+            'vendor' => 'Generic',
+            'ip_address' => '192.0.2.61',
+            'status' => 'online',
+            'is_active' => true,
+        ]);
+
+        $successful = NetworkBridgeFdbSnapshot::create([
+            'network_inventory_device_id' => $device->id,
+            'sampled_at' => now()->subMinutes(15),
+            'source' => 'dot1q',
+            'status' => 'ok',
+            'entry_count' => 1,
+            'learned_count' => 1,
+            'other_count' => 0,
+            'self_count' => 0,
+            'invalid_count' => 0,
+            'poll_duration_ms' => 125,
+            'meta' => ['read_only' => true, 'writes_performed' => false],
+        ]);
+
+        NetworkBridgeFdbEntry::create([
+            'snapshot_id' => $successful->id,
+            'mac_address' => '00:11:22:33:44:66',
+            'vlan_id' => 100,
+            'fdb_id' => 100,
+            'bridge_port' => 12,
+            'if_index' => 120,
+            'interface_name' => 'EPON0/1:12',
+            'entry_status' => 'learned',
+            'status_code' => 3,
+            'source' => 'dot1q',
+        ]);
+
+        NetworkBridgeFdbSnapshot::create([
+            'network_inventory_device_id' => $device->id,
+            'sampled_at' => now(),
+            'source' => 'dot1q',
+            'status' => 'error',
+            'entry_count' => 0,
+            'learned_count' => 0,
+            'other_count' => 0,
+            'self_count' => 0,
+            'invalid_count' => 0,
+            'poll_duration_ms' => 750,
+            'error_message' => 'FDB status table is not readable.',
+            'meta' => ['read_only' => true, 'writes_performed' => false],
+        ]);
+
+        $this->actingAs(User::factory()->create());
+
+        $response = app(BridgeFdbController::class)->index(Request::create('/'), $device);
+        $html = $response->render();
+
+        $this->assertSame($successful->id, $response->getData()['snapshot']->id);
+        $this->assertStringContainsString('POLL FAILED', $html);
+        $this->assertStringContainsString('FDB status table is not readable.', $html);
+        $this->assertStringContainsString('00:11:22:33:44:66', $html);
+        $this->assertStringContainsString('Last successful poll:', $html);
+    }
+
     public function test_bridge_fdb_poll_is_blocked_until_explicitly_enabled(): void
     {
         config(['bridge_fdb.live_poll_enabled' => false]);
