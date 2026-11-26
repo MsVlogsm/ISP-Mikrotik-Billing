@@ -61,10 +61,30 @@
         <div class="col-6 col-md-4 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small">Mapped interfaces</div><div class="fs-3 fw-semibold">{{ number_format($stats['interfaces']) }}</div></div></div></div>
     </div>
 
+    @if($pollFailure)
+        <div class="alert alert-danger" role="alert">
+            <strong>POLL FAILED</strong>
+            <div class="mt-1">{{ $pollFailure->error_message ?: 'The latest Bridge FDB polling attempt failed.' }}</div>
+            <div class="small mt-1">
+                Last successful poll:
+                @if($snapshot)
+                    {{ $snapshot->sampled_at->format('d M Y H:i:s') }}
+                @else
+                    No successful poll has been recorded.
+                @endif
+            </div>
+            @if($snapshot)
+                <div class="small mt-1">Showing the last successful FDB data; current MAC visibility may have changed since that poll.</div>
+            @else
+                <div class="small mt-1">No saved successful FDB data is available to display.</div>
+            @endif
+        </div>
+    @endif
+
     <div class="card mb-3">
         <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div>
-                <div class="fw-semibold">Latest Bridge FDB snapshot</div>
+                <div class="fw-semibold">Latest successful Bridge FDB snapshot</div>
                 @if($snapshot)
                     <div class="small text-muted">
                         {{ $snapshot->sampled_at->format('d M Y H:i:s') }}
