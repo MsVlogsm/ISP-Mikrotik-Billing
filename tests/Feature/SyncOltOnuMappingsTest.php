@@ -340,6 +340,48 @@ class SyncOltOnuMappingsTest extends TestCase
         $this->assertDatabaseCount('olt_monitoring_snapshots', 2);
     }
 
+    public function test_location_conflict_does_not_move_an_onu_mapping_onto_an_occupied_pon_index(): void
+    {
+        $olt = $this->olt();
+        $stableMac = '70:a5:6a:79:72:5e';
+        $occupiedMac = 'a2:4f:a2:72:fe:c0';
+
+        $stableMapping = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => '7',
+            'pon_port' => '1',
+            'onu_mac' => $stableMac,
+            'status' => 'online',
+        ]);
+        $occupiedMapping = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => '8',
+            'pon_port' => '2',
+            'onu_mac' => $occupiedMac,
+            'status' => 'offline',
+        ]);
+
+        $this->fakeAdapter($olt, $stableMac, [], [
+            'onu_id' => '8',
+            'pon_port' => '2',
+        ]);
+
+        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])
+            ->expectsOutputToContain("ONU 8: live PON 2/ONU 8 is already occupied by mapping #{$occupiedMapping->id}; existing mapping #{$stableMapping->id} was left unchanged for manual review.")
+            ->assertExitCode(0);
+
+        $stableMapping->refresh();
+        $occupiedMapping->refresh();
+
+        $this->assertSame('1', (string) $stableMapping->pon_port);
+        $this->assertSame('7', (string) $stableMapping->onu_id);
+        $this->assertSame($stableMac, $stableMapping->onu_mac);
+        $this->assertSame('2', (string) $occupiedMapping->pon_port);
+        $this->assertSame('8', (string) $occupiedMapping->onu_id);
+        $this->assertSame($occupiedMac, $occupiedMapping->onu_mac);
+        $this->assertDatabaseCount('olt_monitoring_snapshots', 0);
+    }
+
     public function test_partial_or_unverified_poll_does_not_claim_an_absent_onu_is_stale(): void
     {
         $olt = $this->olt();
