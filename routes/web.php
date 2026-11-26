@@ -560,7 +560,7 @@ Route::middleware([
                     'username' => $switchData['username'] ?? null,
                     'password' => $switchData['password'] ?? null,
                     'ssh_port' => (int) ($switchData['ssh_port'] ?? 22),
-                    'adapter_config' => $proxyRouterId > 0 ? ['bridge_fdb' => ['proxy_router_id' => $proxyRouterId]] : null,
+                    'adapter_config' => $proxyRouterId > 0 ? json_encode(['bridge_fdb' => ['proxy_router_id' => $proxyRouterId]], JSON_THROW_ON_ERROR) : null,
                 ]);
             }
             if ($type === 'olt') $data['snmp_port'] = (int) ($data['snmp_port'] ?? 161);
