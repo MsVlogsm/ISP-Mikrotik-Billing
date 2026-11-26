@@ -20,10 +20,20 @@ class BridgeFdbController extends Controller
     {
         abort_unless(in_array($device->type, ['olt', 'switch'], true), 404);
 
-        $snapshot = NetworkBridgeFdbSnapshot::query()
+        $latestAttempt = NetworkBridgeFdbSnapshot::query()
             ->where('network_inventory_device_id', $device->id)
             ->latest('sampled_at')
             ->first();
+
+        $snapshot = NetworkBridgeFdbSnapshot::query()
+            ->where('network_inventory_device_id', $device->id)
+            ->whereIn('status', ['ok', 'empty'])
+            ->latest('sampled_at')
+            ->first();
+
+        $pollFailure = $latestAttempt && ! in_array($latestAttempt->status, ['ok', 'empty'], true)
+            ? $latestAttempt
+            : null;
 
         $search = trim((string) $request->query('q', ''));
         $vlan = trim((string) $request->query('vlan', ''));
@@ -85,6 +95,7 @@ class BridgeFdbController extends Controller
         return view('xlink.bridge-fdb', [
             'device' => $device,
             'snapshot' => $snapshot,
+            'pollFailure' => $pollFailure,
             'entries' => $entries,
             'movements' => $movements,
             'stats' => $stats,
