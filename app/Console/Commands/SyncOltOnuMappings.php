@@ -263,6 +263,21 @@ class SyncOltOnuMappings extends Command
                     'notes' => $existingMapping ? $existingMapping->notes : ($row['detail'] ?? 'Discovered by read-only ONU synchronisation; customer mapping requires explicit review.'),
                 ];
 
+                $targetPon = trim((string) ($mappingData['pon_port'] ?? ''));
+                $occupiedMapping = $targetPon !== ''
+                    ? OltOnuCustomerMapping::where('olt_device_id', $olt->id)
+                        ->where('pon_port', $targetPon)
+                        ->where('onu_id', $onuId)
+                        ->when($existingMapping, fn ($query) => $query->where('id', '<>', $existingMapping->id))
+                        ->first(['id'])
+                    : null;
+
+                if ($occupiedMapping) {
+                    $skipped++;
+                    $issues[] = "ONU {$onuId}: live PON {$targetPon}/ONU {$onuId} is already occupied by mapping #{$occupiedMapping->id}; existing mapping #".($existingMapping?->id ?? 'unresolved')." was left unchanged for manual review.";
+                    continue;
+                }
+
                 if ($existingMapping) {
                     // Keep the stable mapping row. Update the index only when the
                     // current index is not already occupied by another mapping.
@@ -381,7 +396,7 @@ class SyncOltOnuMappings extends Command
                 $issues[] = 'Some stored online ONU rows were absent, but no absence warning was trusted because the poll was partial, invalid, or not explicitly verified as read-only.';
             }
 
-            $this->info("OLT {$olt->id}: normalized {$count} ONU rows synced; auto-mapped {$autoMapped} unambiguous customer matches; stale online rows not observed: ".($completeReadOnlyPoll ? $staleCandidates->count() : 'not assessed')."; skipped {$skipped} invalid rows.");
+            $this->info("OLT {$olt->id}: normalized {$count} ONU rows synced; auto-mapped {$autoMapped} unambiguous customer matches; stale online rows not observed: ".($completeReadOnlyPoll ? $staleCandidates->count() : 'not assessed')."; skipped {$skipped} rows.");
             foreach (array_slice($issues, 0, 10) as $issue) $this->warn($issue);
 
             if (!empty($result['meta']['model_profile_mismatch'])) {
