@@ -9,7 +9,7 @@ use App\Models\PaymentSummary;
 use App\Models\PPPSecrets;
 use App\Models\Reseller;
 use App\Models\RouterList;
-use App\Services\Olt\CustomerOnuRealtimeSyncService;
+use App\Jobs\SyncCustomerOnu;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -74,7 +74,7 @@ class CustomerList extends Component
 
     public $bulkClientError = '';
 
-    /** Realtime ONU/OPM refresh for one selected customer row only. */
+    /** Queue a realtime ONU/OPM refresh for one selected customer row. */
     #[On('sync-customer-onu')]
     public function syncCustomerOnu($id): void
     {
@@ -103,45 +103,86 @@ class CustomerList extends Component
         try {
             $customerId = decrypt($encryptedId);
             $customer = CustomersInfo::query()
-                ->with('pppUser')
                 ->where('customer_unique_id', $customerId)
                 ->firstOrFail();
 
-            $lock = Cache::lock('customer-onu-realtime-sync:'.$customer->id, 90);
+            $lock = Cache::lock('customer-onu-realtime-sync:'.$customer->id, 600);
             if (! $lock->get()) {
                 flash()->addError('এই customer-এর ONU sync ইতিমধ্যে চলছে।');
                 $this->dispatch('customer-onu-sync-complete');
                 return;
             }
 
-            $result = app(CustomerOnuRealtimeSyncService::class)->sync($customer);
-            $signal = $result['rx_power'] !== null
-                ? 'RX '.number_format((float) $result['rx_power'], 2).' dBm'
-                : 'এই poll-এ নতুন RX reading পাওয়া যায়নি';
-            $session = $result['session_online'] ? 'Live PPPoE session' : 'Last-known PPPoE MAC';
-            $message = "{$customer->customer_unique_id}: {$result['olt_name']} · PON {$result['pon']} / ONU {$result['onu_id']} · {$signal} · {$session} যাচাই হয়েছে।";
-            if ($result['opm_fresh']) {
-                flash()->success($message);
-            } else {
-                $reason = ($result['opm_status'] ?? null) === 'olt_reports_offline'
-                    ? 'OLT ONU-টিকে Offline দেখাচ্ছে; optical reading অনুপস্থিত।'
-                    : 'OLT এই ONU-এর জন্য optical reading দেয়নি; আগের reading অপরিবর্তিত আছে।';
-                flash()->warning($message.' '.$reason);
+            Cache::put(
+                SyncCustomerOnu::statusKey((int) auth()->id(), (int) $customer->id),
+                ['status' => 'queued'],
+                now()->addMinutes(15)
+            );
+
+            SyncCustomerOnu::dispatch((int) $customer->id, (int) auth()->id(), $lock->owner());
+            $this->dispatch('customer-onu-sync-queued', encryptedCustomerId: $encryptedId);
+        } catch (\\Throwable $exception) {
+            if ($lock) {
+                try { $lock->release(); } catch (\\Throwable) {}
             }
-        } catch (\Throwable $exception) {
-            \Log::warning('Single customer ONU sync failed', [
+            if (isset($customer)) {
+                Cache::forget(SyncCustomerOnu::statusKey((int) auth()->id(), (int) $customer->id));
+            }
+            \\Log::warning('Single customer ONU sync dispatch failed', [
                 'user_id' => auth()->id(),
                 'encrypted_customer_id' => $encryptedId,
                 'error' => $exception->getMessage(),
             ]);
             flash()->addError($exception->getMessage());
-        } finally {
-            if ($lock) {
-                try { $lock->release(); } catch (\Throwable) {}
+            $this->dispatch('customer-onu-sync-complete');
+        }
+    }
+
+    /** Return the queued ONU sync result to the requesting user. */
+    public function checkCustomerOnuSync($id): bool
+    {
+        if (! hasAccess(['Super Admin'], ['network-inventory'])) {
+            abort(403, 'ONU sync করার permission নেই।');
+        }
+
+        if (! is_string($id) || $id === '') {
+            flash()->addError('Customer identity পাওয়া যায়নি।');
+            $this->dispatch('customer-onu-sync-complete');
+            return true;
+        }
+
+        try {
+            $customerId = decrypt($id);
+            $customer = CustomersInfo::query()
+                ->where('customer_unique_id', $customerId)
+                ->firstOrFail();
+        } catch (\\Throwable) {
+            flash()->addError('Customer identity বা sync status পাওয়া যায়নি।');
+            $this->dispatch('customer-onu-sync-complete');
+            return true;
+        }
+
+        $statusKey = SyncCustomerOnu::statusKey((int) auth()->id(), (int) $customer->id);
+        $status = Cache::get($statusKey);
+
+        if (! is_array($status) || in_array($status['status'] ?? null, ['queued', 'running'], true)) {
+            return false;
+        }
+
+        Cache::forget($statusKey);
+
+        if (($status['status'] ?? null) === 'completed') {
+            if (($status['level'] ?? null) === 'success') {
+                flash()->success((string) ($status['message'] ?? 'ONU sync completed.'));
+            } else {
+                flash()->warning((string) ($status['message'] ?? 'ONU sync completed without a fresh optical reading.'));
             }
+        } else {
+            flash()->addError((string) ($status['message'] ?? 'ONU sync failed.'));
         }
 
         $this->dispatch('customer-onu-sync-complete');
+        return true;
     }
 
     /** Force the next Customer List draw to refresh the cached live PPP session snapshot. */
