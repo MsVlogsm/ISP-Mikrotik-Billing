@@ -1188,6 +1188,32 @@
                 Livewire.dispatch('sync-customer-onu', { id: encryptedCustomerId });
             };
 
+            const customerOnuSyncPollers = new Map();
+
+            $wire.on('customer-onu-sync-queued', (event) => {
+                const encryptedCustomerId = event.detail?.encryptedCustomerId;
+                if (!encryptedCustomerId) return;
+
+                const existingPoller = customerOnuSyncPollers.get(encryptedCustomerId);
+                if (existingPoller) clearInterval(existingPoller);
+
+                const poller = setInterval(async () => {
+                    try {
+                        const completed = await $wire.call('checkCustomerOnuSync', encryptedCustomerId);
+                        if (completed) {
+                            clearInterval(poller);
+                            customerOnuSyncPollers.delete(encryptedCustomerId);
+                        }
+                    } catch (error) {
+                        clearInterval(poller);
+                        customerOnuSyncPollers.delete(encryptedCustomerId);
+                        console.error('Customer ONU sync status check failed', error);
+                    }
+                }, 3000);
+
+                customerOnuSyncPollers.set(encryptedCustomerId, poller);
+            });
+
             $wire.on('customer-onu-sync-complete', () => {
                 table.ajax.reload(null, false);
                 document.querySelectorAll('.customer-sync-onu-btn[data-syncing="true"]').forEach((button) => {
