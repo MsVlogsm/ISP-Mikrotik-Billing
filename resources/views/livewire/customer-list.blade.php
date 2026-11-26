@@ -1191,7 +1191,7 @@
             const customerOnuSyncPollers = new Map();
 
             $wire.on('customer-onu-sync-queued', (event) => {
-                const encryptedCustomerId = event.detail?.encryptedCustomerId;
+                const encryptedCustomerId = event.encryptedCustomerId;
                 if (!encryptedCustomerId) return;
 
                 const existingPoller = customerOnuSyncPollers.get(encryptedCustomerId);
@@ -1199,7 +1199,7 @@
 
                 const poller = setInterval(async () => {
                     try {
-                        const completed = await $wire.call('checkCustomerOnuSync', encryptedCustomerId);
+                        const completed = await $wire.$call('checkCustomerOnuSync', encryptedCustomerId);
                         if (completed) {
                             clearInterval(poller);
                             customerOnuSyncPollers.delete(encryptedCustomerId);
