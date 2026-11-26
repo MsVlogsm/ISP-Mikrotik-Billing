@@ -487,7 +487,10 @@ Route::middleware([
             }
             $perPage = min(max((int) request('per_page', 10), 10), 50);
             $devices = $query->orderBy('name')->paginate($perPage)->withQueryString();
-            return view('xlink.inventory-list', compact('devices','type','label'));
+            $proxyRouters = $type === 'switch'
+                ? \App\Models\RouterList::query()->where('action', 'connected')->whereNotNull('api_port')->orderBy('router_name')->get(['id', 'router_name'])
+                : collect();
+            return view('xlink.inventory-list', compact('devices','type','label','proxyRouters'));
         })->name('network-inventory.devices');
 
         Route::post('/network-inventory/device/{type}', function (\Illuminate\Http\Request $request, string $type) {
@@ -514,6 +517,52 @@ Route::middleware([
                 'customer_count' => ['nullable','integer','min:0'],
                 'monitor_enabled' => ['nullable','boolean'],
             ]);
+            if ($type === 'switch') {
+                $switchData = $request->validate([
+                    'ip_address' => ['required','ip'],
+                    'snmp_version' => ['nullable','in:1,2C'],
+                    'snmp_port' => ['nullable','integer','min:1','max:65535'],
+                    'snmp_community' => ['nullable','string','max:255'],
+                    'ssh_enabled' => ['nullable','boolean'],
+                    'username' => ['nullable','string','max:255'],
+                    'password' => ['nullable','string','max:255'],
+                    'ssh_port' => ['nullable','integer','min:1','max:65535'],
+                    'bridge_fdb_proxy_router_id' => ['nullable','integer','min:1'],
+                ]);
+                $proxyRouterId = (int) ($switchData['bridge_fdb_proxy_router_id'] ?? 0);
+                $sshEnabled = (bool) ($switchData['ssh_enabled'] ?? false);
+                if ($proxyRouterId > 0 && ! \App\Models\RouterList::query()->whereKey($proxyRouterId)->where('action', 'connected')->whereNotNull('api_port')->exists()) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'bridge_fdb_proxy_router_id' => 'Select a connected MikroTik router with API access.',
+                    ]);
+                }
+                if ($proxyRouterId > 0 && ! filled($switchData['snmp_community'] ?? null)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'snmp_community' => 'A dedicated read-only SNMP community is required when using a MikroTik proxy.',
+                    ]);
+                }
+                if ($sshEnabled && (! filled($switchData['username'] ?? null) || ! filled($switchData['password'] ?? null))) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'username' => 'SSH username and password are both required when SSH fallback is enabled.',
+                        'password' => 'SSH username and password are both required when SSH fallback is enabled.',
+                    ]);
+                }
+                if (! filled($switchData['snmp_community'] ?? null) && ! $sshEnabled) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'snmp_community' => 'Configure read-only SNMP access or enable the SSH read-only fallback before adding a Switch.',
+                    ]);
+                }
+                $data = array_merge($data, [
+                    'snmp_version' => $switchData['snmp_version'] ?? '2C',
+                    'snmp_port' => (int) ($switchData['snmp_port'] ?? 161),
+                    'snmp_community' => $switchData['snmp_community'] ?? null,
+                    'ssh_enabled' => $sshEnabled,
+                    'username' => $switchData['username'] ?? null,
+                    'password' => $switchData['password'] ?? null,
+                    'ssh_port' => (int) ($switchData['ssh_port'] ?? 22),
+                    'adapter_config' => $proxyRouterId > 0 ? json_encode(['bridge_fdb' => ['proxy_router_id' => $proxyRouterId]], JSON_THROW_ON_ERROR) : null,
+                ]);
+            }
             if ($type === 'olt') $data['snmp_port'] = (int) ($data['snmp_port'] ?? 161);
             \App\Models\NetworkInventoryDevice::create($data + [
                 'type' => $type,

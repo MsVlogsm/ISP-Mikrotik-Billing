@@ -11,6 +11,7 @@ use App\Services\Olt\BridgeFdbSnmpService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use ReflectionMethod;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
@@ -99,6 +100,22 @@ class BridgeFdbControllerTest extends TestCase
     {
         $this->assertTrue(Route::has('network-inventory.device.bridge-fdb'));
         $this->assertTrue(Route::has('network-inventory.device.bridge-fdb.poll'));
+    }
+
+    public function test_it_extracts_exact_epon_and_gpon_onu_slots_from_fdb_interfaces(): void
+    {
+        $controller = app(BridgeFdbController::class);
+        $method = new ReflectionMethod($controller, 'onuSlotFromInterface');
+        $method->setAccessible(true);
+
+        $this->assertSame(['pon_port' => '1', 'onu_id' => '12'], $method->invoke($controller, 'EPON0/1:12'));
+        $this->assertSame(['pon_port' => '2', 'onu_id' => '34'], $method->invoke($controller, 'GPON0/2:34'));
+        $this->assertSame(['pon_port' => '1', 'onu_id' => '1'], $method->invoke($controller, 'gpon-onu_1/1/1:1'));
+        $this->assertNull($method->invoke($controller, 'GE0/1'));
+
+        $normalizePon = new ReflectionMethod($controller, 'normalizePon');
+        $normalizePon->setAccessible(true);
+        $this->assertSame('2', $normalizePon->invoke($controller, 'GPON0/2'));
     }
 
     public function test_non_olt_or_switch_inventory_records_are_rejected(): void
