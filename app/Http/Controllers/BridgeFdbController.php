@@ -143,7 +143,7 @@ class BridgeFdbController extends Controller
 
         $macs = $entries->pluck('mac_address')->filter()->unique()->values();
         $linkQuery = OltOnuCustomerPppLink::query()
-            ->with(['customer', 'pppUser', 'onuMapping'])
+            ->with(['customer', 'pppUser', 'onuMapping.olt'])
             ->where('status', 'active')
             ->whereNotNull('client_mac')
             ->whereIn('client_mac', $macs);
@@ -163,8 +163,9 @@ class BridgeFdbController extends Controller
 
         $onuSlots = [];
         foreach ($entries as $entry) {
-            if (preg_match('/^EPON\d+\/(\d+):(\d+)$/i', trim((string) $entry->interface_name), $matches)) {
-                $onuSlots[$this->normalizePon($matches[1]).'|'.trim($matches[2])] = true;
+            $slot = $this->onuSlotFromInterface($entry->interface_name);
+            if ($slot !== null) {
+                $onuSlots[$this->normalizePon($slot['pon_port']).'|'.$slot['onu_id']] = true;
             }
         }
         $slotMappings = collect();
@@ -187,6 +188,13 @@ class BridgeFdbController extends Controller
                 $entry->setAttribute('subscriber_name', $link->customer?->customer_name ?: $link->customer?->customer_unique_id);
                 $entry->setAttribute('subscriber_id', $link->customer?->customer_unique_id);
                 $entry->setAttribute('pppoe_username', $link->pppUser?->username);
+                if ($link->onuMapping) {
+                    $onuLabel = 'PON '.$link->onuMapping->pon_port.' / ONU '.$link->onuMapping->onu_id;
+                    if ($link->onuMapping->olt?->name) {
+                        $onuLabel = $link->onuMapping->olt->name.' · '.$onuLabel;
+                    }
+                    $entry->setAttribute('onu_identity', $onuLabel);
+                }
                 $entry->setAttribute('identity_source', 'Exact client MAC link');
 
                 continue;
@@ -227,8 +235,9 @@ class BridgeFdbController extends Controller
                 continue;
             }
 
-            if (preg_match('/^EPON\d+\/(\d+):(\d+)$/i', trim((string) $entry->interface_name), $matches)) {
-                $slotKey = $this->normalizePon($matches[1]).'|'.trim($matches[2]);
+            $slot = $this->onuSlotFromInterface($entry->interface_name);
+            if ($slot !== null) {
+                $slotKey = $this->normalizePon($slot['pon_port']).'|'.$slot['onu_id'];
                 $slotMatches = $slotMappings->get($slotKey, collect())->unique('id')->values();
                 if ($slotMatches->count() === 1) {
                     $mapping = $slotMatches->first();
@@ -256,10 +265,21 @@ class BridgeFdbController extends Controller
         }
     }
 
+    private function onuSlotFromInterface(?string $interface): ?array
+    {
+        $interface = trim((string) $interface);
+        if (preg_match('/^(?:EPON|GPON)\d+\/(\d+):(\d+)$/i', $interface, $matches)
+            || preg_match('/^(?:epon|gpon)-onu_.*\/(\d+)[:\/](\d+)$/i', $interface, $matches)) {
+            return ['pon_port' => $matches[1], 'onu_id' => $matches[2]];
+        }
+
+        return null;
+    }
+
     private function normalizePon(?string $value): string
     {
         $value = trim((string) $value);
-        if (preg_match('/(?:EPON)?\d*\/(\d+)$/i', $value, $matches)) {
+        if (preg_match('/(?:(?:EPON|GPON))?\d*\/(\d+)$/i', $value, $matches)) {
             return $matches[1];
         }
 
