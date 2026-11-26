@@ -138,29 +138,59 @@ class CustomerOnuRealtimeSyncService
 
                 $targetOnu = $targetRows[0];
                 if (strcasecmp((string) $knownOlt->vendor, 'VSOL') === 0) {
-                    // The normalized SNMP inventory may contain identity/status
-                    // but omit live optical readings. Enrich this same poll with
-                    // the VSOL read-only SSH OPM table, then select only this ONU.
+                    // Reuse this read-only SSH poll to reconcile the live PPPoE
+                    // caller-id against every ONU, not just the saved PON/ONU.
                     $opm = $this->vsolOpmCollector->collect($knownOlt, $rows, (string) $knownMapping->pon_port, (string) $knownMapping->onu_id);
                     if (($opm['meta']['read_only'] ?? false) === true
                         && ($opm['meta']['writes_performed'] ?? true) === false
                         && is_array($opm['onus'] ?? null)) {
-                        $opmRows = array_values(array_filter((array) $opm['onus'], function (array $row) use ($knownMapping): bool {
+                        $opmOnus = array_values(array_filter((array) $opm['onus'], 'is_array'));
+                        $opmRows = array_values(array_filter($opmOnus, function (array $row) use ($knownMapping): bool {
                             return trim((string) ($row['pon_port'] ?? $row['pon'] ?? $row['ponPort'] ?? '')) === (string) $knownMapping->pon_port
                                 && trim((string) ($row['onu_id'] ?? $row['onuId'] ?? $row['id'] ?? '')) === (string) $knownMapping->onu_id;
                         }));
                         if (count($opmRows) === 1) {
                             $targetOnu = array_merge($targetOnu, array_filter($opmRows[0], static fn ($value, $key) => in_array($key, ['rx_power', 'tx_power', 'temperature', 'supply_voltage', 'distance_m', 'opm_source'], true), ARRAY_FILTER_USE_BOTH));
                         }
+
+                        $callerMacMatches = array_values(array_filter($opmOnus, function (array $row) use ($callerMac): bool {
+                            $clientMacs = collect((array) ($row['client_macs'] ?? []))
+                                ->map(fn ($mac) => $this->normalizeMac($mac))
+                                ->filter()
+                                ->unique();
+
+                            return $clientMacs->contains($callerMac)
+                                && in_array(strtolower(trim((string) ($row['status'] ?? ''))), ['online', 'up'], true)
+                                && is_numeric($row['rx_power'] ?? null)
+                                && is_numeric($row['tx_power'] ?? null);
+                        }));
+
+                        foreach ($callerMacMatches as $discoveredOnu) {
+                            $discoveredPon = trim((string) ($discoveredOnu['pon_port'] ?? $discoveredOnu['pon'] ?? $discoveredOnu['ponPort'] ?? ''));
+                            $discoveredOnuId = trim((string) ($discoveredOnu['onu_id'] ?? $discoveredOnu['onuId'] ?? $discoveredOnu['id'] ?? ''));
+                            if ($discoveredPon === '' || $discoveredOnuId === '') continue;
+
+                            $matches[$knownOlt->id.'|'.$discoveredPon.'|'.$discoveredOnuId] = [
+                                'olt' => $knownOlt,
+                                'onu' => $discoveredOnu,
+                                'pon' => $discoveredPon,
+                                'onu_id' => $discoveredOnuId,
+                            ];
+                        }
                     }
                 }
 
-                $matches[$knownOlt->id.'|'.$knownMapping->pon_port.'|'.$knownMapping->onu_id] = [
-                    'olt' => $knownOlt,
-                    'onu' => $targetOnu,
-                    'pon' => (string) $knownMapping->pon_port,
-                    'onu_id' => (string) $knownMapping->onu_id,
-                ];
+                // Keep the saved identity only when it is not explicitly offline.
+                // A unique live PPPoE MAC + online state + fresh RX/TX above takes
+                // precedence when the customer has moved to another ONU interface.
+                if ($matches === [] && ! in_array(strtolower(trim((string) ($targetOnu['status'] ?? ''))), ['offline', 'down'], true)) {
+                    $matches[$knownOlt->id.'|'.$knownMapping->pon_port.'|'.$knownMapping->onu_id] = [
+                        'olt' => $knownOlt,
+                        'onu' => $targetOnu,
+                        'pon' => (string) $knownMapping->pon_port,
+                        'onu_id' => (string) $knownMapping->onu_id,
+                    ];
+                }
             } catch (\Throwable $exception) {
                 $oltErrors[] = $knownOlt->name.': '.$exception->getMessage();
             }
@@ -202,7 +232,10 @@ class CustomerOnuRealtimeSyncService
                                 ->filter()
                                 ->unique();
 
-                            if (! $clientMacs->contains($callerMac)) continue;
+                            if (! $clientMacs->contains($callerMac)
+                                || ! in_array(strtolower(trim((string) ($onu['status'] ?? ''))), ['online', 'up'], true)
+                                || ! is_numeric($onu['rx_power'] ?? null)
+                                || ! is_numeric($onu['tx_power'] ?? null)) continue;
 
                             $pon = trim((string) ($onu['pon_port'] ?? $onu['pon'] ?? $onu['ponPort'] ?? ''));
                             $onuId = trim((string) ($onu['onu_id'] ?? $onu['onuId'] ?? $onu['id'] ?? ''));
