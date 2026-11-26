@@ -17,6 +17,22 @@
         <div class="col-md-2"><label class="form-label">Model</label><input name="model" class="form-control"></div>
         <div class="col-md-2"><label class="form-label">Location</label><input name="location" class="form-control"></div>
         <div class="col-md-2"><label class="form-label">Status</label><select name="status" class="form-select"><option>online</option><option>offline</option><option>unknown</option></select></div><div class="col-md-2"><label class="form-label">Health port</label><input name="health_port" class="form-control" placeholder="e.g. 80 / 443 / 8728"></div><div class="col-md-1 d-flex align-items-center"><div class="form-check mt-4"><input name="monitor_enabled" value="1" type="checkbox" class="form-check-input" id="monitor"><label class="form-check-label" for="monitor">Monitor</label></div></div>
+        @if($type === 'switch')
+        <div class="col-12"><div class="border rounded p-3">
+          <strong>Read-only FDB collection</strong>
+          <div class="small text-muted mb-3">Use SNMP v1/v2c with a read-only community. MikroTik proxy and SSH fallback are optional; SSH uses the fixed read-only vendor command allowlist.</div>
+          <div class="row g-3">
+            <div class="col-md-2"><label class="form-label">SNMP version</label><select name="snmp_version" class="form-select"><option value="2C" @selected(old('snmp_version','2C')==='2C')>v2c</option><option value="1" @selected(old('snmp_version')==='1')>v1</option></select></div>
+            <div class="col-md-2"><label class="form-label">SNMP port</label><input type="number" min="1" max="65535" name="snmp_port" value="{{ old('snmp_port',161) }}" class="form-control"></div>
+            <div class="col-md-4"><label class="form-label">Read-only SNMP community</label><input type="password" name="snmp_community" autocomplete="new-password" class="form-control" placeholder="Dedicated read-only community"></div>
+            <div class="col-md-4"><label class="form-label">MikroTik SNMP proxy</label><select name="bridge_fdb_proxy_router_id" class="form-select"><option value="">Direct device SNMP</option>@foreach($proxyRouters as $router)<option value="{{ $router->id }}" @selected((string)old('bridge_fdb_proxy_router_id')===(string)$router->id)>{{ $router->router_name }} · RouterOS API</option>@endforeach</select></div>
+            <div class="col-12"><div class="form-check"><input name="ssh_enabled" value="1" type="checkbox" class="form-check-input" id="switch-ssh-enabled" @checked(old('ssh_enabled'))><label class="form-check-label" for="switch-ssh-enabled">Enable SSH read-only CLI fallback</label></div></div>
+            <div class="col-md-4"><label class="form-label">SSH username</label><input name="username" class="form-control" autocomplete="off" value="{{ old('username') }}"></div>
+            <div class="col-md-4"><label class="form-label">SSH password</label><input type="password" name="password" class="form-control" autocomplete="new-password"></div>
+            <div class="col-md-2"><label class="form-label">SSH port</label><input type="number" min="1" max="65535" name="ssh_port" value="{{ old('ssh_port',22) }}" class="form-control"></div>
+          </div>
+        </div></div>
+        @endif
         <div class="col-12"><label class="form-label">Notes</label><input name="notes" class="form-control"></div>
         <div class="col-12"><button class="btn btn-primary">Add Device</button></div>
       </form>
