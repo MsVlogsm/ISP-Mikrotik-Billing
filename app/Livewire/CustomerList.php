@@ -165,7 +165,13 @@ class CustomerList extends Component
         $statusKey = SyncCustomerOnu::statusKey((int) auth()->id(), (int) $customer->id);
         $status = Cache::get($statusKey);
 
-        if (! is_array($status) || in_array($status['status'] ?? null, ['queued', 'running'], true)) {
+        if (! is_array($status)) {
+            flash()->addError('ONU sync status পাওয়া যায়নি; আবার চেষ্টা করুন।');
+            $this->dispatch('customer-onu-sync-complete');
+            return true;
+        }
+
+        if (in_array($status['status'] ?? null, ['queued', 'running'], true)) {
             return false;
         }
 
