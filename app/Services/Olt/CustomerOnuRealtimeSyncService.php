@@ -187,30 +187,30 @@ class CustomerOnuRealtimeSyncService
                     $onus = array_values(array_filter((array) ($source['onus'] ?? []), 'is_array'));
 
                     if (strcasecmp((string) $olt->vendor, 'VSOL') === 0 && $onus !== []) {
-                        // V1600D4/V1.0.2R has a verified CLI MAC table while its
-                        // selected SNMP authInfo profile intentionally disables
-                        // bridge-FDB discovery. Read the CLI table directly and
-                        // join its exact EPON0/PON:ONU port to live SNMP inventory.
-                        $macTable = $this->vsolCli->readOnlyMacTable($olt);
-                        $macRows = array_values(array_filter(
-                            (array) ($macTable['dynamic_onu_client_macs'] ?? []),
-                            fn ($row) => $this->normalizeMac($row['mac'] ?? null) === $callerMac
-                        ));
+                        // VSOL's read-only SSH collector owns the approved CLI MAC-table
+                        // parser and joins EPON0/PON:ONU rows to this live SNMP inventory.
+                        $macDiscovery = $this->vsolOpmCollector->collect($olt, $onus);
+                        if (($macDiscovery['meta']['read_only'] ?? false) !== true
+                            || ($macDiscovery['meta']['writes_performed'] ?? true) !== false
+                            || ! is_array($macDiscovery['onus'] ?? null)) {
+                            throw new RuntimeException($macDiscovery['message'] ?? 'VSOL read-only MAC discovery failed.');
+                        }
 
-                        foreach ($macRows as $macRow) {
-                            $pon = trim((string) ($macRow['pon_port'] ?? ''));
-                            $onuId = trim((string) ($macRow['onu_id'] ?? ''));
+                        foreach ($macDiscovery['onus'] as $onu) {
+                            $clientMacs = collect((array) ($onu['client_macs'] ?? []))
+                                ->map(fn ($mac) => $this->normalizeMac($mac))
+                                ->filter()
+                                ->unique();
+
+                            if (! $clientMacs->contains($callerMac)) continue;
+
+                            $pon = trim((string) ($onu['pon_port'] ?? $onu['pon'] ?? $onu['ponPort'] ?? ''));
+                            $onuId = trim((string) ($onu['onu_id'] ?? $onu['onuId'] ?? $onu['id'] ?? ''));
                             if ($pon === '' || $onuId === '') continue;
-
-                            $targetRows = array_values(array_filter($onus, function (array $row) use ($pon, $onuId): bool {
-                                return trim((string) ($row['pon_port'] ?? $row['pon'] ?? $row['ponPort'] ?? '')) === $pon
-                                    && trim((string) ($row['onu_id'] ?? $row['onuId'] ?? $row['id'] ?? '')) === $onuId;
-                            }));
-                            if (count($targetRows) !== 1) continue;
 
                             $matches[$olt->id.'|'.$pon.'|'.$onuId] = [
                                 'olt' => $olt,
-                                'onu' => $targetRows[0],
+                                'onu' => $onu,
                                 'pon' => $pon,
                                 'onu_id' => $onuId,
                             ];
