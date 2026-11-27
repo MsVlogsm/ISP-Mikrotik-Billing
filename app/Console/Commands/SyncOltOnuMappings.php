@@ -693,6 +693,7 @@ class SyncOltOnuMappings extends Command
                     $online,
                     $displayMac,
                     $backupPath,
+                    $ledgerService,
                 ): void {
                     $ids = $storedGroup->pluck('id')->all();
                     $currentRows = OltOnuCustomerMapping::where('olt_device_id', $olt->id)
@@ -704,6 +705,36 @@ class SyncOltOnuMappings extends Command
 
                     if ($currentRows->count() !== count($ids)) {
                         throw new \RuntimeException('Duplicate ONU mappings changed after the backup was created.');
+                    }
+
+                    if (DB::table('olt_onu_customer_ppp_links')
+                        ->whereIn('olt_onu_customer_mapping_id', $ids)
+                        ->lockForUpdate()
+                        ->get()
+                        ->isNotEmpty()) {
+                        throw new \RuntimeException('A PPP link was attached to a duplicate mapping after planning.');
+                    }
+
+                    if ($pairToPreserve !== null) {
+                        $ledgerRows = DB::table('onu_mac_ledgers')
+                            ->where('olt_device_id', $olt->id)
+                            ->lockForUpdate()
+                            ->get()
+                            ->filter(fn ($row) => $this->normalizeMac($row->current_mac) === $mac)
+                            ->values();
+                        $ledgerCustomer = $ledgerService->findExactCustomerMatch(
+                            (int) $olt->id,
+                            $displayMac,
+                            null,
+                            [],
+                            [],
+                        );
+                        if ($ledgerRows->count() !== 1
+                            || ! $ledgerCustomer
+                            || (int) $ledgerCustomer->id !== $pairToPreserve['customer_id']
+                            || (int) $ledgerCustomer->ppp_user_id !== $pairToPreserve['ppp_user_id']) {
+                            throw new \RuntimeException('The exact customer/PPPoE ledger verification changed after planning.');
+                        }
                     }
 
                     foreach ($storedGroup as $expected) {
