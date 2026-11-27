@@ -136,6 +136,31 @@ class CustomerAddEditEnableWorkflowTest extends TestCase
             ->assertSee('value="free"', false);
     }
 
+    public function test_free_customer_type_sets_free_status_and_zero_rent_when_saved(): void
+    {
+        Livewire::test(NewCustomer::class)
+            ->set('customer_name', 'Free Type Customer')
+            ->set('customer_unique_id', 'FREE-TYPE-CID-001')
+            ->set('monthly_rent', 600)
+            ->set('client_type', 'free')
+            ->assertSet('monthly_rent', 0)
+            ->call('save')
+            ->assertRedirect('/customers');
+
+        $this->assertDatabaseHas('customers_infos', [
+            'customer_unique_id' => 'FREE-TYPE-CID-001',
+            'status' => 'free',
+        ]);
+        $this->assertDatabaseHas('official_infos', [
+            'customer_office_unique_id' => 'FREE-TYPE-CID-001',
+            'client_type' => 'free',
+        ]);
+        $this->assertDatabaseHas('billing_infos', [
+            'customer_bill_unique_id' => 'FREE-TYPE-CID-001',
+            'monthly_rent' => 0,
+        ]);
+    }
+
     public function test_static_network_fields_are_saved_and_available_to_customer_edit(): void
     {
         $router = RouterList::create([
