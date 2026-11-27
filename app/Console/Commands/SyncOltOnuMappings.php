@@ -704,6 +704,7 @@ class SyncOltOnuMappings extends Command
                     $displayMac,
                     $backupPath,
                     $ledgerService,
+                    $noteSuffix,
                 ): void {
                     $ids = $storedGroup->pluck('id')->all();
                     $currentRows = OltOnuCustomerMapping::where('olt_device_id', $olt->id)
