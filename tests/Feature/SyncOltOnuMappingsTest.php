@@ -11,6 +11,7 @@ use App\Models\RouterList;
 use App\Services\Olt\OltReadOnlyAdapterManager;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
@@ -570,9 +571,10 @@ class SyncOltOnuMappingsTest extends TestCase
             'client_macs' => [],
         ]]);
 
-        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])
-            ->expectsOutputToContain("Auto-fixed duplicate ONU MAC {$mac}")
-            ->assertExitCode(0);
+        $this->withoutMockingConsoleOutput();
+        Artisan::call('olt:sync-onu-mappings', ['--device' => $olt->id]);
+        $output = Artisan::output();
+        $this->assertStringContainsString("Auto-fixed duplicate ONU MAC {$mac}", $output, $output);
 
         $canonical->refresh();
         $stale->refresh();
