@@ -46,11 +46,15 @@ class Layer2BridgeHarvestingTest extends TestCase
             'password' => 'test-password', 'api_port' => 8729, 'api_ssl' => true, 'action' => 'connected',
         ]);
         $routerSnapshot = MikrotikBridgeHostSnapshot::create([
-            'router_list_id' => $router->id, 'sampled_at' => now(), 'source' => 'routeros-api', 'status' => 'ok', 'entry_count' => 1,
+            'router_list_id' => $router->id, 'sampled_at' => now(), 'source' => 'routeros-api', 'status' => 'ok', 'entry_count' => 2,
         ]);
         MikrotikBridgeHostEntry::create([
             'snapshot_id' => $routerSnapshot->id, 'mac_address' => '00:11:22:33:44:03', 'vlan_id' => 103,
             'bridge_name' => 'bridge1', 'interface_name' => 'ether3', 'is_dynamic' => true,
+        ]);
+        MikrotikBridgeHostEntry::create([
+            'snapshot_id' => $routerSnapshot->id, 'router_entry_id' => 'pppoe:*4',
+            'mac_address' => '00:11:22:33:44:04', 'is_dynamic' => true,
         ]);
 
         $admin = User::factory()->create(['email_verified_at' => now()]);
@@ -66,7 +70,9 @@ class Layer2BridgeHarvestingTest extends TestCase
             ->assertSee('Harvest MikroTik')
             ->assertSee('00:11:22:33:44:01')
             ->assertSee('00:11:22:33:44:02')
-            ->assertSee('00:11:22:33:44:03');
+            ->assertSee('00:11:22:33:44:03')
+            ->assertSee('00:11:22:33:44:04')
+            ->assertSee('MikroTik PPPoE caller-id');
         $this->assertSame(2, NetworkBridgeFdbSnapshot::query()->count());
         $this->assertSame(1, MikrotikBridgeHostSnapshot::query()->count());
     }
