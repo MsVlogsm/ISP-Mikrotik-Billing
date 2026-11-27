@@ -129,6 +129,12 @@ class BridgeFdbSnmpService
                 $statuses = $this->walk($snmpHost, $community, $statusOid, $timeout, $retries, $device, $config);
                 $vlanFdbIds = $this->walk($snmpHost, $community, self::QBRIDGE_VLAN_FDB_ID, $timeout, $retries, $device, $config);
                 $vlanIdsByFdb = $this->vlanIdsByFdb($vlanFdbIds);
+                if ($this->supportsVsolCmacTable($device)) {
+                    // This verified VSOL firmware exposes an inconsistent Q-BRIDGE FDB index.
+                    // Never publish a VLAN from that table when the per-MAC CMAC table is unavailable.
+                    $vlanIdsByFdb = [];
+                    $meta['qbridge_vlan_mapping_suppressed'] = true;
+                }
                 $meta['vlan_mapping_available'] = $vlanIdsByFdb !== [];
                 $meta['qbridge_fdb_ids'] = count($vlanIdsByFdb);
             } elseif ($source !== 'vsol-cmac') {
@@ -332,6 +338,19 @@ class BridgeFdbSnmpService
         $macsByIndex = $this->indexedValues($macAddresses, self::VSOL_CMAC_ADDRESS);
         $typesByIndex = $this->indexedValues($macTypes, self::VSOL_CMAC_TYPE);
         $portsByIndex = $this->indexedValues($portIds, self::VSOL_CMAC_PORT_ID);
+        $columnIndexes = [
+            array_keys($vlansByIndex),
+            array_keys($typesByIndex),
+            array_keys($portsByIndex),
+        ];
+        $macIndexes = array_keys($macsByIndex);
+        sort($macIndexes, SORT_STRING);
+        foreach ($columnIndexes as $indexes) {
+            sort($indexes, SORT_STRING);
+            if ($indexes !== $macIndexes) {
+                return [];
+            }
+        }
         $rows = [];
 
         foreach ($macsByIndex as $index => $rawMac) {
