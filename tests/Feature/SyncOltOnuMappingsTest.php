@@ -8,7 +8,10 @@ use App\Models\OltOnuCustomerMapping;
 use App\Models\PPPSecrets;
 use App\Models\RouterList;
 use App\Services\Olt\OltReadOnlyAdapterManager;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class SyncOltOnuMappingsTest extends TestCase
@@ -56,6 +59,7 @@ class SyncOltOnuMappingsTest extends TestCase
         array $extraOnuFields = [],
         string $resultStatus = 'ok',
         bool $includeReadOnlyMetadata = true,
+        array $additionalOnus = [],
     ): void {
         $manager = \Mockery::mock(OltReadOnlyAdapterManager::class);
         $manager->shouldReceive('read')->once()->with(\Mockery::on(
@@ -65,11 +69,11 @@ class SyncOltOnuMappingsTest extends TestCase
             'meta' => $includeReadOnlyMetadata
                 ? ['read_only' => true, 'writes_performed' => false]
                 : ['read_only' => false, 'writes_performed' => false],
-            'onus' => [array_merge([
+            'onus' => array_merge([array_merge([
                 'onu_id' => '25', 'pon_port' => '1', 'onu_mac' => $mac,
                 'client_macs' => $clientMacs,
                 'status' => 'online', 'snmp_index' => '1.25',
-            ], $extraOnuFields)],
+            ], $extraOnuFields)], $additionalOnus),
         ]);
         $this->app->instance(OltReadOnlyAdapterManager::class, $manager);
     }
@@ -379,6 +383,91 @@ class SyncOltOnuMappingsTest extends TestCase
         $this->assertSame('2', (string) $occupiedMapping->pon_port);
         $this->assertSame('8', (string) $occupiedMapping->onu_id);
         $this->assertSame($occupiedMac, $occupiedMapping->onu_mac);
+        $this->assertDatabaseCount('olt_monitoring_snapshots', 0);
+    }
+
+    public function test_unique_index_race_skips_one_mapping_and_continues_refreshing_other_onus(): void
+    {
+        $olt = $this->olt();
+        $stableMac = '70:a5:6a:79:72:5e';
+        $nextMac = 'a4:b1:c1:22:33:66';
+        [$customer, $ppp] = $this->customer('BTRACE01', 'race.existing.customer', 'active', $stableMac);
+        $stableMapping = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'customer_id' => $customer->id,
+            'ppp_user_id' => $ppp->id,
+            'onu_id' => '25',
+            'pon_port' => '1',
+            'onu_mac' => $stableMac,
+            'status' => 'online',
+            'rx_power' => -25.0,
+            'tx_power' => 1.8,
+            'opm_last_seen_at' => now()->subHours(2),
+        ]);
+
+        $eventName = 'eloquent.saving: '.OltOnuCustomerMapping::class;
+        $competingMappingId = null;
+        Event::listen($eventName, function ($mapping) use ($stableMapping, $olt, &$competingMappingId): void {
+            if ($competingMappingId !== null || ! $mapping->is($stableMapping)) {
+                return;
+            }
+
+            $competingMappingId = DB::table('olt_onu_customer_mappings')->insertGetId([
+                'olt_device_id' => $olt->id,
+                'onu_id' => '27',
+                'pon_port' => '2',
+                'onu_mac' => 'a4:b1:c1:22:33:77',
+                'status' => 'online',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            throw new UniqueConstraintViolationException(
+                'mysql',
+                'update `olt_onu_customer_mappings` set `pon_port` = ?, `onu_id` = ? where `id` = ?',
+                ['2', '27', $stableMapping->id],
+                new \PDOException("SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry '3-2-27'")
+            );
+        });
+
+        $this->fakeAdapter($olt, $stableMac, [], [
+            'onu_id' => '27',
+            'pon_port' => '2',
+            'rx_power' => -22.1,
+            'tx_power' => 2.2,
+            'opm_source' => 'test-opm',
+        ], additionalOnus: [[
+            'onu_id' => '26',
+            'pon_port' => '1',
+            'onu_mac' => $nextMac,
+            'client_macs' => [],
+            'status' => 'online',
+            'snmp_index' => '1.26',
+            'rx_power' => -18.5,
+            'tx_power' => 2.1,
+            'opm_source' => 'test-opm',
+        ]]);
+
+        try {
+            $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])
+                ->expectsOutputToContain('ONU 27: duplicate OLT/PON/ONU index conflict')
+                ->assertExitCode(0);
+            $this->assertNotNull($competingMappingId);
+        } finally {
+            Event::forget($eventName);
+        }
+
+        $stableMapping->refresh();
+        $this->assertSame('1', (string) $stableMapping->pon_port);
+        $this->assertSame('25', (string) $stableMapping->onu_id);
+        $this->assertSame($customer->id, $stableMapping->customer_id);
+        $this->assertSame($ppp->id, $stableMapping->ppp_user_id);
+
+        $nextMapping = OltOnuCustomerMapping::where('olt_device_id', $olt->id)
+            ->where('pon_port', '1')->where('onu_id', '26')->firstOrFail();
+        $this->assertEquals(-18.5, (float) $nextMapping->rx_power);
+        $this->assertEquals(2.1, (float) $nextMapping->tx_power);
+        $this->assertNotNull($nextMapping->opm_last_seen_at);
         $this->assertDatabaseCount('olt_monitoring_snapshots', 0);
     }
 
