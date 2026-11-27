@@ -628,17 +628,27 @@ class SyncOltOnuMappings extends Command
 
             $pairToPreserve = count($assignedPairs) === 1 ? array_values($assignedPairs)[0] : null;
             if ($blocker === null && $pairToPreserve !== null) {
-                $ledgerCustomer = $ledgerService->findExactCustomerMatch(
+                $groupIds = $storedGroup->pluck('id')->map(fn ($id) => (int) $id)->all();
+                $assignedElsewhere = $existingMappings->contains(
+                    fn ($mapping) => ! in_array((int) $mapping->id, $groupIds, true)
+                        && ((int) ($mapping->customer_id ?? 0) === $pairToPreserve['customer_id']
+                            || (int) ($mapping->ppp_user_id ?? 0) === $pairToPreserve['ppp_user_id'])
+                );
+                if ($assignedElsewhere) {
+                    $blocker = 'the customer/PPPoE pair is already assigned to another ONU mapping';
+                }
+
+                $ledgerCustomer = $blocker === null ? $ledgerService->findExactCustomerMatch(
                     (int) $olt->id,
                     $displayMac,
                     null,
                     [],
                     [],
-                );
+                ) : null;
 
-                if (! $ledgerCustomer
+                if ($blocker === null && (! $ledgerCustomer
                     || (int) $ledgerCustomer->id !== $pairToPreserve['customer_id']
-                    || (int) $ledgerCustomer->ppp_user_id !== $pairToPreserve['ppp_user_id']) {
+                    || (int) $ledgerCustomer->ppp_user_id !== $pairToPreserve['ppp_user_id'])) {
                     $blocker = 'the existing ONU MAC ledger does not verify the exact customer/PPPoE pair';
                 }
             }
@@ -717,6 +727,18 @@ class SyncOltOnuMappings extends Command
                     }
 
                     if ($pairToPreserve !== null) {
+                        $assignedElsewhere = OltOnuCustomerMapping::where('olt_device_id', $olt->id)
+                            ->whereNotIn('id', $ids)
+                            ->where(function ($query) use ($pairToPreserve): void {
+                                $query->where('customer_id', $pairToPreserve['customer_id'])
+                                    ->orWhere('ppp_user_id', $pairToPreserve['ppp_user_id']);
+                            })
+                            ->lockForUpdate()
+                            ->first(['id']);
+                        if ($assignedElsewhere) {
+                            throw new \RuntimeException("Customer/PPPoE pair is already assigned to ONU mapping #{$assignedElsewhere->id}.");
+                        }
+
                         $ledgerRows = DB::table('onu_mac_ledgers')
                             ->where('olt_device_id', $olt->id)
                             ->lockForUpdate()
