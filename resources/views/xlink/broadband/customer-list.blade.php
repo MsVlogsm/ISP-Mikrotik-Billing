@@ -149,7 +149,7 @@
 
     <div class="card shadow-sm border-0">
         <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
-            <strong>{{ $mode === 'inactive' ? 'Left Customer Register' : ($mode === 'disabled' ? 'Disabled Customer List' : 'Customer List') }}</strong>
+            <strong>{{ $mode === 'inactive' ? 'Left Customer Register' : ($mode === 'disabled' ? 'Disabled Customer List' : ($mode === 'free' ? 'Free Customer List' : 'Customer List')) }}</strong>
             <div class="text-end">
                 @if($mode === 'paid' && !empty($paidMonth))
                     <div class="small text-muted">Fully settled bill · {{ \Carbon\Carbon::createFromFormat('!Y-m', $paidMonth)->format('F Y') }}</div>
