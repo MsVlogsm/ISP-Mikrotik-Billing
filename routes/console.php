@@ -141,6 +141,13 @@ Schedule::call(fn () => $runCommand(
 ))->everyFiveMinutes()->timezone($timezone)->name('olt-bridge-fdb-sync')->withoutOverlapping(4);
 
 Schedule::call(fn () => $runCommand(
+    'mikrotik-bridge-host-poll',
+    'MikroTik L2 Bridge Host Read-only API Poll',
+    'Every 5 minutes',
+    'app:poll-mikrotik-bridge-hosts'
+))->everyFiveMinutes()->timezone($timezone)->name('mikrotik-bridge-host-poll')->withoutOverlapping(4);
+
+Schedule::call(fn () => $runCommand(
     'olt-live-metrics-sync',
     'OLT Live Metrics / IF-MIB / Hardware Telemetry',
     'Every 5 minutes',
