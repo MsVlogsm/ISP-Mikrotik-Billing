@@ -11,6 +11,7 @@ use App\Services\Olt\OltReadOnlyAdapterManager;
 use App\Services\OnuMacLedgerService;
 use Illuminate\Console\Command;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
 class SyncOltOnuMappings extends Command
@@ -39,6 +40,19 @@ class SyncOltOnuMappings extends Command
             // A dry-run must remain entirely read-only, including auxiliary history tables.
             if (! $this->option('dry-run')) {
                 $ledgerService->bootstrapMissingMappings($existingMappings);
+            }
+            $duplicateMacRepair = $this->autoFixDuplicateMacMappings(
+                $olt,
+                $rows,
+                $existingMappings,
+                $ledgerService,
+                $result,
+                (bool) $this->option('dry-run'),
+            );
+            $issues = array_merge($issues, $duplicateMacRepair['issues']);
+            $skipLiveRows = $duplicateMacRepair['skip_live_rows'];
+            if ($duplicateMacRepair['refreshed']) {
+                $existingMappings = OltOnuCustomerMapping::where('olt_device_id', $olt->id)->get();
             }
             $seenMappingIds = [];
             $byId = $existingMappings->keyBy(fn ($m) => (string) $m->onu_id);
@@ -81,6 +95,11 @@ class SyncOltOnuMappings extends Command
                 $onuId = $row['onu_id'] ?? $row['onuId'] ?? $row['id'] ?? $row['snmp_index'] ?? null;
                 if ($onuId === null || trim((string) $onuId) === '') { $skipped++; $issues[] = 'missing ONU id'; continue; }
                 $onuId = trim((string) $onuId);
+                $livePon = trim((string) ($row['pon_port'] ?? $row['ponPort'] ?? $row['pon'] ?? ''));
+                if ($livePon !== '' && isset($skipLiveRows[$livePon.'|'.$onuId])) {
+                    $skipped++;
+                    continue;
+                }
 
                 $onuMac = $row['onu_mac'] ?? $row['mac'] ?? $row['onuMac'] ?? null;
                 $onuSerial = $row['onu_serial'] ?? $row['serial'] ?? $row['onuSerial'] ?? null;
@@ -461,6 +480,360 @@ class SyncOltOnuMappings extends Command
         } catch (\Throwable) {
             return ['ok' => false, 'status' => 'unreachable', 'message' => 'Legacy OLT telemetry is unavailable; no write performed.', 'onus' => []];
         }
+    }
+
+    /**
+     * Reconcile duplicate ONU MAC rows only when one live online location and its
+     * offline historical location are both explicitly present in a verified read-only poll.
+     * Customer/PPPoE links move only when the existing MAC ledger confirms the exact pair.
+     */
+    private function autoFixDuplicateMacMappings(
+        NetworkInventoryDevice $olt,
+        array $liveRows,
+        $existingMappings,
+        OnuMacLedgerService $ledgerService,
+        array $poll,
+        bool $dryRun,
+    ): array {
+        $result = ['skip_live_rows' => [], 'issues' => [], 'refreshed' => false];
+        $meta = is_array($poll['meta'] ?? null) ? $poll['meta'] : [];
+
+        if (empty($poll['ok'])
+            || ($meta['read_only'] ?? false) !== true
+            || ! array_key_exists('writes_performed', $meta)
+            || $meta['writes_performed'] !== false
+            || ($meta['onu_discovery_configured'] ?? false) !== true
+            || ! is_numeric($meta['onu_count'] ?? null)
+            || (int) $meta['onu_count'] !== count($liveRows)) {
+            return $result;
+        }
+
+        $liveByMac = [];
+        foreach ($liveRows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $mac = $this->normalizeMac($row['onu_mac'] ?? $row['mac'] ?? $row['onuMac'] ?? null);
+            $pon = trim((string) ($row['pon_port'] ?? $row['ponPort'] ?? $row['pon'] ?? ''));
+            $onuId = trim((string) ($row['onu_id'] ?? $row['onuId'] ?? $row['id'] ?? $row['snmp_index'] ?? ''));
+            if ($mac === '' || $pon === '' || $onuId === '') {
+                continue;
+            }
+
+            $liveByMac[$mac][] = [
+                'pon_port' => $pon,
+                'onu_id' => $onuId,
+                'status' => $this->normalizeStatus($row),
+                'row' => $row,
+            ];
+        }
+
+        foreach ($liveByMac as $mac => $liveGroup) {
+            if (count($liveGroup) < 2) {
+                continue;
+            }
+
+            $displayMac = implode(':', str_split($mac, 2));
+            $onlineRows = array_values(array_filter($liveGroup, static fn ($row) => $row['status'] === 'online'));
+            $offlineRows = array_values(array_filter($liveGroup, static fn ($row) => $row['status'] === 'offline'));
+
+            $skipAllLiveRows = function () use (&$result, $liveGroup): void {
+                foreach ($liveGroup as $live) {
+                    $result['skip_live_rows'][$live['pon_port'].'|'.$live['onu_id']] = true;
+                }
+            };
+
+            if (count($onlineRows) !== 1 || count($offlineRows) !== count($liveGroup) - 1) {
+                $skipAllLiveRows();
+                $result['issues'][] = "Duplicate live ONU MAC {$displayMac}: no single online location was verified; all live copies were skipped for review.";
+                continue;
+            }
+
+            $online = $onlineRows[0];
+            foreach ($offlineRows as $offline) {
+                $result['skip_live_rows'][$offline['pon_port'].'|'.$offline['onu_id']] = true;
+            }
+
+            $storedGroup = $existingMappings
+                ->filter(fn ($mapping) => $this->normalizeMac($mapping->onu_mac) === $mac)
+                ->values();
+
+            if ($storedGroup->count() < 2) {
+                continue;
+            }
+
+            $canonicalMatches = $storedGroup->filter(
+                fn ($mapping) => trim((string) $mapping->pon_port) === $online['pon_port']
+                    && trim((string) $mapping->onu_id) === $online['onu_id']
+            )->values();
+
+            $blocker = null;
+            if ($canonicalMatches->count() !== 1) {
+                $blocker = 'there is not exactly one stored mapping at the unique live online location';
+            }
+
+            $canonical = $canonicalMatches->first();
+            $staleRows = $canonical
+                ? $storedGroup->reject(fn ($mapping) => (int) $mapping->id === (int) $canonical->id)->values()
+                : collect();
+
+            $offlineLocations = [];
+            foreach ($offlineRows as $offline) {
+                $offlineLocations[$offline['pon_port'].'|'.$offline['onu_id']] = true;
+            }
+
+            if ($blocker === null && $staleRows->count() !== count($offlineRows)) {
+                $blocker = 'stored duplicate rows do not match every offline live location';
+            }
+
+            if ($blocker === null) {
+                foreach ($staleRows as $stale) {
+                    $location = trim((string) $stale->pon_port).'|'.trim((string) $stale->onu_id);
+                    if (! isset($offlineLocations[$location]) || strtolower(trim((string) $stale->status)) !== 'offline') {
+                        $blocker = "mapping #{$stale->id} is not a confirmed offline historical copy";
+                        break;
+                    }
+                }
+            }
+
+            $staleIds = $staleRows->pluck('id')->all();
+            if ($blocker === null && DB::table('olt_onu_customer_ppp_links')
+                ->whereIn('olt_onu_customer_mapping_id', $staleIds)
+                ->exists()) {
+                $blocker = 'a stale duplicate row still has PPP links attached';
+            }
+
+            $assignedPairs = [];
+            if ($blocker === null) {
+                foreach ($storedGroup as $mapping) {
+                    $customerId = (int) ($mapping->customer_id ?? 0);
+                    $pppUserId = (int) ($mapping->ppp_user_id ?? 0);
+                    if (($customerId === 0) !== ($pppUserId === 0)) {
+                        $blocker = "mapping #{$mapping->id} has an incomplete customer/PPPoE pair";
+                        break;
+                    }
+                    if ($customerId > 0) {
+                        $assignedPairs[$customerId.'|'.$pppUserId] = [
+                            'customer_id' => $customerId,
+                            'ppp_user_id' => $pppUserId,
+                        ];
+                    }
+                }
+            }
+
+            if ($blocker === null && count($assignedPairs) > 1) {
+                $blocker = 'duplicate rows contain conflicting customer/PPPoE assignments';
+            }
+
+            $pairToPreserve = count($assignedPairs) === 1 ? array_values($assignedPairs)[0] : null;
+            if ($blocker === null && $pairToPreserve !== null) {
+                $ledgerCustomer = $ledgerService->findExactCustomerMatch(
+                    (int) $olt->id,
+                    $displayMac,
+                    null,
+                    [],
+                    [],
+                );
+
+                if (! $ledgerCustomer
+                    || (int) $ledgerCustomer->id !== $pairToPreserve['customer_id']
+                    || (int) $ledgerCustomer->ppp_user_id !== $pairToPreserve['ppp_user_id']) {
+                    $blocker = 'the existing ONU MAC ledger does not verify the exact customer/PPPoE pair';
+                }
+            }
+
+            if ($blocker !== null) {
+                $skipAllLiveRows();
+                $result['issues'][] = "Duplicate ONU MAC {$displayMac}: automatic repair withheld — {$blocker}; all live copies were skipped for review.";
+                continue;
+            }
+
+            $mappingIds = $storedGroup->pluck('id')->all();
+            $canonicalId = (int) $canonical->id;
+            $staleLabels = $staleRows->pluck('id')->map(fn ($id) => '#'.$id)->implode(', ');
+            $noteSuffix = $pairToPreserve !== null
+                ? " Verified customer {$pairToPreserve['customer_id']} / PPPoE {$pairToPreserve['ppp_user_id']} was preserved on mapping #{$canonicalId}."
+                : '';
+
+            if ($dryRun) {
+                if ($pairToPreserve !== null) {
+                    $canonical->customer_id = $pairToPreserve['customer_id'];
+                    $canonical->ppp_user_id = $pairToPreserve['ppp_user_id'];
+                }
+                foreach ($staleRows as $stale) {
+                    $stale->onu_id = '__stale_'.$stale->id;
+                    $stale->onu_mac = null;
+                    $stale->customer_id = null;
+                    $stale->ppp_user_id = null;
+                }
+                $result['issues'][] = "DRY-RUN: duplicate ONU MAC {$displayMac}; would retain mapping #{$canonicalId} at PON {$online['pon_port']}/ONU {$online['onu_id']} and archive {$staleLabels}.{$noteSuffix}";
+                continue;
+            }
+
+            try {
+                $backupPath = $this->backupDuplicateMacMappings($olt, $mac, $storedGroup, $liveGroup);
+            } catch (\Throwable) {
+                $backupPath = null;
+            }
+            if (! is_string($backupPath) || $backupPath === '') {
+                $skipAllLiveRows();
+                $result['issues'][] = "Duplicate ONU MAC {$displayMac}: automatic repair withheld because a verified backup could not be created.";
+                continue;
+            }
+
+            try {
+                DB::transaction(function () use (
+                    $olt,
+                    $mac,
+                    $storedGroup,
+                    $canonicalId,
+                    $staleRows,
+                    $pairToPreserve,
+                    $online,
+                    $displayMac,
+                    $backupPath,
+                ): void {
+                    $ids = $storedGroup->pluck('id')->all();
+                    $currentRows = OltOnuCustomerMapping::where('olt_device_id', $olt->id)
+                        ->whereIn('id', $ids)
+                        ->orderBy('id')
+                        ->lockForUpdate()
+                        ->get()
+                        ->keyBy('id');
+
+                    if ($currentRows->count() !== count($ids)) {
+                        throw new \RuntimeException('Duplicate ONU mappings changed after the backup was created.');
+                    }
+
+                    foreach ($storedGroup as $expected) {
+                        $current = $currentRows->get($expected->id);
+                        if (! $current
+                            || $this->normalizeMac($current->onu_mac) !== $mac
+                            || (string) $current->pon_port !== (string) $expected->pon_port
+                            || (string) $current->onu_id !== (string) $expected->onu_id
+                            || (int) ($current->customer_id ?? 0) !== (int) ($expected->customer_id ?? 0)
+                            || (int) ($current->ppp_user_id ?? 0) !== (int) ($expected->ppp_user_id ?? 0)
+                            || strtolower(trim((string) $current->status)) !== strtolower(trim((string) $expected->status))) {
+                            throw new \RuntimeException("Duplicate ONU mapping #{$expected->id} changed after planning.");
+                        }
+                    }
+
+                    $canonicalCurrent = $currentRows->get($canonicalId);
+                    if ($pairToPreserve !== null) {
+                        $currentCustomerId = (int) ($canonicalCurrent->customer_id ?? 0);
+                        $currentPppUserId = (int) ($canonicalCurrent->ppp_user_id ?? 0);
+                        if (($currentCustomerId !== 0 || $currentPppUserId !== 0)
+                            && ($currentCustomerId !== $pairToPreserve['customer_id']
+                                || $currentPppUserId !== $pairToPreserve['ppp_user_id'])) {
+                            throw new \RuntimeException("Canonical ONU mapping #{$canonicalId} has a conflicting customer/PPPoE assignment.");
+                        }
+                        $canonicalCurrent->customer_id = $pairToPreserve['customer_id'];
+                        $canonicalCurrent->ppp_user_id = $pairToPreserve['ppp_user_id'];
+                    }
+
+                    $appendNote = static function ($mapping, string $note): void {
+                        $existing = trim((string) $mapping->notes);
+                        $mapping->notes = trim($existing.($existing !== '' ? "\n" : '').$note);
+                    };
+
+                    $appendNote(
+                        $canonicalCurrent,
+                        "Automatically retained as the unique live online identity for ONU MAC {$displayMac} at PON {$online['pon_port']}/ONU {$online['onu_id']} on ".now()->toDateTimeString()."; backup: {$backupPath}."
+                    );
+                    $canonicalCurrent->status = 'online';
+                    $canonicalCurrent->save();
+
+                    foreach ($staleRows as $staleExpected) {
+                        $stale = $currentRows->get($staleExpected->id);
+                        $oldPon = (string) $stale->pon_port;
+                        $oldOnuId = (string) $stale->onu_id;
+                        $appendNote(
+                            $stale,
+                            "Archived as an offline duplicate ONU MAC identity on ".now()->toDateTimeString().": MAC {$displayMac}, old PON {$oldPon}/ONU {$oldOnuId}; live identity retained on mapping #{$canonicalId} at PON {$online['pon_port']}/ONU {$online['onu_id']}.{$noteSuffix} Backup: {$backupPath}."
+                        );
+                        $stale->onu_id = '__stale_'.$stale->id;
+                        $stale->onu_mac = null;
+                        $stale->customer_id = null;
+                        $stale->ppp_user_id = null;
+                        $stale->save();
+                    }
+                }, 3);
+            } catch (\Throwable $e) {
+                $skipAllLiveRows();
+                $result['issues'][] = "Duplicate ONU MAC {$displayMac}: automatic repair rolled back safely — {$e->getMessage()}";
+                continue;
+            }
+
+            $result['refreshed'] = true;
+            $result['issues'][] = "Auto-fixed duplicate ONU MAC {$displayMac}: retained mapping #{$canonicalId} at PON {$online['pon_port']}/ONU {$online['onu_id']}; archived {$staleLabels}; verified backup {$backupPath}.";
+        }
+
+        return $result;
+    }
+
+    /**
+     * Back up the exact duplicate mapping group and its PPP/ONU ledger references
+     * before the automated transaction is allowed to change any mapping identity.
+     */
+    private function backupDuplicateMacMappings(
+        NetworkInventoryDevice $olt,
+        string $mac,
+        $mappings,
+        array $liveGroup,
+    ): ?string {
+        $directory = storage_path('app/olt-mapping-backups');
+        if (! is_dir($directory) && ! mkdir($directory, 0700, true) && ! is_dir($directory)) {
+            return null;
+        }
+
+        $ids = $mappings->pluck('id')->all();
+        $ledgerRows = DB::table('onu_mac_ledgers')
+            ->where('olt_device_id', $olt->id)
+            ->get()
+            ->filter(fn ($row) => $this->normalizeMac($row->current_mac) === $mac)
+            ->values()
+            ->all();
+
+        $payload = [
+            'created_at' => now()->toIso8601String(),
+            'reason' => 'Automatic stale duplicate ONU MAC reconciliation',
+            'olt' => ['id' => $olt->id, 'name' => $olt->name, 'vendor' => $olt->vendor, 'model' => $olt->model],
+            'onu_mac' => implode(':', str_split($mac, 2)),
+            'mapping_rows' => $mappings->toArray(),
+            'ppp_links' => DB::table('olt_onu_customer_ppp_links')
+                ->whereIn('olt_onu_customer_mapping_id', $ids)
+                ->get()
+                ->toArray(),
+            'onu_mac_ledgers' => $ledgerRows,
+            'live_rows' => array_map(static fn ($row) => $row['row'], $liveGroup),
+        ];
+
+        $encoded = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (! is_string($encoded)) {
+            return null;
+        }
+
+        $path = $directory.'/olt-'.$olt->id.'-duplicate-mac-'.substr(hash('sha256', $mac), 0, 10).'-'.now()->format('Ymd-His').'-'.substr(hash('sha256', $encoded), 0, 8).'.json';
+        if (file_put_contents($path, $encoded, LOCK_EX) === false) {
+            return null;
+        }
+        @chmod($path, 0600);
+
+        $checksum = hash_file('sha256', $path);
+        if (! is_string($checksum) || ! hash_equals($checksum, hash('sha256', $encoded))) {
+            @unlink($path);
+            return null;
+        }
+
+        $manifest = $path.'.sha256';
+        if (file_put_contents($manifest, $checksum.'  '.basename($path).PHP_EOL, LOCK_EX) === false) {
+            @unlink($path);
+            return null;
+        }
+        @chmod($manifest, 0600);
+
+        return $path;
     }
 
     /**
