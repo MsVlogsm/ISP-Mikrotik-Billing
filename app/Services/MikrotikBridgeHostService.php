@@ -13,8 +13,11 @@ use Throwable;
 
 class MikrotikBridgeHostService
 {
+    private array $collectionMetadata = [];
+
     public function poll(RouterList $router): MikrotikBridgeHostSnapshot
     {
+        $this->collectionMetadata = [];
         $started = microtime(true);
         $sampledAt = now();
         $error = null;
@@ -36,6 +39,8 @@ class MikrotikBridgeHostService
         $truncated = count($hosts) > $maxEntries;
         $rows = $error === null ? $this->normalizeHosts(array_slice($hosts, 0, $maxEntries)) : [];
         $pppoeStoredCount = count(array_filter($rows, static fn (array $row): bool => str_starts_with((string) ($row['router_entry_id'] ?? ''), 'pppoe:')));
+        $pppoeVlanMappedCount = count(array_filter($pppoeSessions, static fn (array $host): bool => ($host['_vlan_mapping_source'] ?? null) !== null));
+        $pppoeVlanAmbiguousCount = count(array_filter($pppoeSessions, static fn (array $host): bool => (bool) ($host['_vlan_mapping_ambiguous'] ?? false)));
         $duration = max(0, (int) round((microtime(true) - $started) * 1000));
         $status = $error !== null ? 'error' : ($rows === [] ? 'empty' : 'ok');
         $counts = [
@@ -49,8 +54,17 @@ class MikrotikBridgeHostService
             'read_only' => true,
             'writes_performed' => false,
             'protocol' => $router->api_ssl ? 'RouterOS API-SSL' : 'RouterOS API',
-            'api_command' => '/interface/bridge/host/print + /ppp/active/print',
-            'api_commands' => ['/interface/bridge/host/print', '/ppp/active/print'],
+            'api_command' => '/interface/bridge/host/print + /ppp/active/print + /interface/pppoe-server/print + /interface/pppoe-server/server/print + /interface/vlan/print',
+            'api_commands' => [
+                '/interface/bridge/host/print',
+                '/ppp/active/print',
+                '/interface/pppoe-server/print',
+                '/interface/pppoe-server/server/print',
+                '/interface/vlan/print',
+            ],
+            'pppoe_vlan_mapped_count' => $pppoeVlanMappedCount,
+            'pppoe_vlan_unmapped_count' => max(0, count($pppoeSessions) - $pppoeVlanMappedCount),
+            'pppoe_vlan_ambiguous_count' => $pppoeVlanAmbiguousCount,
             'bridge_host_received_count' => count($hosts) - count($pppoeSessions),
             'pppoe_active_session_count' => count($pppoeSessions),
             'pppoe_caller_id_count' => $pppoeCallerIdCount,
@@ -59,6 +73,7 @@ class MikrotikBridgeHostService
             'stored_count' => count($rows),
             'truncated' => $truncated,
         ];
+        $meta = array_merge($meta, $this->collectionMetadata);
 
         return DB::transaction(function () use ($router, $sampledAt, $status, $rows, $counts, $duration, $error, $meta): MikrotikBridgeHostSnapshot {
             $previousSnapshot = MikrotikBridgeHostSnapshot::query()
@@ -138,17 +153,147 @@ class MikrotikBridgeHostService
             throw new RuntimeException(is_string($pppoeSessions) ? $pppoeSessions : 'RouterOS PPPoE active session query returned an invalid response.');
         }
 
-        return array_values(array_merge($bridgeHosts, $this->normalizePppoeSessions($pppoeSessions)));
+        $pppoeInterfaces = $api->executeCommand('/interface/pppoe-server/print');
+        $pppoeServers = $api->executeCommand('/interface/pppoe-server/server/print');
+        $vlanInterfaces = $api->executeCommand('/interface/vlan/print');
+        $pppoeInterfaces = is_array($pppoeInterfaces) ? array_values(array_filter($pppoeInterfaces, 'is_array')) : [];
+        $pppoeServers = is_array($pppoeServers) ? array_values(array_filter($pppoeServers, 'is_array')) : [];
+        $vlanInterfaces = is_array($vlanInterfaces) ? array_values(array_filter($vlanInterfaces, 'is_array')) : [];
+        $this->collectionMetadata = [
+            'pppoe_dynamic_interface_count' => count($pppoeInterfaces),
+            'pppoe_server_count' => count($pppoeServers),
+            'vlan_interface_count' => count($vlanInterfaces),
+        ];
+
+        return array_values(array_merge(
+            $bridgeHosts,
+            $this->normalizePppoeSessions($pppoeSessions, $pppoeInterfaces, $pppoeServers, $vlanInterfaces, $bridgeHosts)
+        ));
     }
 
-    protected function normalizePppoeSessions(array $sessions): array
-    {
-        $hosts = [];
+    protected function normalizePppoeSessions(
+        array $sessions,
+        array $pppoeInterfaces = [],
+        array $pppoeServers = [],
+        array $vlanInterfaces = [],
+        array $bridgeHosts = []
+    ): array {
+        $vlanIdsByInterface = [];
+        foreach ($vlanInterfaces as $vlanInterface) {
+            if (! is_array($vlanInterface) || $this->flag($vlanInterface['disabled'] ?? false)) {
+                continue;
+            }
 
+            $name = $this->nullableString($vlanInterface['name'] ?? null);
+            $vlanId = $vlanInterface['vlan-id'] ?? null;
+            if ($name === null || ! is_numeric($vlanId) || (int) $vlanId < 1 || (int) $vlanId > 4094) {
+                continue;
+            }
+
+            $vlanIdsByInterface[$name][] = (int) $vlanId;
+        }
+
+        $serviceCandidates = [];
+        $configuredServices = [];
+        foreach ($pppoeServers as $server) {
+            if (! is_array($server) || $this->flag($server['disabled'] ?? false)) {
+                continue;
+            }
+
+            $service = $this->nullableString($server['service-name'] ?? null);
+            $interface = $this->nullableString($server['interface'] ?? null);
+            if ($service === null || $interface === null) {
+                continue;
+            }
+
+            $configuredServices[$service] = true;
+            $vlanIds = array_values(array_unique($vlanIdsByInterface[$interface] ?? []));
+            if (count($vlanIds) === 1) {
+                $serviceCandidates[$service][] = [
+                    'vlan_id' => $vlanIds[0],
+                    'interface' => $interface,
+                ];
+            }
+        }
+
+        $serviceMappings = [];
+        $ambiguousServices = [];
+        foreach ($configuredServices as $service => $_configured) {
+            $mappings = $serviceCandidates[$service] ?? [];
+            $vlanIds = array_values(array_unique(array_column($mappings, 'vlan_id')));
+            if (count($vlanIds) !== 1) {
+                $ambiguousServices[$service] = true;
+                continue;
+            }
+
+            $interfaces = array_values(array_unique(array_column($mappings, 'interface')));
+            $serviceMappings[$service] = [
+                'vlan_id' => $vlanIds[0],
+                'interface' => count($interfaces) === 1 ? $interfaces[0] : null,
+            ];
+        }
+
+        $dynamicByMac = [];
+        foreach ($pppoeInterfaces as $pppoeInterface) {
+            if (! is_array($pppoeInterface) || $this->flag($pppoeInterface['disabled'] ?? false)) {
+                continue;
+            }
+
+            $mac = $this->normalizedMacAddress($pppoeInterface['remote-address'] ?? null);
+            $service = $this->nullableString($pppoeInterface['service'] ?? null);
+            if ($mac !== null && $service !== null) {
+                $dynamicByMac[$mac][] = $pppoeInterface;
+            }
+        }
+
+        $bridgeHostsByMac = [];
+        foreach ($bridgeHosts as $bridgeHost) {
+            if (! is_array($bridgeHost)) {
+                continue;
+            }
+
+            $mac = $this->normalizedMacAddress($bridgeHost['mac-address'] ?? null);
+            if ($mac !== null) {
+                $bridgeHostsByMac[$mac][] = $bridgeHost;
+            }
+        }
+
+        $hosts = [];
         foreach ($sessions as $session) {
             if (! is_array($session) || strcasecmp(trim((string) ($session['service'] ?? '')), 'pppoe') !== 0) {
                 continue;
             }
+
+            $mac = $this->normalizedMacAddress($session['caller-id'] ?? null);
+            $dynamicMatches = $mac !== null ? ($dynamicByMac[$mac] ?? []) : [];
+            $dynamicInterface = count($dynamicMatches) === 1 ? $dynamicMatches[0] : null;
+            $service = $this->nullableString($dynamicInterface['service'] ?? null);
+            $serviceMapping = $service !== null ? ($serviceMappings[$service] ?? null) : null;
+            $bridgeMatches = $mac !== null ? ($bridgeHostsByMac[$mac] ?? []) : [];
+            $bridgeHost = count($bridgeMatches) === 1 ? $bridgeMatches[0] : null;
+
+            $bridgeHostVlan = $bridgeHost['vid'] ?? null;
+            $bridgeHostVlan = is_numeric($bridgeHostVlan) && (int) $bridgeHostVlan >= 1 && (int) $bridgeHostVlan <= 4094
+                ? (int) $bridgeHostVlan
+                : null;
+            $serviceVlan = $serviceMapping['vlan_id'] ?? null;
+            $mappingConflict = $bridgeHostVlan !== null && $serviceVlan !== null && $bridgeHostVlan !== $serviceVlan;
+            $vlanId = null;
+            $mappingSource = null;
+            if (! $mappingConflict && $bridgeHostVlan !== null) {
+                $vlanId = $bridgeHostVlan;
+                $mappingSource = 'bridge-host-vid';
+            } elseif (! $mappingConflict && $serviceVlan !== null) {
+                $vlanId = (int) $serviceVlan;
+                $mappingSource = 'pppoe-server-vlan-interface';
+            }
+
+            $interface = $this->nullableString($bridgeHost['on-interface'] ?? $bridgeHost['interface'] ?? null)
+                ?? $this->nullableString($serviceMapping['interface'] ?? null)
+                ?? $this->nullableString($dynamicInterface['interface'] ?? null);
+            $bridge = $this->nullableString($bridgeHost['bridge'] ?? null);
+            $mappingAmbiguous = $mappingConflict
+                || ($bridgeHostVlan === null && $service !== null && isset($ambiguousServices[$service]));
 
             $sessionId = $this->nullableString($session['.id'] ?? null)
                 ?? Str::uuid()->toString();
@@ -156,19 +301,31 @@ class MikrotikBridgeHostService
             $hosts[] = [
                 '.id' => 'pppoe:'.$sessionId,
                 'mac-address' => $session['caller-id'] ?? null,
-                'vid' => null,
-                'bridge' => null,
-                'on-interface' => null,
+                'vid' => $vlanId,
+                'bridge' => $bridge,
+                'on-interface' => $interface,
                 'dynamic' => 'true',
                 'local' => 'false',
                 'external' => 'false',
                 'disabled' => 'false',
                 'invalid' => 'false',
                 '_source' => 'pppoe-caller-id',
+                '_vlan_mapping_source' => $mappingSource,
+                '_vlan_mapping_ambiguous' => $mappingAmbiguous,
             ];
         }
 
         return $hosts;
+    }
+
+    private function normalizedMacAddress(mixed $value): ?string
+    {
+        $hexMac = preg_replace('/[^0-9a-f]/i', '', (string) $value) ?? '';
+        if (strlen($hexMac) !== 12) {
+            return null;
+        }
+
+        return strtolower(implode(':', str_split($hexMac, 2)));
     }
 
     private function normalizeHosts(array $hosts): array
