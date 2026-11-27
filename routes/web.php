@@ -16,6 +16,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CustomerDetailsController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\MikrotikBridgeHostController;
+use App\Http\Controllers\Layer2BridgeHarvestingController;
 use App\Http\Controllers\MainSiteController;
 use App\Http\Controllers\Payment\BkashPaymentController;
 use App\Http\Controllers\Payment\NagadPaymentController;
@@ -234,6 +235,7 @@ Route::middleware([
         Route::get('/support-tickets', ManageTickets::class)->name('admin-tickets');
         Route::get('/mikrotik', MikrotikSync::class)->name('mikrotik-sync');
         Route::get('/mikrotik-bridge-hosts', [MikrotikBridgeHostController::class, 'index'])->name('mikrotik-bridge-hosts');
+        Route::get('/layer2-bridge-harvesting', [Layer2BridgeHarvestingController::class, 'index'])->name('layer2-bridge-harvesting');
         Route::get('/mikrotik-server', MikrotikSync::class)->name('mikrotik-server');
         Route::get('/mikrotik-server/backup', BackupManager::class)->name('mikrotik-server-backup');
         Route::get('/mikrotik-server/import', MikrotikClients::class)->name('mikrotik-server-import');

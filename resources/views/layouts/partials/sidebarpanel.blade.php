@@ -301,6 +301,7 @@
                         <div class="d-flex align-items-center"><span class="nav-link-icon"><i class="bi bi-activity"></i></span><span class="nav-link-text ps-1">{{ __('Device Monitoring') }}</span></div>
                     </a>
                     <div class="collapse ps-3" id="networkMonitoringMenu">
+                            <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('layer2-bridge-harvesting') }}"><span class="nav-link-text ps-1">{{ __('Layer-2 Bridge Harvesting') }}</span></a>
                             <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('device-manager') }}"><span class="nav-link-text ps-1">{{ __('Device Manager') }}</span></a>
                             <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-events') }}"><span class="nav-link-text ps-1">{{ __('Events & Alerts') }}</span></a>
                             <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('network-map') }}"><span class="nav-link-text ps-1">{{ __('Network Map') }}</span></a>
