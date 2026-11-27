@@ -344,10 +344,17 @@ class NewCustomer extends Component
         $this->calculateTotal('package_name');
     }
 
+    public function updatedClientType(): void
+    {
+        $this->calculateTotal('client_type');
+    }
+
     public function calculateTotal($value)
     {
         // Free Customer is a deliberate zero-charge option, not a real package row.
-        if (strcasecmp(trim((string) $this->package_name), 'Free Customer') === 0) {
+        $isFreeCustomer = strcasecmp(trim((string) $this->client_type), 'free') === 0
+            || strcasecmp(trim((string) $this->package_name), 'Free Customer') === 0;
+        if ($isFreeCustomer) {
             $this->monthly_rent = 0;
         } elseif ($this->package_name) {
             if (($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
@@ -380,7 +387,7 @@ class NewCustomer extends Component
         }
 
         // Recalculate total if any of the relevant fields change
-        if (in_array($value, ['monthly_rent', 'due_amount', 'additional_charge', 'discount', 'advance', 'vat']) || $value == 'package_name') {
+        if (in_array($value, ['monthly_rent', 'due_amount', 'additional_charge', 'discount', 'advance', 'vat']) || $value == 'package_name' || $value == 'client_type') {
             $subtotal = (float) $this->monthly_rent + (float) $this->due_amount + (float) $this->additional_charge;
             $vatAmount = ($subtotal * (float) $this->vat) / 100;
             $this->total_amount = $subtotal + $vatAmount - ((float) $this->advance + (float) $this->discount);
@@ -746,7 +753,8 @@ class NewCustomer extends Component
                 ]);
             }
             $customer = new CustomersInfo;
-            $isFreeCustomer = strcasecmp(trim((string) $this->package_name), 'Free Customer') === 0;
+            $isFreeCustomer = strcasecmp(trim((string) $this->client_type), 'free') === 0
+                || strcasecmp(trim((string) $this->package_name), 'Free Customer') === 0;
             if (($this->macResellerPortalMode || auth()->user()->hasRole('Reseller'))) {
                 $customer->reseller_id = $this->currentReseller()?->id ?? abort(403, 'Select a MAC Reseller portal first.');
                 // Reseller-created accounts must remain pending until an admin approves them.
