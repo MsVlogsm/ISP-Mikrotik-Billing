@@ -51,6 +51,32 @@ class BridgeFdbSnmpServiceTest extends TestCase
         $this->assertSame(42, $bridgePorts[7]);
     }
 
+    public function test_interface_index_uses_confirmed_direct_if_mib_index_when_bridge_mapping_is_missing(): void
+    {
+        $service = app(BridgeFdbSnmpService::class);
+        $method = new ReflectionMethod($service, 'resolveInterfaceIndex');
+
+        $this->assertSame(101, $method->invoke($service, 1, [1 => 101], [126 => 'EPON0/4:12'], [101 => 'GE0/1']));
+        $this->assertSame(126, $method->invoke($service, 126, [1 => 101], [126 => 'EPON0/4:12'], []));
+        $this->assertNull($method->invoke($service, 999, [1 => 101], [], []));
+    }
+
+    public function test_indexed_interface_values_remove_snmp_type_prefix_and_quotes(): void
+    {
+        $service = app(BridgeFdbSnmpService::class);
+        $method = new ReflectionMethod($service, 'indexedValues');
+
+        $result = $method->invoke($service, [
+            '.1.3.6.1.2.1.31.1.1.1.1.126' => 'STRING: "EPON0/4:12"',
+            '.1.3.6.1.2.1.31.1.1.1.1.1' => 'STRING: "GE0/1"',
+        ], '1.3.6.1.2.1.31.1.1.1.1');
+
+        $this->assertSame([
+            126 => 'EPON0/4:12',
+            1 => 'GE0/1',
+        ], $result);
+    }
+
     public function test_poll_without_a_read_only_community_records_an_error_without_network_writes(): void
     {
         config(['bridge_fdb.live_poll_enabled' => true]);

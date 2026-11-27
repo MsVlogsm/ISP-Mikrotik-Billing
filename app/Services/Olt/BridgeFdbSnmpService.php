@@ -170,7 +170,7 @@ class BridgeFdbSnmpService
                         continue;
                     }
 
-                    $ifIndex = $ifIndexByBridgePort[$bridgePort] ?? null;
+                    $ifIndex = $this->resolveInterfaceIndex($bridgePort, $ifIndexByBridgePort, $ifNameByIndex, $ifDescriptionByIndex);
                     $ifName = $ifIndex !== null ? ($ifNameByIndex[$ifIndex] ?? $ifDescriptionByIndex[$ifIndex] ?? null) : null;
 
                     $vlans = $source === 'dot1q'
@@ -537,13 +537,34 @@ class BridgeFdbSnmpService
         return array_values($unique);
     }
 
+    private function resolveInterfaceIndex(
+        int $bridgePort,
+        array $ifIndexByBridgePort,
+        array $ifNameByIndex,
+        array $ifDescriptionByIndex
+    ): ?int {
+        $ifIndex = $ifIndexByBridgePort[$bridgePort] ?? null;
+        if ($ifIndex !== null) {
+            return (int) $ifIndex;
+        }
+
+        // Some VSOL firmware returns the IF-MIB ifIndex directly in the
+        // Q-BRIDGE FDB port value instead of listing it in dot1dBasePortIfIndex.
+        // Use this fallback only when IF-MIB confirms that exact interface index.
+        return array_key_exists($bridgePort, $ifNameByIndex) || array_key_exists($bridgePort, $ifDescriptionByIndex)
+            ? $bridgePort
+            : null;
+    }
+
     private function indexedValues(array $walk, string $baseOid): array
     {
         $indexed = [];
         foreach ($walk as $oid => $value) {
             $index = $this->oidIndex((string) $oid, $baseOid);
             if ($index !== null) {
-                $indexed[$index] = trim((string) $value);
+                $normalized = trim((string) $value);
+                $normalized = preg_replace('/^[A-Z0-9-]+:\s*/i', '', $normalized) ?? $normalized;
+                $indexed[$index] = trim($normalized, " \t\n\r\0\x0B\"");
             }
         }
 
