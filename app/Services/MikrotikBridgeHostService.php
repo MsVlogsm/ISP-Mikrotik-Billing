@@ -208,20 +208,19 @@ class MikrotikBridgeHostService
 
             $configuredServices[$service] = true;
             $vlanIds = array_values(array_unique($vlanIdsByInterface[$interface] ?? []));
-            if (count($vlanIds) === 1) {
-                $serviceCandidates[$service][] = [
-                    'vlan_id' => $vlanIds[0],
-                    'interface' => $interface,
-                ];
-            }
+            $serviceCandidates[$service][] = [
+                'vlan_id' => count($vlanIds) === 1 ? $vlanIds[0] : null,
+                'interface' => $interface,
+            ];
         }
 
         $serviceMappings = [];
         $ambiguousServices = [];
         foreach ($configuredServices as $service => $_configured) {
             $mappings = $serviceCandidates[$service] ?? [];
-            $vlanIds = array_values(array_unique(array_column($mappings, 'vlan_id')));
-            if (count($vlanIds) !== 1) {
+            $resolvedMappings = array_filter($mappings, static fn (array $mapping): bool => $mapping['vlan_id'] !== null);
+            $vlanIds = array_values(array_unique(array_column($resolvedMappings, 'vlan_id')));
+            if ($mappings === [] || count($resolvedMappings) !== count($mappings) || count($vlanIds) !== 1) {
                 $ambiguousServices[$service] = true;
                 continue;
             }
