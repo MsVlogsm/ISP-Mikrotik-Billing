@@ -4,12 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\CustomersInfo;
 use App\Models\NetworkInventoryDevice;
+use App\Models\OnuMacLedger;
 use App\Models\OltOnuCustomerMapping;
 use App\Models\PPPSecrets;
 use App\Models\RouterList;
 use App\Services\Olt\OltReadOnlyAdapterManager;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
@@ -67,7 +69,12 @@ class SyncOltOnuMappingsTest extends TestCase
         ))->andReturn([
             'ok' => true, 'status' => $resultStatus, 'message' => 'test response',
             'meta' => $includeReadOnlyMetadata
-                ? ['read_only' => true, 'writes_performed' => false]
+                ? [
+                    'read_only' => true,
+                    'writes_performed' => false,
+                    'onu_discovery_configured' => true,
+                    'onu_count' => 1 + count($additionalOnus),
+                ]
                 : ['read_only' => false, 'writes_performed' => false],
             'onus' => array_merge([array_merge([
                 'onu_id' => '25', 'pon_port' => '1', 'onu_mac' => $mac,
@@ -490,5 +497,236 @@ class SyncOltOnuMappingsTest extends TestCase
 
         $this->assertDatabaseCount('olt_monitoring_snapshots', 0);
     }
+
+
+    public function test_auto_fixes_duplicate_onu_mac_when_one_live_location_and_exact_ledger_pair_are_verified(): void
+    {
+        $olt = $this->olt();
+        $mac = '00:11:46:0f:37:84';
+        [$customer, $ppp] = $this->customer('BT0001', 'm.osmangoni', 'active', $mac);
+
+        $canonical = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => '30',
+            'pon_port' => '3',
+            'onu_mac' => $mac,
+            'status' => 'online',
+            'rx_power' => -14.1,
+            'tx_power' => 2.49,
+        ]);
+        $stale = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'customer_id' => $customer->id,
+            'ppp_user_id' => $ppp->id,
+            'onu_id' => '21',
+            'pon_port' => '1',
+            'onu_mac' => $mac,
+            'status' => 'offline',
+            'rx_power' => -22.9,
+            'tx_power' => 2.4,
+            'last_seen_at' => now()->subHours(12),
+        ]);
+
+        OnuMacLedger::create([
+            'olt_device_id' => $olt->id,
+            'customer_id' => $customer->id,
+            'customer_unique_id' => $customer->customer_unique_id,
+            'pon_port' => '3',
+            'onu_id' => '30',
+            'current_mac' => $mac,
+            'service_type' => 'pppoe',
+            'pppoe_username' => $ppp->username,
+            'rx_power' => -14.1,
+            'tx_power' => 2.49,
+            'status' => 'online',
+            'first_seen_at' => now()->subDays(10),
+            'last_seen_at' => now()->subMinute(),
+        ]);
+
+        DB::table('olt_onu_customer_ppp_links')->insert([
+            'olt_onu_customer_mapping_id' => $canonical->id,
+            'customer_id' => $customer->id,
+            'ppp_user_id' => $ppp->id,
+            'client_mac' => '5c:e9:31:8a:f5:63',
+            'source' => 'test-live-pppoe-session',
+            'status' => 'active',
+            'first_seen_at' => now()->subDays(2),
+            'last_seen_at' => now()->subMinute(),
+            'created_at' => now()->subDays(2),
+            'updated_at' => now()->subMinute(),
+        ]);
+
+        $this->fakeAdapter($olt, $mac, [], [
+            'onu_id' => '30',
+            'pon_port' => '3',
+            'rx_power' => -14.12,
+            'tx_power' => 2.49,
+            'opm_source' => 'test-opm',
+        ], 'partial', true, [[
+            'onu_id' => '21',
+            'pon_port' => '1',
+            'onu_mac' => $mac,
+            'status' => 'offline',
+            'snmp_index' => '1.21',
+            'client_macs' => [],
+        ]]);
+
+        $this->withoutMockingConsoleOutput();
+        Artisan::call('olt:sync-onu-mappings', ['--device' => $olt->id]);
+        $output = Artisan::output();
+        $this->assertStringContainsString("Auto-fixed duplicate ONU MAC {$mac}", $output, $output);
+
+        $canonical->refresh();
+        $stale->refresh();
+
+        $this->assertSame('3', (string) $canonical->pon_port);
+        $this->assertSame('30', (string) $canonical->onu_id);
+        $this->assertSame($mac, $canonical->onu_mac);
+        $this->assertSame($customer->id, $canonical->customer_id);
+        $this->assertSame($ppp->id, $canonical->ppp_user_id);
+        $this->assertNotNull($canonical->opm_last_seen_at);
+
+        $this->assertSame('__stale_'.$stale->id, $stale->onu_id);
+        $this->assertNull($stale->onu_mac);
+        $this->assertNull($stale->customer_id);
+        $this->assertNull($stale->ppp_user_id);
+        $this->assertStringContainsString($mac, $stale->notes);
+
+        $this->assertDatabaseHas('olt_onu_customer_ppp_links', [
+            'olt_onu_customer_mapping_id' => $canonical->id,
+            'customer_id' => $customer->id,
+            'ppp_user_id' => $ppp->id,
+            'client_mac' => '5c:e9:31:8a:f5:63',
+            'status' => 'active',
+        ]);
+        $this->assertDatabaseCount('olt_monitoring_snapshots', 0);
+    }
+
+    public function test_duplicate_live_onu_mac_with_multiple_online_locations_is_not_auto_fixed(): void
+    {
+        $olt = $this->olt();
+        $mac = '00:11:46:0f:37:85';
+
+        $canonical = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => '30',
+            'pon_port' => '3',
+            'onu_mac' => $mac,
+            'status' => 'online',
+        ]);
+        $stale = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => '21',
+            'pon_port' => '1',
+            'onu_mac' => $mac,
+            'status' => 'offline',
+        ]);
+
+        $this->fakeAdapter($olt, $mac, [], [
+            'onu_id' => '30',
+            'pon_port' => '3',
+        ], 'partial', true, [[
+            'onu_id' => '21',
+            'pon_port' => '1',
+            'onu_mac' => $mac,
+            'status' => 'online',
+            'snmp_index' => '1.21',
+            'client_macs' => [],
+        ]]);
+
+        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])
+            ->expectsOutputToContain('no single online location was verified')
+            ->assertExitCode(0);
+
+        $canonical->refresh();
+        $stale->refresh();
+
+        $this->assertSame('30', (string) $canonical->onu_id);
+        $this->assertSame('3', (string) $canonical->pon_port);
+        $this->assertSame($mac, $canonical->onu_mac);
+        $this->assertSame('21', (string) $stale->onu_id);
+        $this->assertSame('1', (string) $stale->pon_port);
+        $this->assertSame($mac, $stale->onu_mac);
+        $this->assertDatabaseCount('olt_monitoring_snapshots', 0);
+    }
+
+
+
+    public function test_auto_fix_withholds_when_customer_ppp_pair_is_assigned_to_another_onu(): void
+    {
+        $olt = $this->olt();
+        $mac = '00:11:46:0f:37:86';
+        [$customer, $ppp] = $this->customer('BT0007', 'already.assigned.customer', 'active', $mac);
+
+        $canonical = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'onu_id' => '30',
+            'pon_port' => '3',
+            'onu_mac' => $mac,
+            'status' => 'online',
+        ]);
+        $stale = OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'customer_id' => $customer->id,
+            'ppp_user_id' => $ppp->id,
+            'onu_id' => '21',
+            'pon_port' => '1',
+            'onu_mac' => $mac,
+            'status' => 'offline',
+        ]);
+        OltOnuCustomerMapping::create([
+            'olt_device_id' => $olt->id,
+            'customer_id' => $customer->id,
+            'ppp_user_id' => $ppp->id,
+            'onu_id' => '9',
+            'pon_port' => '2',
+            'onu_mac' => '00:11:46:0f:37:99',
+            'status' => 'online',
+        ]);
+
+        OnuMacLedger::create([
+            'olt_device_id' => $olt->id,
+            'customer_id' => $customer->id,
+            'customer_unique_id' => $customer->customer_unique_id,
+            'pon_port' => '3',
+            'onu_id' => '30',
+            'current_mac' => $mac,
+            'service_type' => 'pppoe',
+            'pppoe_username' => $ppp->username,
+            'status' => 'online',
+            'first_seen_at' => now()->subDays(10),
+            'last_seen_at' => now()->subMinute(),
+        ]);
+
+        $this->fakeAdapter($olt, $mac, [], [
+            'onu_id' => '30',
+            'pon_port' => '3',
+        ], 'partial', true, [[
+            'onu_id' => '21',
+            'pon_port' => '1',
+            'onu_mac' => $mac,
+            'status' => 'offline',
+            'snmp_index' => '1.21',
+            'client_macs' => [],
+        ]]);
+
+        $this->artisan('olt:sync-onu-mappings', ['--device' => $olt->id])
+            ->expectsOutputToContain('customer/PPPoE pair is already assigned to another ONU mapping')
+            ->assertExitCode(0);
+
+        $canonical->refresh();
+        $stale->refresh();
+
+        $this->assertNull($canonical->customer_id);
+        $this->assertNull($canonical->ppp_user_id);
+        $this->assertSame($customer->id, $stale->customer_id);
+        $this->assertSame($ppp->id, $stale->ppp_user_id);
+        $this->assertSame('30', (string) $canonical->onu_id);
+        $this->assertSame('21', (string) $stale->onu_id);
+        $this->assertSame($mac, $canonical->onu_mac);
+        $this->assertSame($mac, $stale->onu_mac);
+        $this->assertDatabaseCount('olt_monitoring_snapshots', 0);
+    }
+
 
 }
