@@ -19,6 +19,14 @@ class BridgeFdbSnmpService
 
     private const QBRIDGE_VLAN_FDB_ID = '1.3.6.1.2.1.17.7.1.4.2.1.3';
 
+    private const VSOL_CMAC_VLAN_ID = '1.3.6.1.4.1.37950.1.1.5.10.3.2.1.2';
+
+    private const VSOL_CMAC_ADDRESS = '1.3.6.1.4.1.37950.1.1.5.10.3.2.1.3';
+
+    private const VSOL_CMAC_TYPE = '1.3.6.1.4.1.37950.1.1.5.10.3.2.1.4';
+
+    private const VSOL_CMAC_PORT_ID = '1.3.6.1.4.1.37950.1.1.5.10.3.2.1.5';
+
     private const BRIDGE_PORT = '1.3.6.1.2.1.17.4.3.1.2';
 
     private const BRIDGE_STATUS = '1.3.6.1.2.1.17.4.3.1.3';
@@ -94,9 +102,26 @@ class BridgeFdbSnmpService
                 ? '['.$host.']:'.$port
                 : $host.':'.$port;
 
-            // Prefer VLAN-aware Q-BRIDGE-MIB. Fall back to the classic
-            // BRIDGE-MIB only when the Q-BRIDGE forwarding table is empty.
-            $qPorts = $this->walk($snmpHost, $community, self::QBRIDGE_PORT, $timeout, $retries, $device, $config);
+            $vsolCmacRows = $this->supportsVsolCmacTable($device)
+                ? $this->collectVsolCmacRows($snmpHost, $community, $timeout, $retries, $device, $config)
+                : [];
+            if ($vsolCmacRows !== []) {
+                $source = 'vsol-cmac';
+                $rows = array_slice($vsolCmacRows, 0, $limit);
+                $meta['collector'] = 'vsol-private-mib';
+                $meta['vlan_mapping_available'] = true;
+                $meta['vsol_cmac_rows'] = count($vsolCmacRows);
+                $meta['raw_fdb_rows'] = count($vsolCmacRows);
+                $meta['vlan_count'] = count(array_unique(array_column($rows, 'vlan_id')));
+                $meta['interface_count'] = count(array_unique(array_column($rows, 'interface_name')));
+                $meta['truncated'] = count($vsolCmacRows) > $limit;
+            }
+
+            // Prefer the verified VSOL per-MAC VLAN table for supported models.
+            // Otherwise use VLAN-aware Q-BRIDGE-MIB and then classic BRIDGE-MIB.
+            $qPorts = $source === 'vsol-cmac'
+                ? []
+                : $this->walk($snmpHost, $community, self::QBRIDGE_PORT, $timeout, $retries, $device, $config);
             if ($qPorts !== []) {
                 $source = 'dot1q';
                 $portOid = self::QBRIDGE_PORT;
@@ -106,7 +131,7 @@ class BridgeFdbSnmpService
                 $vlanIdsByFdb = $this->vlanIdsByFdb($vlanFdbIds);
                 $meta['vlan_mapping_available'] = $vlanIdsByFdb !== [];
                 $meta['qbridge_fdb_ids'] = count($vlanIdsByFdb);
-            } else {
+            } elseif ($source !== 'vsol-cmac') {
                 $source = 'dot1d';
                 $portOid = self::BRIDGE_PORT;
                 $statusOid = self::BRIDGE_STATUS;
@@ -115,7 +140,7 @@ class BridgeFdbSnmpService
                 $vlanIdsByFdb = [];
             }
 
-            if ($qPorts === []) {
+            if ($qPorts === [] && $source !== 'vsol-cmac') {
                 $rows = $this->collectCliFallback($device, $config);
                 if ($rows !== []) {
                     $source = 'cli';
@@ -128,11 +153,11 @@ class BridgeFdbSnmpService
                 }
             }
 
-            if ($source !== 'cli' && $statuses === []) {
+            if ($source !== 'cli' && $source !== 'vsol-cmac' && $statuses === []) {
                 throw new RuntimeException('FDB forwarding rows were returned, but the FDB status table is not readable. Check the SNMP view; entry type cannot be safely determined.');
             }
 
-            if ($source !== 'cli') {
+            if ($source !== 'cli' && $source !== 'vsol-cmac') {
                 $bridgePortIfIndexes = $this->walk($snmpHost, $community, self::BRIDGE_PORT_IFINDEX, $timeout, $retries, $device, $config);
                 $ifNames = $this->walk($snmpHost, $community, self::IF_NAME, $timeout, $retries, $device, $config);
                 $ifDescriptions = $this->walk($snmpHost, $community, self::IF_DESCR, $timeout, $retries, $device, $config);
@@ -207,7 +232,7 @@ class BridgeFdbSnmpService
                 $meta['raw_fdb_rows'] = count($qPorts);
                 $meta['vlan_count'] = count(array_unique(array_filter(array_column($rows, 'vlan_id'), static fn ($v) => $v !== null)));
                 $meta['interface_count'] = count(array_unique(array_filter(array_column($rows, 'if_index'), static fn ($v) => $v !== null)));
-            } else {
+            } elseif ($source === 'cli') {
                 $meta['raw_fdb_rows'] = count($rows);
                 $meta['vlan_count'] = count(array_unique(array_filter(array_column($rows, 'vlan_id'), static fn ($v) => $v !== null)));
                 $meta['interface_count'] = count(array_filter(array_column($rows, 'interface_name')));
@@ -267,6 +292,79 @@ class BridgeFdbSnmpService
 
             return $snapshot->load('entries');
         });
+    }
+
+    private function supportsVsolCmacTable(NetworkInventoryDevice $device): bool
+    {
+        $vendor = strtoupper(trim((string) $device->vendor));
+        $model = strtoupper(trim((string) $device->model));
+        $firmware = strtoupper(trim((string) $device->firmware));
+
+        return $device->type === 'olt'
+            && $vendor === 'VSOL'
+            && in_array($firmware, ['V1.0.2R'], true)
+            && (str_contains($model, 'V1601E') || str_contains($model, 'V1600D4'));
+    }
+
+    private function collectVsolCmacRows(
+        string $host,
+        string $community,
+        int $timeout,
+        int $retries,
+        NetworkInventoryDevice $device,
+        array $config
+    ): array {
+        $vlanIds = $this->walk($host, $community, self::VSOL_CMAC_VLAN_ID, $timeout, $retries, $device, $config);
+        $macAddresses = $this->walk($host, $community, self::VSOL_CMAC_ADDRESS, $timeout, $retries, $device, $config);
+        $macTypes = $this->walk($host, $community, self::VSOL_CMAC_TYPE, $timeout, $retries, $device, $config);
+        $portIds = $this->walk($host, $community, self::VSOL_CMAC_PORT_ID, $timeout, $retries, $device, $config);
+
+        if ($vlanIds === [] || $macAddresses === [] || $macTypes === [] || $portIds === []) {
+            return [];
+        }
+
+        return $this->normalizeVsolCmacRows($vlanIds, $macAddresses, $macTypes, $portIds);
+    }
+
+    private function normalizeVsolCmacRows(array $vlanIds, array $macAddresses, array $macTypes, array $portIds): array
+    {
+        $vlansByIndex = $this->indexedValues($vlanIds, self::VSOL_CMAC_VLAN_ID);
+        $macsByIndex = $this->indexedValues($macAddresses, self::VSOL_CMAC_ADDRESS);
+        $typesByIndex = $this->indexedValues($macTypes, self::VSOL_CMAC_TYPE);
+        $portsByIndex = $this->indexedValues($portIds, self::VSOL_CMAC_PORT_ID);
+        $rows = [];
+
+        foreach ($macsByIndex as $index => $rawMac) {
+            $mac = $this->parser->normalizeMac($rawMac);
+            $vlanId = $this->numericValue($vlansByIndex[$index] ?? null);
+            $macType = $this->numericValue($typesByIndex[$index] ?? null);
+            $portId = trim((string) ($portsByIndex[$index] ?? ''));
+
+            if ($mac === null || $vlanId === null || $vlanId < 1 || $vlanId > 4094
+                || ! in_array($macType, [0, 1], true) || $portId === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'mac_address' => $mac,
+                'vlan_id' => $vlanId,
+                'fdb_id' => null,
+                'bridge_port' => null,
+                'if_index' => null,
+                'interface_name' => $portId,
+                'entry_status' => $macType === 1 ? 'learned' : 'other',
+                'status_code' => null,
+                'source' => 'vsol-cmac',
+            ];
+        }
+
+        $unique = [];
+        foreach ($rows as $row) {
+            $key = $row['mac_address'].'|'.$row['vlan_id'].'|'.$row['interface_name'];
+            $unique[$key] = $row;
+        }
+
+        return array_values($unique);
     }
 
     private function recordMovements(
