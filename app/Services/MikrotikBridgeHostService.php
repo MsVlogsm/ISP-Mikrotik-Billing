@@ -26,9 +26,16 @@ class MikrotikBridgeHostService
             $error = Str::limit($exception->getMessage(), 1500);
         }
 
+        $pppoeSessions = array_values(array_filter($hosts, static fn (mixed $host): bool => is_array($host) && ($host['_source'] ?? null) === 'pppoe-caller-id'));
+        $pppoeCallerIdCount = count(array_filter($pppoeSessions, static function (array $host): bool {
+            $hexMac = preg_replace('/[^0-9a-f]/i', '', (string) ($host['mac-address'] ?? '')) ?? '';
+
+            return strlen($hexMac) === 12;
+        }));
         $maxEntries = max(100, min(50000, (int) config('mikrotik_bridge_host.max_entries', 10000)));
         $truncated = count($hosts) > $maxEntries;
         $rows = $error === null ? $this->normalizeHosts(array_slice($hosts, 0, $maxEntries)) : [];
+        $pppoeStoredCount = count(array_filter($rows, static fn (array $row): bool => str_starts_with((string) ($row['router_entry_id'] ?? ''), 'pppoe:')));
         $duration = max(0, (int) round((microtime(true) - $started) * 1000));
         $status = $error !== null ? 'error' : ($rows === [] ? 'empty' : 'ok');
         $counts = [
@@ -42,7 +49,12 @@ class MikrotikBridgeHostService
             'read_only' => true,
             'writes_performed' => false,
             'protocol' => $router->api_ssl ? 'RouterOS API-SSL' : 'RouterOS API',
-            'api_command' => '/interface/bridge/host/print',
+            'api_command' => '/interface/bridge/host/print + /ppp/active/print',
+            'api_commands' => ['/interface/bridge/host/print', '/ppp/active/print'],
+            'bridge_host_received_count' => count($hosts) - count($pppoeSessions),
+            'pppoe_active_session_count' => count($pppoeSessions),
+            'pppoe_caller_id_count' => $pppoeCallerIdCount,
+            'pppoe_stored_count' => $pppoeStoredCount,
             'received_count' => count($hosts),
             'stored_count' => count($rows),
             'truncated' => $truncated,
@@ -116,12 +128,47 @@ class MikrotikBridgeHostService
             (bool) $router->api_ssl
         );
 
-        $response = $api->executeCommand('/interface/bridge/host/print');
-        if (! is_array($response)) {
-            throw new RuntimeException(is_string($response) ? $response : 'RouterOS Bridge Host query returned an invalid response.');
+        $bridgeHosts = $api->executeCommand('/interface/bridge/host/print');
+        if (! is_array($bridgeHosts)) {
+            throw new RuntimeException(is_string($bridgeHosts) ? $bridgeHosts : 'RouterOS Bridge Host query returned an invalid response.');
         }
 
-        return array_values($response);
+        $pppoeSessions = $api->executeCommand('/ppp/active/print');
+        if (! is_array($pppoeSessions)) {
+            throw new RuntimeException(is_string($pppoeSessions) ? $pppoeSessions : 'RouterOS PPPoE active session query returned an invalid response.');
+        }
+
+        return array_values(array_merge($bridgeHosts, $this->normalizePppoeSessions($pppoeSessions)));
+    }
+
+    protected function normalizePppoeSessions(array $sessions): array
+    {
+        $hosts = [];
+
+        foreach ($sessions as $session) {
+            if (! is_array($session) || strcasecmp(trim((string) ($session['service'] ?? '')), 'pppoe') !== 0) {
+                continue;
+            }
+
+            $sessionId = $this->nullableString($session['.id'] ?? null)
+                ?? Str::uuid()->toString();
+
+            $hosts[] = [
+                '.id' => 'pppoe:'.$sessionId,
+                'mac-address' => $session['caller-id'] ?? null,
+                'vid' => null,
+                'bridge' => null,
+                'on-interface' => null,
+                'dynamic' => 'true',
+                'local' => 'false',
+                'external' => 'false',
+                'disabled' => 'false',
+                'invalid' => 'false',
+                '_source' => 'pppoe-caller-id',
+            ];
+        }
+
+        return $hosts;
     }
 
     private function normalizeHosts(array $hosts): array

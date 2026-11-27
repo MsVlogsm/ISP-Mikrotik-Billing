@@ -105,6 +105,40 @@ class MikrotikBridgeHostPollingTest extends TestCase
         ]);
     }
 
+    public function test_it_stores_pppoe_caller_id_macs_without_inventing_vlan_or_bridge_port(): void
+    {
+        $router = $this->router();
+        $service = new class extends MikrotikBridgeHostService
+        {
+            protected function fetchHosts(RouterList $router): array
+            {
+                return $this->normalizePppoeSessions([
+                    ['.id' => '*1', 'service' => 'pppoe', 'caller-id' => 'AA:BB:CC:DD:EE:11'],
+                    ['.id' => '*2', 'service' => 'pppoe', 'caller-id' => 'not-a-mac'],
+                    ['.id' => '*3', 'service' => 'l2tp', 'caller-id' => 'AA:BB:CC:DD:EE:13'],
+                ]);
+            }
+        };
+
+        $snapshot = $service->poll($router);
+
+        $this->assertSame('ok', $snapshot->status);
+        $this->assertSame(1, $snapshot->entry_count);
+        $this->assertSame(1, $snapshot->dynamic_count);
+        $this->assertSame(2, $snapshot->meta['pppoe_active_session_count']);
+        $this->assertSame(1, $snapshot->meta['pppoe_caller_id_count']);
+        $this->assertSame(1, $snapshot->meta['pppoe_stored_count']);
+
+        $entry = $snapshot->entries->sole();
+        $this->assertSame('pppoe:*1', $entry->router_entry_id);
+        $this->assertSame('aa:bb:cc:dd:ee:11', $entry->mac_address);
+        $this->assertNull($entry->vlan_id);
+        $this->assertNull($entry->bridge_name);
+        $this->assertNull($entry->interface_name);
+        $this->assertTrue($entry->is_dynamic);
+        $this->assertFalse($entry->is_local);
+    }
+
     public function test_it_records_dynamic_non_local_mac_port_movement_between_snapshots(): void
     {
         $router = $this->router();

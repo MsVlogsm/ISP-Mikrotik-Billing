@@ -83,7 +83,10 @@ class Layer2BridgeHarvestingController extends Controller
             if ($snapshot) {
                 foreach ($snapshot->entries()->orderBy('mac_address')->limit(500)->get() as $entry) {
                     $entries->push([
-                        'source' => 'MikroTik RouterOS API', 'device' => $router->router_name, 'type' => 'MikroTik',
+                        'source' => str_starts_with((string) $entry->router_entry_id, 'pppoe:')
+                            ? 'MikroTik PPPoE caller-id'
+                            : 'MikroTik RouterOS API',
+                        'device' => $router->router_name, 'type' => 'MikroTik',
                         'mac' => $entry->mac_address, 'vlan' => $entry->vlan_id, 'bridge' => $entry->bridge_name,
                         'port' => $entry->interface_name ?: '—', 'status' => $entry->is_dynamic ? 'dynamic' : 'static',
                         'sampled_at' => $snapshot->sampled_at,
