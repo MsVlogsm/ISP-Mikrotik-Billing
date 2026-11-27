@@ -30,6 +30,45 @@ class BridgeFdbSnmpServiceTest extends TestCase
         ], $result);
     }
 
+    public function test_vsol_cmac_table_joins_exact_mac_vlan_type_and_port_columns(): void
+    {
+        $service = app(BridgeFdbSnmpService::class);
+        $method = new ReflectionMethod($service, 'normalizeVsolCmacRows');
+        $method->setAccessible(true);
+
+        $result = $method->invoke($service,
+            [
+                '.1.3.6.1.4.1.37950.1.1.5.10.3.2.1.2.1' => 'INTEGER: 3362',
+                '.1.3.6.1.4.1.37950.1.1.5.10.3.2.1.2.2' => 'INTEGER: 4095',
+            ],
+            [
+                '.1.3.6.1.4.1.37950.1.1.5.10.3.2.1.3.1' => 'Hex-STRING: AA BB CC DD EE 11',
+                '.1.3.6.1.4.1.37950.1.1.5.10.3.2.1.3.2' => 'Hex-STRING: AA BB CC DD EE 12',
+            ],
+            [
+                '.1.3.6.1.4.1.37950.1.1.5.10.3.2.1.4.1' => 'INTEGER: 1',
+                '.1.3.6.1.4.1.37950.1.1.5.10.3.2.1.4.2' => 'INTEGER: 0',
+            ],
+            [
+                '.1.3.6.1.4.1.37950.1.1.5.10.3.2.1.5.1' => 'STRING: "EPON0/1:12"',
+                '.1.3.6.1.4.1.37950.1.1.5.10.3.2.1.5.2' => 'STRING: "EPON0/1:13"',
+            ]
+        );
+
+        $this->assertCount(1, $result);
+        $this->assertSame([
+            'mac_address' => 'aa:bb:cc:dd:ee:11',
+            'vlan_id' => 3362,
+            'fdb_id' => null,
+            'bridge_port' => null,
+            'if_index' => null,
+            'interface_name' => 'EPON0/1:12',
+            'entry_status' => 'learned',
+            'status_code' => null,
+            'source' => 'vsol-cmac',
+        ], $result[0]);
+    }
+
     public function test_indexed_integer_values_preserve_composite_fdb_indexes_and_numeric_bridge_port_indexes(): void
     {
         $service = app(BridgeFdbSnmpService::class);
