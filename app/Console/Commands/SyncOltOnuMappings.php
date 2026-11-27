@@ -707,12 +707,13 @@ class SyncOltOnuMappings extends Command
                         throw new \RuntimeException('Duplicate ONU mappings changed after the backup was created.');
                     }
 
+                    $staleIds = $staleRows->pluck('id')->all();
                     if (DB::table('olt_onu_customer_ppp_links')
-                        ->whereIn('olt_onu_customer_mapping_id', $ids)
+                        ->whereIn('olt_onu_customer_mapping_id', $staleIds)
                         ->lockForUpdate()
                         ->get()
                         ->isNotEmpty()) {
-                        throw new \RuntimeException('A PPP link was attached to a duplicate mapping after planning.');
+                        throw new \RuntimeException('A PPP link was attached to a stale duplicate mapping after planning.');
                     }
 
                     if ($pairToPreserve !== null) {
