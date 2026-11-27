@@ -190,6 +190,7 @@ class BroadbandController extends Controller
             $query->whereIn('customer_unique_id', $settledCustomerIds);
         }
         if ($status === 'disabled') $query->whereIn('status', ['disable', 'temporary_disable']);
+        if ($status === 'free') $query->where('status', 'free');
 
         if ($status === 'inactive') {
             // Left-customer date filters use the recorded departure date, not the
