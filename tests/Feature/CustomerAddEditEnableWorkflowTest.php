@@ -161,6 +161,33 @@ class CustomerAddEditEnableWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_editing_customer_type_to_free_sets_free_customer_status(): void
+    {
+        $customer = $this->createCustomer('EDIT-FREE-TYPE-CID-001', 'active');
+        OfficialInfo::create([
+            'customer_office_unique_id' => $customer->customer_unique_id,
+            'billing_type' => 'prepaid',
+            'connection_type' => 'fiber',
+            'connectivity_type' => 'shared',
+            'client_type' => 'home',
+            'connected_by' => $this->superAdmin->id,
+        ]);
+
+        Livewire::test(EditCustomer::class, ['customerId' => encrypt($customer->customer_unique_id)])
+            ->set('fields.official.client_type', 'free')
+            ->call('saveEditForm')
+            ->assertRedirect(route('customers.index'));
+
+        $this->assertDatabaseHas('customers_infos', [
+            'id' => $customer->id,
+            'status' => 'free',
+        ]);
+        $this->assertDatabaseHas('official_infos', [
+            'customer_office_unique_id' => 'EDIT-FREE-TYPE-CID-001',
+            'client_type' => 'free',
+        ]);
+    }
+
     public function test_static_network_fields_are_saved_and_available_to_customer_edit(): void
     {
         $router = RouterList::create([
