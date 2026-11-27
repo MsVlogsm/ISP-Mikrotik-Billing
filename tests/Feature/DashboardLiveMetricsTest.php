@@ -169,4 +169,34 @@ class DashboardLiveMetricsTest extends TestCase
 
         $this->assertSame('0', trim($matches[1] ?? 'missing'), 'A live online PPPoE session must not be counted as offline.');
     }
+    public function test_free_customer_list_status_only_returns_free_customers(): void
+    {
+        $admin = User::factory()->create(['email_verified_at' => now()]);
+        $admin->assignRole(Role::findOrCreate('Super Admin', 'web'));
+        $this->actingAs($admin);
+
+        CustomersInfo::create([
+            'customer_unique_id' => 'FREE-LIST-001',
+            'customer_name' => 'Free List Customer',
+            'mobile' => '8801700000001',
+            'status' => 'free',
+            'disable_count' => 0,
+        ]);
+
+        CustomersInfo::create([
+            'customer_unique_id' => 'ACTIVE-LIST-001',
+            'customer_name' => 'Active List Customer',
+            'mobile' => '8801700000002',
+            'status' => 'active',
+            'disable_count' => 0,
+        ]);
+
+        $response = $this->get(route('broadband-customers', ['status' => 'free']));
+
+        $response->assertOk()
+            ->assertSee('Free Customer List')
+            ->assertSee('Free List Customer')
+            ->assertDontSee('Active List Customer');
+    }
+
 }
