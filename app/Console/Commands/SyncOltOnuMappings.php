@@ -10,6 +10,7 @@ use App\Models\PPPSecrets;
 use App\Services\Olt\OltReadOnlyAdapterManager;
 use App\Services\OnuMacLedgerService;
 use Illuminate\Console\Command;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Http;
 
 class SyncOltOnuMappings extends Command
@@ -278,25 +279,41 @@ class SyncOltOnuMappings extends Command
                     continue;
                 }
 
-                if ($existingMapping) {
-                    // Keep the stable mapping row. Update the index only when the
-                    // current index is not already occupied by another mapping.
-                    $idConflict = (string) $existingMapping->onu_id !== $onuId
-                        && OltOnuCustomerMapping::where('olt_device_id', $olt->id)
+                $mappingToRecord = $existingMapping;
+                try {
+                    if ($existingMapping) {
+                        // Keep the stable mapping row. Update the index only when the
+                        // current index is not already occupied by another mapping.
+                        $idConflict = (string) $existingMapping->onu_id !== $onuId
+                            && OltOnuCustomerMapping::where('olt_device_id', $olt->id)
+                                ->where('onu_id', $onuId)
+                                ->where('id', '<>', $existingMapping->id)
+                                ->exists();
+                        if (! $idConflict) $existingMapping->onu_id = $onuId;
+                        $existingMapping->fill($mappingData);
+                        $existingMapping->save();
+                    } else {
+                        $mappingToRecord = OltOnuCustomerMapping::create($mappingData + [
+                            'olt_device_id' => $olt->id,
+                            'onu_id' => (string) $onuId,
+                        ]);
+                    }
+                } catch (UniqueConstraintViolationException) {
+                    $existingMapping?->refresh();
+                    $conflictingMapping = $targetPon !== ''
+                        ? OltOnuCustomerMapping::where('olt_device_id', $olt->id)
+                            ->where('pon_port', $targetPon)
                             ->where('onu_id', $onuId)
-                            ->where('id', '<>', $existingMapping->id)
-                            ->exists();
-                    if (! $idConflict) $existingMapping->onu_id = $onuId;
-                    $existingMapping->fill($mappingData);
-                    $existingMapping->save();
-                    $ledgerService->recordMapping($existingMapping);
-                } else {
-                    $savedMapping = OltOnuCustomerMapping::create($mappingData + [
-                        'olt_device_id' => $olt->id,
-                        'onu_id' => (string) $onuId,
-                    ]);
-                    $ledgerService->recordMapping($savedMapping);
+                            ->when($existingMapping, fn ($query) => $query->where('id', '<>', $existingMapping->id))
+                            ->first(['id'])
+                        : null;
+                    $conflictLabel = $conflictingMapping ? " with mapping #{$conflictingMapping->id}" : '';
+                    $issues[] = "ONU {$onuId}: duplicate OLT/PON/ONU index conflict{$conflictLabel}; existing mapping #".($existingMapping?->id ?? 'unresolved')." was preserved for manual review.";
+                    $skipped++;
+                    continue;
                 }
+
+                $ledgerService->recordMapping($mappingToRecord);
                 $count++;
             }
             // Only make absence claims after a complete, healthy, explicitly read-only
