@@ -139,6 +139,68 @@ class MikrotikBridgeHostPollingTest extends TestCase
         $this->assertFalse($entry->is_local);
     }
 
+    public function test_it_maps_pppoe_caller_ids_only_when_vlan_source_is_exact_and_unambiguous(): void
+    {
+        $router = $this->router();
+        $service = new class extends MikrotikBridgeHostService
+        {
+            protected function fetchHosts(RouterList $router): array
+            {
+                $bridgeHosts = [[
+                    '.id' => '*host-3',
+                    'mac-address' => 'AA:BB:CC:DD:EE:13',
+                    'vid' => '3363',
+                    'on-interface' => 'EPON0/1:13',
+                    'bridge' => 'bridge1',
+                    'dynamic' => 'true',
+                ]];
+
+                return array_values(array_merge($bridgeHosts, $this->normalizePppoeSessions(
+                    [
+                        ['.id' => '*1', 'service' => 'pppoe', 'caller-id' => 'AA:BB:CC:DD:EE:11'],
+                        ['.id' => '*2', 'service' => 'pppoe', 'caller-id' => 'AA:BB:CC:DD:EE:12'],
+                        ['.id' => '*3', 'service' => 'pppoe', 'caller-id' => 'AA:BB:CC:DD:EE:13'],
+                    ],
+                    [
+                        ['.id' => '*dynamic-1', 'service' => 'service4', 'remote-address' => 'AA:BB:CC:DD:EE:11'],
+                        ['.id' => '*dynamic-2', 'service' => 'service3', 'remote-address' => 'AA:BB:CC:DD:EE:12'],
+                        ['.id' => '*dynamic-3', 'service' => 'service3', 'remote-address' => 'AA:BB:CC:DD:EE:13'],
+                    ],
+                    [
+                        ['service-name' => 'service4', 'interface' => 'vlan3362', 'disabled' => 'false'],
+                        ['service-name' => 'service3', 'interface' => 'vlan3361', 'disabled' => 'false'],
+                        ['service-name' => 'service3', 'interface' => 'vlan3365', 'disabled' => 'false'],
+                    ],
+                    [
+                        ['name' => 'vlan3361', 'vlan-id' => '3361', 'disabled' => 'false'],
+                        ['name' => 'vlan3362', 'vlan-id' => '3362', 'disabled' => 'false'],
+                        ['name' => 'vlan3365', 'vlan-id' => '3365', 'disabled' => 'false'],
+                    ],
+                    $bridgeHosts
+                )));
+            }
+        };
+
+        $snapshot = $service->poll($router);
+
+        $service4Entry = $snapshot->entries->firstWhere('router_entry_id', 'pppoe:*1');
+        $sharedServiceEntry = $snapshot->entries->firstWhere('router_entry_id', 'pppoe:*2');
+        $bridgeHostEntry = $snapshot->entries->firstWhere('router_entry_id', 'pppoe:*3');
+
+        $this->assertNotNull($service4Entry);
+        $this->assertSame(3362, $service4Entry->vlan_id);
+        $this->assertSame('vlan3362', $service4Entry->interface_name);
+        $this->assertNotNull($sharedServiceEntry);
+        $this->assertNull($sharedServiceEntry->vlan_id);
+        $this->assertNotNull($bridgeHostEntry);
+        $this->assertSame(3363, $bridgeHostEntry->vlan_id);
+        $this->assertSame('EPON0/1:13', $bridgeHostEntry->interface_name);
+        $this->assertSame('bridge1', $bridgeHostEntry->bridge_name);
+        $this->assertSame(2, $snapshot->meta['pppoe_vlan_mapped_count']);
+        $this->assertSame(1, $snapshot->meta['pppoe_vlan_unmapped_count']);
+        $this->assertSame(1, $snapshot->meta['pppoe_vlan_ambiguous_count']);
+    }
+
     public function test_it_records_dynamic_non_local_mac_port_movement_between_snapshots(): void
     {
         $router = $this->router();
