@@ -117,6 +117,25 @@ class CustomerAddEditEnableWorkflowTest extends TestCase
         $this->assertDatabaseMissing('customers_infos', ['customer_unique_id' => 'CID-AVAILABLE-2026']);
     }
 
+    public function test_customer_type_dropdown_includes_free_for_new_and_existing_customers(): void
+    {
+        Livewire::test(NewCustomer::class)
+            ->assertSee('value="free"', false);
+
+        $customer = $this->createCustomer('CUSTOMER-TYPE-FREE', 'active');
+        OfficialInfo::create([
+            'customer_office_unique_id' => $customer->customer_unique_id,
+            'billing_type' => 'prepaid',
+            'connection_type' => 'fiber',
+            'connectivity_type' => 'shared',
+            'client_type' => 'home',
+            'connected_by' => $this->superAdmin->id,
+        ]);
+
+        Livewire::test(EditCustomer::class, ['customerId' => encrypt($customer->customer_unique_id)])
+            ->assertSee('value="free"', false);
+    }
+
     public function test_static_network_fields_are_saved_and_available_to_customer_edit(): void
     {
         $router = RouterList::create([

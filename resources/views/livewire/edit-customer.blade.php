@@ -97,7 +97,7 @@
 <x-mikrotik.form-group label="Billing Type" type="radio" name="fields.official.billing_type" :options="['prepaid'=>'Prepaid','postpaid'=>'Postpaid']"/>
 <x-mikrotik.form-group label="Type of Connection" type="radio" name="fields.official.connection_type" :options="['fiber'=>'Fiber','wired'=>'Wired','wireless'=>'Wireless']"/>
 <x-mikrotik.form-group label="Type of Connectivity" type="radio" name="fields.official.connectivity_type" :options="['shared'=>'Shared','dedicated'=>'Dedicated']"/>
-<x-mikrotik.form-group label="Type of Client" type="dropdownKey" name="fields.official.client_type" :options="['home'=>'Home','commercial'=>'Commercial','Corporate'=>'Corporate','business'=>'Business']"/>
+<x-mikrotik.form-group label="Type of Client" type="dropdownKey" name="fields.official.client_type" :options="['home'=>'Home','commercial'=>'Commercial','Corporate'=>'Corporate','business'=>'Business','free'=>'Free']"/>
 <x-mikrotik.form-group label="Description" type="text" name="fields.official.description"/>
 <x-mikrotik.form-group label="Note" type="text" name="fields.official.note"/>
 <x-mikrotik.form-group label="Connected By" type="dropdownKey" name="fields.official.connected_by" :options="$userLists->pluck('name','id')->toArray()"/>

@@ -11,7 +11,7 @@
             } catch (\Throwable $e) { return $fallback; }
         };
         $connectionTypeOptions = $serviceOptionMap('connection_type', ['fiber'=>__('Fiber'),'wired'=>__('Wired'),'wireless'=>__('Wireless')]);
-        $customerTypeOptions = $serviceOptionMap('customer_type', ['home'=>__('Home'),'commercial'=>__('Commercial'),'Corporate'=>__('Corporate'),'business'=>__('Business')]);
+        $customerTypeOptions = ['free'=>__('Free')] + $serviceOptionMap('customer_type', ['home'=>__('Home'),'commercial'=>__('Commercial'),'Corporate'=>__('Corporate'),'business'=>__('Business')]);
         $bandwidthTypeOptions = $serviceOptionMap('bandwidth_type', ['shared'=>__('Shared'),'dedicated'=>__('Dedicated')]);
     @endphp
 
