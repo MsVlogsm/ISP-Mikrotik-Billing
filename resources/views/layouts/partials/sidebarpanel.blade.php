@@ -218,6 +218,12 @@
                                 <span class="nav-link-text ps-1">{{ __('Mikrotik Sync') }}</span>
                             </div>
                         </a>
+                        <a wire:navigate.hover wire:current="active" class="nav-link" href="{{ route('mikrotik-bridge-hosts') }}">
+                            <div class="d-flex align-items-center">
+                                <span class="nav-link-icon"><i class="bi bi-diagram-3"></i></span>
+                                <span class="nav-link-text ps-1">{{ __('L2 Bridge Hosts') }}</span>
+                            </div>
+                        </a>
 
                         <!-- Mikrotik Server Dropdown -->
                         <a class="nav-link dropdown-indicator collapsed" href="#mikrotikServer" role="button" data-bs-toggle="collapse" aria-expanded="false" aria-controls="mikrotikServer">
